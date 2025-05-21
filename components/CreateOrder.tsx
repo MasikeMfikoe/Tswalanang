@@ -16,6 +16,7 @@ import { ordersApi } from "@/lib/api/ordersApi"
 import { customersApi } from "@/lib/api/customersApi"
 import { useErrorHandler } from "@/lib/errorHandling"
 import type { Order, Customer, Status, CargoStatus, FreightType } from "@/types/models"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function CreateOrder() {
   const router = useRouter()
@@ -30,6 +31,7 @@ export default function CreateOrder() {
     status: "Pending",
     cargoStatus: "instruction-sent",
     freightType: "Sea Freight",
+    cargoStatusComment: "",
   })
 
   // State for UI
@@ -224,7 +226,7 @@ export default function CreateOrder() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-1">
                     <Label htmlFor="cargoStatus">Cargo Status</Label>
                     <Select
                       value={order.cargoStatus}
@@ -243,6 +245,16 @@ export default function CreateOrder() {
                         <SelectItem value="delivered">Delivered</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2 md:col-span-1">
+                    <Label htmlFor="cargoStatusNotes">Cargo Status Notes</Label>
+                    <Textarea
+                      id="cargoStatusNotes"
+                      placeholder="Add notes about the cargo status"
+                      value={order.cargoStatusComment}
+                      onChange={(e) => handleChange("cargoStatusComment", e.target.value)}
+                      className="resize-y"
+                    />
                   </div>
                 </div>
               </form>

@@ -1,23 +1,91 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, ExternalLink } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Image from "next/image"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import ProtectedRoute from "@/components/ProtectedRoute"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+
+// Shipping line information with their tracking URLs and container number formats
+const shippingLines = [
+  {
+    name: "Maersk",
+    url: "https://www.maersk.com/tracking/",
+    containerPrefix: ["MAEU", "MRKU", "MSKU"],
+    blPrefix: ["MAEU"],
+    color: "#0091da",
+  },
+  {
+    name: "MSC",
+    url: "https://www.msc.com/track-a-shipment",
+    containerPrefix: ["MSCU", "MEDU"],
+    blPrefix: ["MSCU", "MEDI"],
+    color: "#1c3f94",
+  },
+  {
+    name: "CMA CGM",
+    url: "https://www.cma-cgm.com/ebusiness/tracking",
+    containerPrefix: ["CMAU", "CXDU"],
+    blPrefix: ["CMDU"],
+    color: "#0c1c5b",
+  },
+  {
+    name: "Hapag-Lloyd",
+    url: "https://www.hapag-lloyd.com/en/online-business/tracing/tracing-by-booking.html",
+    containerPrefix: ["HLXU", "HLCU"],
+    blPrefix: ["HLCU"],
+    color: "#d1001f",
+  },
+  {
+    name: "ONE",
+    url: "https://ecomm.one-line.com/ecom/CUP_HOM_3301.do",
+    containerPrefix: ["ONEY", "ONEU"],
+    blPrefix: ["ONEE"],
+    color: "#ff0099",
+  },
+  {
+    name: "Evergreen",
+    url: "https://www.evergreen-line.com/static/jsp/cargo_tracking.jsp",
+    containerPrefix: ["EVRU", "EGHU"],
+    blPrefix: ["EGLV"],
+    color: "#00a84f",
+  },
+  {
+    name: "COSCO",
+    url: "https://elines.coscoshipping.com/ebusiness/cargoTracking",
+    containerPrefix: ["COSU", "CBHU"],
+    blPrefix: ["COSU"],
+    color: "#dd1e25",
+  },
+]
 
 export default function ShipmentTracker() {
   const [trackingNumber, setTrackingNumber] = useState("")
   const [bookingType, setBookingType] = useState("ocean")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [suggestedLines, setSuggestedLines] = useState<Array<(typeof shippingLines)[0]>>([])
   const router = useRouter()
+
+  // Detect shipping line based on container or B/L number
+  useEffect(() => {
+    if (trackingNumber.length >= 4) {
+      const prefix = trackingNumber.substring(0, 4).toUpperCase()
+      const matchedLines = shippingLines.filter((line) => {
+        return line.containerPrefix.includes(prefix) || line.blPrefix.includes(prefix)
+      })
+      setSuggestedLines(matchedLines)
+    } else {
+      setSuggestedLines([])
+    }
+  }, [trackingNumber])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -107,6 +175,38 @@ export default function ShipmentTracker() {
             )}
           </form>
 
+          {/* Shipping Line Suggestions */}
+          {suggestedLines.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Suggested Shipping Lines</CardTitle>
+                <CardDescription>
+                  Based on your container/B/L number, you can also track directly with these shipping lines:
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {suggestedLines.map((line) => (
+                    <a
+                      key={line.name}
+                      href={line.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center p-3 border rounded-md hover:bg-gray-50 transition-colors"
+                      style={{ borderLeftColor: line.color, borderLeftWidth: "4px" }}
+                    >
+                      <div className="flex-1">
+                        <div className="font-medium">{line.name}</div>
+                        <div className="text-xs text-gray-500">Track on shipping line website</div>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-gray-400" />
+                    </a>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="text-sm text-gray-600 mb-6">
             <p>Container number is made of 4 letters and 7 digits.</p>
             <p>Bill of Lading number consists of 9 characters.</p>
@@ -144,6 +244,32 @@ export default function ShipmentTracker() {
                   <li>Any delays or exceptions</li>
                   <li>Documentation status</li>
                 </ul>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-3">
+              <AccordionTrigger className="py-4">How to track with different shipping lines?</AccordionTrigger>
+              <AccordionContent>
+                <p className="text-gray-700 mb-2">
+                  Each shipping line has its own tracking system. You can identify the shipping line from the first 4
+                  letters of your container number:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {shippingLines.map((line) => (
+                    <div key={line.name} className="border rounded p-2">
+                      <div className="font-medium">{line.name}</div>
+                      <div className="text-sm text-gray-600">Prefixes: {line.containerPrefix.join(", ")}</div>
+                      <a
+                        href={line.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline flex items-center mt-1"
+                      >
+                        Visit tracking page <ExternalLink className="h-3 w-3 ml-1" />
+                      </a>
+                    </div>
+                  ))}
+                </div>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
