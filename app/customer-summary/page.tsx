@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { format, parseISO } from "date-fns"
-import { Activity, Banknote, Clock, TrendingUp } from "lucide-react"
+import { Activity, Banknote, Clock, TrendingUp, Ship } from "lucide-react"
 import { BarChart } from "@/components/Charts"
 import {
   customers,
@@ -17,6 +18,7 @@ import {
   getMonthlyOrderData,
 } from "@/lib/customer-summary-data"
 import { toast } from "@/lib/toast"
+import CargoStatusTab from "@/components/CargoStatusTab"
 
 type DateRange = {
   startDate: Date | null
@@ -31,6 +33,7 @@ type PeriodOption = {
 
 export default function CustomerSummary() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [selectedCustomer, setSelectedCustomer] = useState<string>("")
   const [selectedPeriod, setSelectedPeriod] = useState<string>("last30days")
   const [startDate, setStartDate] = useState<string>("")
@@ -48,6 +51,21 @@ export default function CustomerSummary() {
   })
   const [monthlyOrderData, setMonthlyOrderData] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [activeTab, setActiveTab] = useState<string>("overview")
+
+  // Initialize active tab from URL if present
+  useEffect(() => {
+    const tabParam = searchParams.get("tab")
+    if (tabParam) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
+
+  // Update URL when tab changes
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    router.push(`/customer-summary?tab=${value}`)
+  }
 
   // Predefined period options
   const periodOptions: PeriodOption[] = useMemo(
@@ -223,7 +241,9 @@ export default function CustomerSummary() {
 
     // Navigate to the report page with query parameters
     router.push(
-      `/customer-summary/report?customerId=${encodeURIComponent(selectedCustomer)}&customerName=${encodeURIComponent(selectedCustomer)}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
+      `/customer-summary/report?customerId=${encodeURIComponent(selectedCustomer)}&customerName=${encodeURIComponent(
+        selectedCustomer,
+      )}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
     )
   }
 
@@ -360,215 +380,235 @@ export default function CustomerSummary() {
               </Card>
             </div>
 
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* Order Progress */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Order Progress</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {metrics.orderCount > 0 ? (
-                    <BarChart data={progressData} />
-                  ) : (
-                    <div className="flex justify-center items-center h-64 text-muted-foreground">
-                      No data available for the selected filters
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+            {/* Tabs */}
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
+              <TabsList className="mb-4">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="cargo-status" className="flex items-center">
+                  <Ship className="h-4 w-4 mr-2" />
+                  Cargo Status
+                </TabsTrigger>
+              </TabsList>
 
-              {/* Monthly Order Trend */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Monthly Order Trend</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {monthlyOrderData.length > 0 ? (
-                    <BarChart data={monthlyOrderData} />
-                  ) : (
-                    <div className="flex justify-center items-center h-64 text-muted-foreground">
-                      No data available for the selected filters
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <TabsContent value="overview">
+                {/* Main Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                  {/* Order Progress */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Order Progress</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {metrics.orderCount > 0 ? (
+                        <BarChart data={progressData} />
+                      ) : (
+                        <div className="flex justify-center items-center h-64 text-muted-foreground">
+                          No data available for the selected filters
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
 
-              {/* Recent Orders */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Orders</CardTitle>
-                  <p className="text-sm text-muted-foreground">Past 7 days</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {recentOrders.map((order) => (
-                      <div key={order.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-md">
-                        <div>
-                          <p className="font-medium">{order.poNumber}</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm text-muted-foreground">
-                              {format(parseISO(order.createdAt), "MMM dd, yyyy")}
-                            </p>
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded-full ${
-                                order.status === "Completed"
-                                  ? "bg-green-100 text-green-800"
-                                  : order.status === "In Progress"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : order.status === "Pending"
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {order.status}
-                            </span>
+                  {/* Monthly Order Trend */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Monthly Order Trend</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {monthlyOrderData.length > 0 ? (
+                        <BarChart data={monthlyOrderData} />
+                      ) : (
+                        <div className="flex justify-center items-center h-64 text-muted-foreground">
+                          No data available for the selected filters
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Recent Orders */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Recent Orders</CardTitle>
+                      <p className="text-sm text-muted-foreground">Past 7 days</p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {recentOrders.map((order) => (
+                          <div key={order.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-md">
+                            <div>
+                              <p className="font-medium">{order.poNumber}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm text-muted-foreground">
+                                  {format(parseISO(order.createdAt), "MMM dd, yyyy")}
+                                </p>
+                                <span
+                                  className={`text-xs px-2 py-0.5 rounded-full ${
+                                    order.status === "Completed"
+                                      ? "bg-green-100 text-green-800"
+                                      : order.status === "In Progress"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : order.status === "Pending"
+                                          ? "bg-yellow-100 text-yellow-800"
+                                          : "bg-red-100 text-red-800"
+                                  }`}
+                                >
+                                  {order.status}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-medium">{formatCurrency(order.totalValue)}</p>
+                              <p className="text-xs text-muted-foreground">{order.freightType}</p>
+                            </div>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">{formatCurrency(order.totalValue)}</p>
-                          <p className="text-xs text-muted-foreground">{order.freightType}</p>
-                        </div>
+                        ))}
+                        {recentOrders.length === 0 && (
+                          <p className="text-muted-foreground text-center py-4">No recent orders</p>
+                        )}
                       </div>
-                    ))}
-                    {recentOrders.length === 0 && (
-                      <p className="text-muted-foreground text-center py-4">No recent orders</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
 
-              {/* Customer Details */}
-              {selectedCustomer && (
+                  {/* Customer Details */}
+                  {selectedCustomer && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Customer Details</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {customers
+                          .filter((c) => c.name === selectedCustomer)
+                          .map((customer) => (
+                            <div key={customer.id} className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground">Contact Person</p>
+                                  <p>{customer.contactPerson}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground">Email</p>
+                                  <p>{customer.email}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                                  <p>{customer.phone}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground">VAT Number</p>
+                                  <p>{customer.vatNumber}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground">Importer's Code</p>
+                                  <p>{customer.importersCode}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground">Customer Since</p>
+                                  <p>{format(parseISO(customer.createdAt), "MMMM yyyy")}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground">Address</p>
+                                <p>
+                                  {customer.address.street}, {customer.address.city}, {customer.address.postalCode}
+                                </p>
+                                <p>{customer.address.country}</p>
+                              </div>
+                            </div>
+                          ))}
+                        {!customers.some((c) => c.name === selectedCustomer) && (
+                          <p className="text-muted-foreground text-center py-4">Customer details not found</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Order History */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Customer Details</CardTitle>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Order History</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedCustomer ? `Orders for ${selectedCustomer}` : "All orders"} •
+                        {startDate && endDate
+                          ? ` ${format(new Date(startDate), "MMM dd, yyyy")} to ${format(
+                              new Date(endDate),
+                              "MMM dd, yyyy",
+                            )}`
+                          : ""}
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" disabled={filteredOrders.length === 0}>
+                      Export to Excel
+                    </Button>
                   </CardHeader>
                   <CardContent>
-                    {customers
-                      .filter((c) => c.name === selectedCustomer)
-                      .map((customer) => (
-                        <div key={customer.id} className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-sm font-medium text-muted-foreground">Contact Person</p>
-                              <p>{customer.contactPerson}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-muted-foreground">Email</p>
-                              <p>{customer.email}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-muted-foreground">Phone</p>
-                              <p>{customer.phone}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-muted-foreground">VAT Number</p>
-                              <p>{customer.vatNumber}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-muted-foreground">Importer's Code</p>
-                              <p>{customer.importersCode}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-muted-foreground">Customer Since</p>
-                              <p>{format(parseISO(customer.createdAt), "MMMM yyyy")}</p>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">Address</p>
-                            <p>
-                              {customer.address.street}, {customer.address.city}, {customer.address.postalCode}
-                            </p>
-                            <p>{customer.address.country}</p>
-                          </div>
+                    <div className="rounded-md border">
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="p-2 text-left font-medium">Order Number</th>
+                              <th className="p-2 text-left font-medium">Date</th>
+                              <th className="p-2 text-left font-medium">Customer</th>
+                              <th className="p-2 text-left font-medium">Freight Type</th>
+                              <th className="p-2 text-left font-medium">Status</th>
+                              <th className="p-2 text-right font-medium">Order Value</th>
+                              <th className="p-2 text-right font-medium">VAT</th>
+                              <th className="p-2 text-right font-medium">Customs</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredOrders.slice(0, 10).map((order) => (
+                              <tr key={order.id} className="border-b hover:bg-muted/30">
+                                <td className="p-2">{order.poNumber}</td>
+                                <td className="p-2">{format(parseISO(order.createdAt), "MMM dd, yyyy")}</td>
+                                <td className="p-2">{order.importer}</td>
+                                <td className="p-2">{order.freightType}</td>
+                                <td className="p-2">
+                                  <span
+                                    className={`text-xs px-2 py-0.5 rounded-full ${
+                                      order.status === "Completed"
+                                        ? "bg-green-100 text-green-800"
+                                        : order.status === "In Progress"
+                                          ? "bg-blue-100 text-blue-800"
+                                          : order.status === "Pending"
+                                            ? "bg-yellow-100 text-yellow-800"
+                                            : "bg-red-100 text-red-800"
+                                    }`}
+                                  >
+                                    {order.status}
+                                  </span>
+                                </td>
+                                <td className="p-2 text-right">{formatCurrency(order.totalValue)}</td>
+                                <td className="p-2 text-right">{formatCurrency(order.totalValue * 0.15)}</td>
+                                <td className="p-2 text-right">{formatCurrency(order.totalValue * 0.2)}</td>
+                              </tr>
+                            ))}
+                            {filteredOrders.length === 0 && (
+                              <tr>
+                                <td colSpan={8} className="p-4 text-center text-muted-foreground">
+                                  No orders found for the selected criteria
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      {filteredOrders.length > 10 && (
+                        <div className="p-2 text-center text-sm text-muted-foreground border-t">
+                          Showing 10 of {filteredOrders.length} orders. Export to Excel to view all.
                         </div>
-                      ))}
-                    {!customers.some((c) => c.name === selectedCustomer) && (
-                      <p className="text-muted-foreground text-center py-4">Customer details not found</p>
-                    )}
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
-              )}
-            </div>
+              </TabsContent>
 
-            {/* Order History */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Order History</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedCustomer ? `Orders for ${selectedCustomer}` : "All orders"} •
-                    {startDate && endDate
-                      ? ` ${format(new Date(startDate), "MMM dd, yyyy")} to ${format(new Date(endDate), "MMM dd, yyyy")}`
-                      : ""}
-                  </p>
-                </div>
-                <Button variant="outline" size="sm" disabled={filteredOrders.length === 0}>
-                  Export to Excel
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="p-2 text-left font-medium">Order Number</th>
-                          <th className="p-2 text-left font-medium">Date</th>
-                          <th className="p-2 text-left font-medium">Customer</th>
-                          <th className="p-2 text-left font-medium">Freight Type</th>
-                          <th className="p-2 text-left font-medium">Status</th>
-                          <th className="p-2 text-right font-medium">Order Value</th>
-                          <th className="p-2 text-right font-medium">VAT</th>
-                          <th className="p-2 text-right font-medium">Customs</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredOrders.slice(0, 10).map((order) => (
-                          <tr key={order.id} className="border-b hover:bg-muted/30">
-                            <td className="p-2">{order.poNumber}</td>
-                            <td className="p-2">{format(parseISO(order.createdAt), "MMM dd, yyyy")}</td>
-                            <td className="p-2">{order.importer}</td>
-                            <td className="p-2">{order.freightType}</td>
-                            <td className="p-2">
-                              <span
-                                className={`text-xs px-2 py-0.5 rounded-full ${
-                                  order.status === "Completed"
-                                    ? "bg-green-100 text-green-800"
-                                    : order.status === "In Progress"
-                                      ? "bg-blue-100 text-blue-800"
-                                      : order.status === "Pending"
-                                        ? "bg-yellow-100 text-yellow-800"
-                                        : "bg-red-100 text-red-800"
-                                }`}
-                              >
-                                {order.status}
-                              </span>
-                            </td>
-                            <td className="p-2 text-right">{formatCurrency(order.totalValue)}</td>
-                            <td className="p-2 text-right">{formatCurrency(order.totalValue * 0.15)}</td>
-                            <td className="p-2 text-right">{formatCurrency(order.totalValue * 0.2)}</td>
-                          </tr>
-                        ))}
-                        {filteredOrders.length === 0 && (
-                          <tr>
-                            <td colSpan={8} className="p-4 text-center text-muted-foreground">
-                              No orders found for the selected criteria
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  {filteredOrders.length > 10 && (
-                    <div className="p-2 text-center text-sm text-muted-foreground border-t">
-                      Showing 10 of {filteredOrders.length} orders. Export to Excel to view all.
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+              <TabsContent value="cargo-status">
+                <CargoStatusTab customerId={selectedCustomer} startDate={startDate} endDate={endDate} />
+              </TabsContent>
+            </Tabs>
           </>
         )}
       </div>

@@ -15,6 +15,7 @@ interface AuthContextType {
   updateUser: (userData: Partial<User>) => Promise<boolean>
   hasPermission: (module: string, action: string) => boolean
   refreshUser: () => Promise<void>
+  getUsers: () => Promise<User[]>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -28,6 +29,17 @@ const MOCK_USER: User = {
   role: "admin",
   department: "IT",
   pageAccess: ["dashboard", "orders", "customers", "documents", "deliveries", "courierOrders", "shipmentTracker"],
+}
+
+// Create a mock tracking user
+const MOCK_TRACKING_USER: User = {
+  id: "mock-tracking-id",
+  username: "tracking",
+  name: "Tracking",
+  surname: "User",
+  role: "guest",
+  department: "Client",
+  pageAccess: ["shipmentTracker"],
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -63,44 +75,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check for session in Supabase
       const {
         data: { session },
+        error: sessionError,
       } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        console.error("Error getting session:", sessionError)
+        setUser(null)
+        setIsLoading(false)
+        return
+      }
 
       if (session) {
         console.log("Found Supabase session:", session)
 
-        // Get user profile from database
-        const { data: profile, error } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single()
-
-        if (error) {
-          console.error("Error fetching user profile:", error)
-          await supabase.auth.signOut()
-          setUser(null)
-          return
-        }
-
-        // Set user with profile data
-        const userData = {
-          id: session.user.id,
-          username: profile.username,
-          name: profile.name,
-          surname: profile.surname,
-          role: profile.role as UserRole,
-          department: profile.department,
-          pageAccess: profile.page_access || [],
-        }
-
-        console.log("Setting user from Supabase:", userData)
-        setUser(userData)
-
-        // Also store in localStorage for persistence
         try {
-          localStorage.setItem("user", JSON.stringify(userData))
-        } catch (e) {
-          console.log("Error saving to localStorage:", e)
+          // Get user profile from database
+          const { data: profile, error } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .single()
+
+          if (error) {
+            console.error("Error fetching user profile:", error)
+            await supabase.auth.signOut()
+            setUser(null)
+            return
+          }
+
+          // Set user with profile data
+          const userData = {
+            id: session.user.id,
+            username: profile.username,
+            name: profile.name,
+            surname: profile.surname,
+            role: profile.role as UserRole,
+            department: profile.department,
+            pageAccess: profile.page_access || [],
+          }
+
+          console.log("Setting user from Supabase:", userData)
+          setUser(userData)
+
+          // Also store in localStorage for persistence
+          try {
+            localStorage.setItem("user", JSON.stringify(userData))
+          } catch (e) {
+            console.log("Error saving to localStorage:", e)
+          }
+        } catch (error) {
+          console.error("Error processing user profile:", error)
+          setUser(null)
         }
       } else {
         console.log("No Supabase session found")
@@ -120,8 +145,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       console.log(`Attempting login for user: ${username}`)
 
-      // DEVELOPMENT MODE: Always allow login with demo/demo
-      if (username === "demo") {
+      // DEVELOPMENT MODE: Always allow login with demo/demo or tracking/tracking
+      if (username === "demo" && password === "demo") {
         console.log("Using mock login for demo user")
 
         // Set the mock user
@@ -139,57 +164,125 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true
       }
 
+      // Special case for tracking user
+      if (username === "tracking" && password === "tracking") {
+        console.log("Using mock login for tracking user")
+
+        // Set the mock tracking user
+        setUser(MOCK_TRACKING_USER)
+
+        // Store in localStorage for persistence
+        try {
+          localStorage.setItem("user", JSON.stringify(MOCK_TRACKING_USER))
+          console.log("Saved mock tracking user to localStorage")
+        } catch (e) {
+          console.log("Error saving to localStorage:", e)
+        }
+
+        console.log("Mock tracking login successful")
+        return true
+      }
+
       // For real authentication with Supabase
       console.log("Attempting Supabase authentication")
 
-      // Find user by username first
-      const { data: userProfiles, error: profileError } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .eq("username", username)
-        .single()
-
-      if (profileError || !userProfiles) {
-        console.error("User profile not found:", profileError)
-        return false
-      }
-
-      // Now sign in with email/password
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: `${username}@example.com`, // In a real app, you'd use the actual email
-        password,
-      })
-
-      if (error) {
-        console.error("Supabase auth error:", error)
-        return false
-      }
-
-      // Get user profile
-      const { data: profile } = await supabase.from("user_profiles").select("*").eq("id", data.user.id).single()
-
-      // Set user with profile data
-      const userData = {
-        id: data.user.id,
-        username: profile.username,
-        name: profile.name,
-        surname: profile.surname,
-        role: profile.role as UserRole,
-        department: profile.department,
-        pageAccess: profile.page_access || [],
-      }
-
-      console.log("Setting user from Supabase login:", userData)
-      setUser(userData)
-
-      // Store in localStorage for persistence
       try {
-        localStorage.setItem("user", JSON.stringify(userData))
-      } catch (e) {
-        console.log("Error saving to localStorage:", e)
-      }
+        // Find user by username first
+        const { data: userProfiles, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("*")
+          .eq("username", username)
+          .single()
 
-      return true
+        if (profileError) {
+          console.error("User profile not found:", profileError)
+
+          // If in development mode, allow login with any credentials for testing
+          if (process.env.NODE_ENV === "development") {
+            console.log("Development mode: Creating mock user for testing")
+            const testUser: User = {
+              id: `mock-${Date.now()}`,
+              username: username,
+              name: "Test",
+              surname: "User",
+              role: "employee",
+              department: "Test",
+              pageAccess: ["dashboard", "orders"],
+            }
+            setUser(testUser)
+            try {
+              localStorage.setItem("user", JSON.stringify(testUser))
+            } catch (e) {
+              console.log("Error saving to localStorage:", e)
+            }
+            return true
+          }
+
+          return false
+        }
+
+        // Now sign in with email/password
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: `${username}@example.com`, // In a real app, you'd use the actual email
+          password,
+        })
+
+        if (error) {
+          console.error("Supabase auth error:", error)
+          return false
+        }
+
+        // Get user profile
+        const { data: profile, error: profileGetError } = await supabase
+          .from("user_profiles")
+          .select("*")
+          .eq("id", data.user.id)
+          .single()
+
+        if (profileGetError) {
+          console.error("Error getting user profile after login:", profileGetError)
+          return false
+        }
+
+        // Set user with profile data
+        const userData = {
+          id: data.user.id,
+          username: profile.username,
+          name: profile.name,
+          surname: profile.surname,
+          role: profile.role as UserRole,
+          department: profile.department,
+          pageAccess: profile.page_access || [],
+        }
+
+        console.log("Setting user from Supabase login:", userData)
+        setUser(userData)
+
+        // Store in localStorage for persistence
+        try {
+          localStorage.setItem("user", JSON.stringify(userData))
+        } catch (e) {
+          console.log("Error saving to localStorage:", e)
+        }
+
+        return true
+      } catch (supabaseError) {
+        console.error("Supabase operation failed:", supabaseError)
+
+        // If Supabase is unavailable in development, still allow demo login
+        if (process.env.NODE_ENV === "development" && username === "demo") {
+          console.log("Supabase unavailable, using mock login for demo")
+          setUser(MOCK_USER)
+          try {
+            localStorage.setItem("user", JSON.stringify(MOCK_USER))
+          } catch (e) {
+            console.log("Error saving to localStorage:", e)
+          }
+          return true
+        }
+
+        return false
+      }
     } catch (error) {
       console.error("Login error:", error)
       return false
@@ -205,7 +298,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("Logging out...")
 
       // Sign out from Supabase
-      await supabase.auth.signOut()
+      try {
+        await supabase.auth.signOut()
+      } catch (error) {
+        console.error("Error signing out from Supabase:", error)
+        // Continue with local logout even if Supabase fails
+      }
 
       // Clear user state
       setUser(null)
@@ -352,6 +450,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await checkUser()
   }
 
+  // Get all users (admin only)
+  const getUsers = async (): Promise<User[]> => {
+    try {
+      console.log("Fetching all users")
+
+      // For development/demo purposes
+      if (process.env.NODE_ENV === "development" || user?.username === "demo") {
+        console.log("Returning mock users for development")
+        return [
+          {
+            id: "tracking-user-1",
+            username: "trackinguser1",
+            name: "Tracking",
+            surname: "User One",
+            role: "guest",
+            department: "Client",
+            pageAccess: ["shipmentTracker"],
+          },
+          {
+            id: "tracking-user-2",
+            username: "trackinguser2",
+            name: "Tracking",
+            surname: "User Two",
+            role: "guest",
+            department: "Client",
+            pageAccess: ["shipmentTracker"],
+          },
+          MOCK_TRACKING_USER,
+        ]
+      }
+
+      // Check if user is admin
+      if (!user || user.role !== "admin") {
+        console.error("Only admins can fetch all users")
+        return []
+      }
+
+      // Fetch users from Supabase
+      const { data, error } = await supabase.from("user_profiles").select("*")
+
+      if (error) {
+        console.error("Error fetching users:", error)
+        return []
+      }
+
+      // Map to User type
+      return data.map((profile) => ({
+        id: profile.id,
+        username: profile.username,
+        name: profile.name,
+        surname: profile.surname,
+        role: profile.role as UserRole,
+        department: profile.department,
+        pageAccess: profile.page_access || [],
+      }))
+    } catch (error) {
+      console.error("Error in getUsers:", error)
+      return []
+    }
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -364,6 +523,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateUser,
         hasPermission,
         refreshUser,
+        getUsers,
       }}
     >
       {children}

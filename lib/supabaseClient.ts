@@ -1,3 +1,5 @@
+import { createClient } from "@supabase/supabase-js"
+
 export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ""
 export const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ""
 
@@ -5,6 +7,14 @@ export const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || proc
 export function isSupabaseConfigured(): boolean {
   return Boolean(supabaseUrl && supabaseAnonKey)
 }
+
+// Create the actual Supabase client
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+})
 
 // Add a mock Supabase client for when credentials aren't available
 export const mockSupabaseClient = {
@@ -33,3 +43,9 @@ export const mockSupabaseClient = {
   }),
   // Add other Supabase client methods as needed
 }
+
+// Export the client to use based on configuration
+export const supabaseClient = isSupabaseConfigured() ? supabase : mockSupabaseClient
+
+// Default export for backward compatibility
+export default supabase

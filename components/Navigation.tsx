@@ -108,13 +108,6 @@ export function Navigation() {
       current: pathname === "/deliveries",
     },
     {
-      name: "Courier Orders",
-      href: "/courier-orders",
-      icon: Truck,
-      module: "courierOrders",
-      hasSubmenu: true,
-    },
-    {
       name: "Customers",
       href: "/customers",
       icon: User,

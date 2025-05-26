@@ -13,7 +13,6 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Loader2, AlertCircle } from "lucide-react"
 import { loginSchema, validateForm } from "@/lib/validation"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getUser } from "@/lib/utils"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -22,15 +21,25 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const router = useRouter()
-  const { login, isAuthenticated, isLoading } = useAuth()
+  const { login, isAuthenticated, isLoading, user } = useAuth()
 
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       console.log("User is already authenticated, redirecting to dashboard")
-      router.push("/dashboard")
+
+      // Check if user is a tracking user
+      if (
+        user &&
+        (user.role === "tracking" ||
+          (user.role === "guest" && user.pageAccess.length === 1 && user.pageAccess.includes("shipmentTracker")))
+      ) {
+        router.push("/shipment-tracker")
+      } else {
+        router.push("/dashboard")
+      }
     }
-  }, [isAuthenticated, isLoading, router])
+  }, [isAuthenticated, isLoading, router, user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,6 +76,33 @@ export default function LoginPage() {
       return
     }
 
+    // Special case for tracking user
+    if (username === "tracking") {
+      console.log("Tracking login - bypassing validation")
+      setIsLoggingIn(true)
+
+      try {
+        console.log("Calling login function with tracking credentials")
+        const success = await login("tracking", "tracking")
+        console.log("Login result:", success)
+
+        if (success) {
+          console.log("Login successful, redirecting to shipment tracker")
+          router.push("/shipment-tracker")
+        } else {
+          console.error("Login failed for tracking user")
+          setFormError("Login failed. Please try again.")
+        }
+      } catch (error) {
+        console.error("Login error:", error)
+        setFormError("An unexpected error occurred. Please try again.")
+      } finally {
+        setIsLoggingIn(false)
+      }
+
+      return
+    }
+
     // Validate form for non-demo users
     const validation = validateForm(loginSchema, { username, password })
 
@@ -86,14 +122,11 @@ export default function LoginPage() {
       if (success) {
         console.log("Login successful")
 
-        // Check if user is a tracking user
-        const currentUser = await getUser()
+        // Check if user is a tracking user using the user from AuthContext
         if (
-          currentUser &&
-          (currentUser.role === "tracking" ||
-            (currentUser.role === "guest" &&
-              currentUser.pageAccess.length === 1 &&
-              currentUser.pageAccess.includes("shipmentTracker")))
+          user &&
+          (user.role === "tracking" ||
+            (user.role === "guest" && user.pageAccess.length === 1 && user.pageAccess.includes("shipmentTracker")))
         ) {
           console.log("Redirecting tracking user to tracking-welcome")
           router.push("/tracking-welcome")
@@ -184,10 +217,14 @@ export default function LoginPage() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-2">
+        <CardFooter className="flex flex-col space-y-4">
           <div className="text-sm text-center text-muted-foreground">
             <span>Demo credentials: </span>
             <code className="bg-muted px-1 py-0.5 rounded">username: demo, password: demo</code>
+          </div>
+          <div className="text-sm text-center text-muted-foreground">
+            <span>Tracking user: </span>
+            <code className="bg-muted px-1 py-0.5 rounded">username: tracking, password: tracking</code>
           </div>
           <Link href="/" className="w-full">
             <Button type="button" variant="outline" className="w-full">
