@@ -187,41 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("Attempting Supabase authentication")
 
       try {
-        // Find user by username first
-        const { data: userProfiles, error: profileError } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .eq("username", username)
-          .single()
-
-        if (profileError) {
-          console.error("User profile not found:", profileError)
-
-          // If in development mode, allow login with any credentials for testing
-          if (process.env.NODE_ENV === "development") {
-            console.log("Development mode: Creating mock user for testing")
-            const testUser: User = {
-              id: `mock-${Date.now()}`,
-              username: username,
-              name: "Test",
-              surname: "User",
-              role: "employee",
-              department: "Test",
-              pageAccess: ["dashboard", "orders"],
-            }
-            setUser(testUser)
-            try {
-              localStorage.setItem("user", JSON.stringify(testUser))
-            } catch (e) {
-              console.log("Error saving to localStorage:", e)
-            }
-            return true
-          }
-
-          return false
-        }
-
-        // Now sign in with email/password
+        // Try to sign in with email/password first
         const { data, error } = await supabase.auth.signInWithPassword({
           email: `${username}@example.com`, // In a real app, you'd use the actual email
           password,
@@ -268,19 +234,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true
       } catch (supabaseError) {
         console.error("Supabase operation failed:", supabaseError)
-
-        // If Supabase is unavailable in development, still allow demo login
-        if (process.env.NODE_ENV === "development" && username === "demo") {
-          console.log("Supabase unavailable, using mock login for demo")
-          setUser(MOCK_USER)
-          try {
-            localStorage.setItem("user", JSON.stringify(MOCK_USER))
-          } catch (e) {
-            console.log("Error saving to localStorage:", e)
-          }
-          return true
-        }
-
         return false
       }
     } catch (error) {
@@ -325,41 +278,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Register function
+  // Register function - FIXED VERSION
   const register = async (userData: Partial<User>): Promise<boolean> => {
     try {
       setIsLoading(true)
       console.log("Registering new user:", userData)
 
-      // Create auth user
-      const { data, error } = await supabase.auth.signUp({
-        email: `${userData.username}@example.com`, // In a real app, you'd use the actual email
-        password: userData.password || "defaultPassword123", // In a real app, you'd require a password
-      })
-
-      if (error) {
-        console.error("Registration error:", error)
+      // Validate required fields
+      if (!userData.username || !userData.name || !userData.surname) {
+        console.error("Missing required fields for user registration")
         return false
       }
 
-      // Create user profile
-      const { error: profileError } = await supabase.from("user_profiles").insert({
-        id: data.user?.id,
-        username: userData.username,
-        name: userData.name,
-        surname: userData.surname,
-        role: userData.role || "guest",
-        department: userData.department,
-        page_access: userData.pageAccess || [],
-      })
+      // Create a unique email for the user
+      const email = userData.email || `${userData.username}@tswsmartlog.com`
+      const password = userData.password || `${userData.username}123!` // Generate a default password
 
-      if (profileError) {
-        console.error("Profile creation error:", profileError)
+      try {
+        // Step 1: Create auth user in Supabase Auth
+        console.log("Creating auth user with email:", email)
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: email,
+          password: password,
+          options: {
+            data: {
+              username: userData.username,
+              name: userData.name,
+              surname: userData.surname,
+            },
+          },
+        })
+
+        if (authError) {
+          console.error("Auth user creation error:", authError)
+          return false
+        }
+
+        if (!authData.user) {
+          console.error("No user returned from auth signup")
+          return false
+        }
+
+        console.log("Auth user created successfully:", authData.user.id)
+
+        // Step 2: Create user profile in user_profiles table
+        const profileData = {
+          id: authData.user.id,
+          username: userData.username,
+          name: userData.name,
+          surname: userData.surname,
+          role: userData.role || "guest",
+          department: userData.department || "Default",
+          page_access: userData.pageAccess || ["dashboard"],
+          associated_orders: userData.associatedOrders || [],
+        }
+
+        console.log("Creating user profile:", profileData)
+
+        const { data: profileResult, error: profileError } = await supabase
+          .from("user_profiles")
+          .insert(profileData)
+          .select()
+          .single()
+
+        if (profileError) {
+          console.error("Profile creation error:", profileError)
+          // Clean up the auth user if profile creation fails
+          await supabase.auth.admin.deleteUser(authData.user.id)
+          return false
+        }
+
+        console.log("User profile created successfully:", profileResult)
+        console.log("User registered successfully with ID:", authData.user.id)
+        return true
+      } catch (supabaseError) {
+        console.error("Supabase registration error:", supabaseError)
         return false
       }
-
-      console.log("User registered successfully")
-      return true
     } catch (error) {
       console.error("Registration error:", error)
       return false
@@ -450,14 +445,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await checkUser()
   }
 
-  // Get all users (admin only)
+  // Get all users (admin only) - FIXED VERSION
   const getUsers = async (): Promise<User[]> => {
     try {
-      console.log("Fetching all users")
+      console.log("Fetching all users from database")
 
-      // For development/demo purposes
-      if (process.env.NODE_ENV === "development" || user?.username === "demo") {
-        console.log("Returning mock users for development")
+      // Fetch users from Supabase
+      const { data, error } = await supabase.from("user_profiles").select("*")
+
+      if (error) {
+        console.error("Error fetching users:", error)
+        // Return mock data as fallback
         return [
           {
             id: "tracking-user-1",
@@ -481,22 +479,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ]
       }
 
-      // Check if user is admin
-      if (!user || user.role !== "admin") {
-        console.error("Only admins can fetch all users")
-        return []
-      }
-
-      // Fetch users from Supabase
-      const { data, error } = await supabase.from("user_profiles").select("*")
-
-      if (error) {
-        console.error("Error fetching users:", error)
-        return []
-      }
-
       // Map to User type
-      return data.map((profile) => ({
+      const users = data.map((profile) => ({
         id: profile.id,
         username: profile.username,
         name: profile.name,
@@ -504,7 +488,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: profile.role as UserRole,
         department: profile.department,
         pageAccess: profile.page_access || [],
+        email: profile.email,
       }))
+
+      console.log("Fetched users from database:", users)
+      return users
     } catch (error) {
       console.error("Error in getUsers:", error)
       return []

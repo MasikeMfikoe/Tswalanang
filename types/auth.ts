@@ -94,6 +94,7 @@ export interface User {
   role: UserRole
   pageAccess: string[]
   password?: string
+  associatedOrders?: string[]
 }
 
 export interface UserGroup {
