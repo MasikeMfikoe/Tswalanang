@@ -39,21 +39,70 @@ export class ApiClient {
     this.config = { ...defaultConfig, ...config }
   }
 
-  // Helper method to build URL
+  // Helper method to build URL safely
   private buildUrl(endpoint: string): string {
-    // Ensure we have a valid base URL, default to relative path if not
-    const baseUrl = this.config.baseUrl || ""
+    try {
+      // Ensure we have a valid base URL, default to relative path if not
+      const baseUrl = this.config.baseUrl || ""
 
-    // If baseUrl is empty or just "/", use relative paths
-    if (!baseUrl || baseUrl === "/") {
+      // If baseUrl is empty or just "/", use relative paths
+      if (!baseUrl || baseUrl === "/") {
+        return endpoint.startsWith("/") ? endpoint : `/${endpoint}`
+      }
+
+      // Clean up the baseUrl and endpoint
+      const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl
+      const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
+
+      // Try to construct a proper URL
+      try {
+        const testUrl = new URL(cleanEndpoint, cleanBaseUrl)
+        return testUrl.toString()
+      } catch (urlError) {
+        // If URL construction fails, fall back to simple concatenation
+        console.warn(`URL construction failed, using fallback: ${cleanBaseUrl}${cleanEndpoint}`)
+        return `${cleanBaseUrl}${cleanEndpoint}`
+      }
+    } catch (error) {
+      // Ultimate fallback - just return the endpoint as a relative path
+      console.warn(`URL building failed completely, using relative path: ${endpoint}`)
       return endpoint.startsWith("/") ? endpoint : `/${endpoint}`
     }
+  }
 
-    // Otherwise, properly join the baseUrl and endpoint
-    const formattedBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl
-    const formattedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
+  // Helper method to safely construct URL with parameters
+  private buildUrlWithParams(endpoint: string, params?: Record<string, string>): string {
+    try {
+      const baseUrl = this.buildUrl(endpoint)
 
-    return `${formattedBaseUrl}${formattedEndpoint}`
+      // If no params, return the base URL
+      if (!params || Object.keys(params).length === 0) {
+        return baseUrl
+      }
+
+      // Try to use URL constructor for proper parameter handling
+      try {
+        const url = new URL(baseUrl, window.location.origin)
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            url.searchParams.append(key, value)
+          }
+        })
+        return url.toString()
+      } catch (urlError) {
+        // Fallback to manual parameter construction
+        const paramString = Object.entries(params)
+          .filter(([_, value]) => value !== undefined && value !== null)
+          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+          .join("&")
+
+        const separator = baseUrl.includes("?") ? "&" : "?"
+        return paramString ? `${baseUrl}${separator}${paramString}` : baseUrl
+      }
+    } catch (error) {
+      console.warn(`Failed to build URL with params, using base endpoint: ${endpoint}`)
+      return endpoint
+    }
   }
 
   // Helper method to handle fetch with timeout and retries
@@ -63,19 +112,7 @@ export class ApiClient {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
 
-      // Ensure we have a valid URL
-      let validUrl: string
-      try {
-        // Check if it's a valid URL
-        new URL(url)
-        validUrl = url
-      } catch (error) {
-        // If not a valid URL, assume it's a relative path
-        validUrl = url.startsWith("/") ? url : `/${url}`
-        console.warn(`Invalid URL provided: ${url}, using relative path: ${validUrl}`)
-      }
-
-      const response = await fetch(validUrl, {
+      const response = await fetch(url, {
         ...options,
         signal: controller.signal,
       })
@@ -140,18 +177,9 @@ export class ApiClient {
 
   // GET request
   async get<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
-    const url = new URL(this.buildUrl(endpoint))
+    const url = this.buildUrlWithParams(endpoint, params)
 
-    // Add query parameters
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          url.searchParams.append(key, value)
-        }
-      })
-    }
-
-    const response = await this.fetchWithRetry(url.toString(), {
+    const response = await this.fetchWithRetry(url, {
       method: "GET",
       headers: this.config.headers,
     })

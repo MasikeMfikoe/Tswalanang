@@ -1,22 +1,80 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { customers } from "@/lib/sample-data"
+import { supabase } from "@/lib/supabase"
+import { useToast } from "@/components/ui/use-toast"
+
+interface Customer {
+  id: string
+  name: string
+  contact_person: string | null
+  email: string | null
+  phone: string | null
+  total_orders: number
+  total_spent: number
+  created_at: string
+}
 
 export default function Customers() {
   const router = useRouter()
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Fetch customers from Supabase
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
+
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true)
+      const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching customers:", error)
+        toast({
+          variant: "destructive",
+          title: "Error loading customers",
+          description: error.message,
+        })
+        return
+      }
+
+      setCustomers(data || [])
+    } catch (error) {
+      console.error("Error:", error)
+      toast({
+        variant: "destructive",
+        title: "Error loading customers",
+        description: "Failed to load customers from database",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filteredCustomers = customers.filter((customer) =>
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const handleCreateNewCustomer = () => {
-    // Use direct navigation with full URL path to ensure correct routing
-    window.location.href = "/customers/new"
+    router.push("/customers/new")
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <span className="ml-2">Loading customers...</span>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -42,6 +100,13 @@ export default function Customers() {
         />
       </div>
 
+      {/* Refresh button */}
+      <div className="mb-4">
+        <Button variant="outline" onClick={fetchCustomers}>
+          Refresh List
+        </Button>
+      </div>
+
       {/* Customer list */}
       <div className="space-y-4">
         {filteredCustomers.length > 0 ? (
@@ -49,8 +114,10 @@ export default function Customers() {
             <div key={customer.id} className="flex justify-between items-center p-4 border rounded-lg">
               <div>
                 <p className="font-semibold">{customer.name}</p>
-                <p className="text-sm text-gray-600">{customer.email}</p>
-                <p className="text-sm text-gray-500">Total Orders: {customer.totalOrders}</p>
+                <p className="text-sm text-gray-600">{customer.email || "No email"}</p>
+                <p className="text-sm text-gray-500">Contact: {customer.contact_person || "No contact person"}</p>
+                <p className="text-sm text-gray-500">Total Orders: {customer.total_orders}</p>
+                <p className="text-sm text-gray-400">Created: {new Date(customer.created_at).toLocaleDateString()}</p>
               </div>
               <Button asChild>
                 <Link href={`/customers/${customer.id}`}>View</Link>
@@ -58,7 +125,12 @@ export default function Customers() {
             </div>
           ))
         ) : (
-          <p className="text-gray-500">No customers found.</p>
+          <div className="text-center py-8">
+            <p className="text-gray-500 mb-4">
+              {customers.length === 0 ? "No customers found." : "No customers match your search."}
+            </p>
+            {customers.length === 0 && <Button onClick={handleCreateNewCustomer}>Create Your First Customer</Button>}
+          </div>
         )}
       </div>
     </div>

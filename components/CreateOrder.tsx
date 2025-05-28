@@ -12,16 +12,13 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { NewOrderDocumentUpload } from "@/components/NewOrderDocumentUpload"
-import { ordersApi } from "@/lib/api/ordersApi"
-import { customersApi } from "@/lib/api/customersApi"
-import { useErrorHandler } from "@/lib/errorHandling"
+import { supabase } from "@/lib/supabase"
 import type { Order, Customer, Status, CargoStatus, FreightType } from "@/types/models"
 import { Textarea } from "@/components/ui/textarea"
 
 export default function CreateOrder() {
   const router = useRouter()
   const { toast } = useToast()
-  const { handleError } = useErrorHandler()
 
   // State for order form
   const [order, setOrder] = useState<Partial<Order>>({
@@ -32,6 +29,8 @@ export default function CreateOrder() {
     cargoStatus: "instruction-sent",
     freightType: "Sea Freight",
     cargoStatusComment: "",
+    origin: "", // Add origin field
+    destination: "", // Add destination field
   })
 
   // State for UI
@@ -39,23 +38,88 @@ export default function CreateOrder() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [customers, setCustomers] = useState<Customer[]>([])
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
+  const [customersFetchError, setCustomersFetchError] = useState<string | null>(null)
 
   // Fetch customers on component mount
   React.useEffect(() => {
     fetchCustomers()
   }, [])
 
-  // Fetch customers from API
+  // Fetch customers directly from Supabase
   const fetchCustomers = async () => {
     setIsLoadingCustomers(true)
+    setCustomersFetchError(null)
+
     try {
-      const response = await customersApi.getCustomers()
-      setCustomers(response.data)
+      const { data, error } = await supabase.from("customers").select("*").order("name")
+
+      if (error) {
+        console.error("Error fetching customers:", error)
+        setCustomersFetchError("Failed to load customers")
+        // Use fallback customers
+        setCustomers([
+          {
+            id: "demo-1",
+            name: "ABC Trading Company",
+            contactPerson: "John Smith",
+            email: "john@abctrading.com",
+            phone: "+1-555-0123",
+            address: {
+              street: "123 Business Ave",
+              city: "New York",
+              postalCode: "10001",
+              country: "USA",
+            },
+            totalOrders: 15,
+            totalSpent: 125000,
+            vatNumber: "US123456789",
+            importersCode: "IMP001",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "demo-2",
+            name: "Global Imports Ltd",
+            contactPerson: "Sarah Johnson",
+            email: "sarah@globalimports.com",
+            phone: "+1-555-0456",
+            address: {
+              street: "456 Commerce St",
+              city: "Los Angeles",
+              postalCode: "90210",
+              country: "USA",
+            },
+            totalOrders: 8,
+            totalSpent: 75000,
+            vatNumber: "US987654321",
+            importersCode: "IMP002",
+            createdAt: new Date().toISOString(),
+          },
+        ])
+      } else {
+        setCustomers(data || [])
+      }
     } catch (error) {
-      handleError(error, {
-        component: "CreateOrder",
-        action: "fetchCustomers",
-      })
+      console.error("Error:", error)
+      setCustomersFetchError("Failed to load customers")
+      // Use fallback customers on error
+      setCustomers([
+        {
+          id: "fallback-1",
+          name: "Demo Customer 1",
+          contactPerson: "Demo Contact",
+          email: "demo1@example.com",
+          phone: "+1-555-0001",
+          address: {
+            street: "123 Demo St",
+            city: "Demo City",
+            postalCode: "12345",
+            country: "USA",
+          },
+          totalOrders: 0,
+          totalSpent: 0,
+          createdAt: new Date().toISOString(),
+        },
+      ])
     } finally {
       setIsLoadingCustomers(false)
     }
@@ -83,30 +147,61 @@ export default function CreateOrder() {
     if (!order.poNumber) newErrors.poNumber = "PO Number is required"
     if (!order.supplier) newErrors.supplier = "Supplier is required"
     if (!order.importer) newErrors.importer = "Importer is required"
+    if (!order.origin) newErrors.origin = "Origin is required"
+    if (!order.destination) newErrors.destination = "Destination is required"
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  // Handle form submission
+  // Handle form submission - Save directly to Supabase
   const handleSubmit = async (e: React.MouseEvent) => {
     e.preventDefault()
     if (!validateForm()) return
 
     setLoading(true)
     try {
-      const response = await ordersApi.createOrder(order)
+      // Prepare order data for Supabase - include all required fields
+      const orderData = {
+        order_number: order.poNumber,
+        po_number: order.poNumber,
+        supplier: order.supplier,
+        importer: order.importer,
+        origin: order.origin || "Unknown", // Provide default value
+        destination: order.destination || "Unknown", // Provide default value
+        status: order.status || "Pending",
+        cargo_status: order.cargoStatus || "instruction-sent",
+        freight_type: order.freightType || "Sea Freight",
+        cargo_status_comment: order.cargoStatusComment || "",
+        total_value: 0,
+        customer_name: order.importer,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      const { data, error } = await supabase.from("orders").insert([orderData]).select().single()
+
+      if (error) {
+        console.error("Supabase error:", error)
+        toast({
+          title: "Error",
+          description: `Failed to create order: ${error.message}`,
+          variant: "destructive",
+        })
+        return
+      }
 
       toast({
         title: "Success",
-        description: `Order ${response.data.poNumber} created successfully.`,
+        description: `Order ${orderData.order_number} created successfully!`,
       })
 
       router.push("/orders")
     } catch (error) {
-      handleError(error, {
-        component: "CreateOrder",
-        action: "createOrder",
-        data: { order },
+      console.error("Error creating order:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create order. Please try again.",
+        variant: "destructive",
       })
     } finally {
       setLoading(false)
@@ -141,7 +236,7 @@ export default function CreateOrder() {
                     <div className="flex gap-2">
                       <Input
                         id="poNumber"
-                        value={order.poNumber}
+                        value={order.poNumber || ""}
                         onChange={(e) => handleChange("poNumber", e.target.value)}
                         aria-label="PO Number"
                         required
@@ -162,7 +257,7 @@ export default function CreateOrder() {
                     <Label htmlFor="supplier">Supplier</Label>
                     <Input
                       id="supplier"
-                      value={order.supplier}
+                      value={order.supplier || ""}
                       onChange={(e) => handleChange("supplier", e.target.value)}
                       required
                       className={errors.supplier ? "border-red-500" : ""}
@@ -172,7 +267,7 @@ export default function CreateOrder() {
                   <div className="space-y-2">
                     <Label htmlFor="importer">Importer</Label>
                     <Select
-                      value={order.importer}
+                      value={order.importer || ""}
                       onValueChange={(value) => handleChange("importer", value)}
                       disabled={isLoadingCustomers}
                     >
@@ -184,21 +279,53 @@ export default function CreateOrder() {
                           <SelectItem value="loading" disabled>
                             Loading customers...
                           </SelectItem>
-                        ) : (
+                        ) : customersFetchError ? (
+                          <SelectItem value="error" disabled>
+                            Error loading customers - using fallback data
+                          </SelectItem>
+                        ) : customers && customers.length > 0 ? (
                           customers.map((customer) => (
                             <SelectItem key={customer.id} value={customer.name}>
                               {customer.name}
                             </SelectItem>
                           ))
+                        ) : (
+                          <SelectItem value="no-customers" disabled>
+                            No customers available
+                          </SelectItem>
                         )}
                       </SelectContent>
                     </Select>
                     {errors.importer && <p className="text-red-500 text-xs mt-1">{errors.importer}</p>}
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="origin">Origin</Label>
+                    <Input
+                      id="origin"
+                      value={order.origin || ""}
+                      onChange={(e) => handleChange("origin", e.target.value)}
+                      required
+                      placeholder="Enter origin location"
+                      className={errors.origin ? "border-red-500" : ""}
+                    />
+                    {errors.origin && <p className="text-red-500 text-xs mt-1">{errors.origin}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="destination">Destination</Label>
+                    <Input
+                      id="destination"
+                      value={order.destination || ""}
+                      onChange={(e) => handleChange("destination", e.target.value)}
+                      required
+                      placeholder="Enter destination location"
+                      className={errors.destination ? "border-red-500" : ""}
+                    />
+                    {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="freightType">Freight Type</Label>
                     <Select
-                      value={order.freightType}
+                      value={order.freightType || "Sea Freight"}
                       onValueChange={(value) => handleChange("freightType", value as FreightType)}
                     >
                       <SelectTrigger>
@@ -214,7 +341,10 @@ export default function CreateOrder() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="status">Order Status</Label>
-                    <Select value={order.status} onValueChange={(value) => handleChange("status", value as Status)}>
+                    <Select
+                      value={order.status || "Pending"}
+                      onValueChange={(value) => handleChange("status", value as Status)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
@@ -229,7 +359,7 @@ export default function CreateOrder() {
                   <div className="space-y-2 md:col-span-1">
                     <Label htmlFor="cargoStatus">Cargo Status</Label>
                     <Select
-                      value={order.cargoStatus}
+                      value={order.cargoStatus || "instruction-sent"}
                       onValueChange={(value) => handleChange("cargoStatus", value as CargoStatus)}
                     >
                       <SelectTrigger>
@@ -251,7 +381,7 @@ export default function CreateOrder() {
                     <Textarea
                       id="cargoStatusNotes"
                       placeholder="Add notes about the cargo status"
-                      value={order.cargoStatusComment}
+                      value={order.cargoStatusComment || ""}
                       onChange={(e) => handleChange("cargoStatusComment", e.target.value)}
                       className="resize-y"
                     />

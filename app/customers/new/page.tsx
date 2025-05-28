@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { RateCard } from "@/components/RateCard"
+import { supabase } from "@/lib/supabase"
 
 interface CustomerFormData {
   name: string
@@ -131,19 +132,52 @@ export default function NewCustomer() {
     )
   }
 
+  // Updated handleSubmit to save to Supabase
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Prepare customer data for Supabase
+      const customerData = {
+        name: formData.name,
+        contact_person: formData.primaryContact.name,
+        email: formData.primaryContact.email,
+        phone: formData.primaryContact.cellphone,
+        address_street: formData.address.street,
+        address_city: formData.address.city,
+        address_postal_code: formData.address.postalCode,
+        address_country: formData.address.country,
+        vat_number: formData.vatNumber,
+        importers_code: formData.importersCode,
+        total_orders: 0,
+        total_spent: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      // Save to Supabase
+      const { data, error } = await supabase.from("customers").insert([customerData]).select().single()
+
+      if (error) {
+        console.error("Supabase error:", error)
+        toast({
+          variant: "destructive",
+          title: "Error creating customer.",
+          description: `Database error: ${error.message}`,
+        })
+        return
+      }
 
       toast({
-        title: "Customer created.",
-        description: "Your customer has been created successfully.",
+        title: "Customer created successfully!",
+        description: `${formData.name} has been added to your customer database.`,
       })
-      router.push("/dashboard")
+
+      // Redirect to customers list or dashboard
+      router.push("/customers")
     } catch (error) {
+      console.error("Error creating customer:", error)
       toast({
         variant: "destructive",
         title: "Error creating customer.",
@@ -160,8 +194,8 @@ export default function NewCustomer() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Add New Customer</h1>
           <div className="flex space-x-2">
-            <Button variant="outline" onClick={() => router.push("/dashboard")}>
-              Return to Dashboard
+            <Button variant="outline" onClick={() => router.push("/customers")}>
+              Return to Customers
             </Button>
             <Button variant="outline" onClick={() => router.back()}>
               Cancel
@@ -365,8 +399,8 @@ export default function NewCustomer() {
                 </Card>
 
                 <div className="flex justify-end space-x-4">
-                  <Button variant="outline" onClick={() => router.push("/dashboard")}>
-                    Return to Dashboard
+                  <Button variant="outline" onClick={() => router.push("/customers")}>
+                    Return to Customers
                   </Button>
                   <Button variant="outline" type="button" onClick={() => router.back()}>
                     Cancel

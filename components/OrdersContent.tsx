@@ -11,209 +11,91 @@ import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { supabase } from "@/lib/supabase"
+import { useToast } from "@/components/ui/use-toast"
 
-// Define the Order type to avoid TypeScript errors
+// Define the Order type to match Supabase data
 type Order = {
   id: string
-  customerName: string
-  status: string
-  totalValue: number
-  createdAt: string
-  poNumber: string
-  supplier: string
-  importer: string
+  order_number?: string
+  po_number?: string
+  supplier?: string
+  importer?: string
+  status?: string
+  cargo_status?: string
+  freight_type?: string
+  total_value?: number
+  customer_name?: string
+  origin?: string
+  destination?: string
+  created_at: string
+  updated_at?: string
 }
-
-// Direct sample data definition - not in a function
-const SAMPLE_ORDERS: Order[] = [
-  {
-    id: "PO-2024-001",
-    customerName: "Acme Corporation",
-    status: "Completed",
-    totalValue: 12500,
-    createdAt: "2024-01-15T10:30:00Z",
-    poNumber: "PO001",
-    supplier: "Supplier A",
-    importer: "Acme Corp",
-  },
-  {
-    id: "PO-2024-002",
-    customerName: "Global Enterprises",
-    status: "In Progress",
-    totalValue: 8750,
-    createdAt: "2024-01-20T14:45:00Z",
-    poNumber: "PO002",
-    supplier: "Supplier B",
-    importer: "Global Traders",
-  },
-  {
-    id: "PO-2024-003",
-    customerName: "Tech Solutions",
-    status: "Pending",
-    totalValue: 15000,
-    createdAt: "2024-01-25T09:15:00Z",
-    poNumber: "PO003",
-    supplier: "Supplier C",
-    importer: "Tech Innovators",
-  },
-  {
-    id: "PO-2024-004",
-    customerName: "Logistics Pro",
-    status: "Cancelled",
-    totalValue: 5250,
-    createdAt: "2024-01-28T16:20:00Z",
-    poNumber: "PO004",
-    supplier: "Supplier D",
-    importer: "Logistics Pro",
-  },
-  {
-    id: "PO-2024-005",
-    customerName: "Acme Corporation",
-    status: "Completed",
-    totalValue: 9800,
-    createdAt: "2024-02-01T11:10:00Z",
-    poNumber: "PO005",
-    supplier: "Supplier E",
-    importer: "Acme Corp",
-  },
-  {
-    id: "PO-2024-006",
-    customerName: "Global Enterprises",
-    status: "In Progress",
-    totalValue: 11200,
-    createdAt: "2024-02-05T13:30:00Z",
-    poNumber: "PO006",
-    supplier: "Supplier F",
-    importer: "Global Traders",
-  },
-  {
-    id: "PO-2024-007",
-    customerName: "Tech Solutions",
-    status: "Pending",
-    totalValue: 7500,
-    createdAt: "2024-02-10T10:45:00Z",
-    poNumber: "PO007",
-    supplier: "Supplier G",
-    importer: "Tech Innovators",
-  },
-  {
-    id: "PO-2024-008",
-    customerName: "Logistics Pro",
-    status: "Completed",
-    totalValue: 18900,
-    createdAt: "2024-02-15T09:20:00Z",
-    poNumber: "PO008",
-    supplier: "Supplier H",
-    importer: "Logistics Pro",
-  },
-  {
-    id: "PO-2024-009",
-    customerName: "Acme Corporation",
-    status: "In Progress",
-    totalValue: 14500,
-    createdAt: "2024-02-20T15:15:00Z",
-    poNumber: "PO009",
-    supplier: "Supplier I",
-    importer: "Acme Corp",
-  },
-  {
-    id: "PO-2024-010",
-    customerName: "Global Enterprises",
-    status: "Cancelled",
-    totalValue: 6300,
-    createdAt: "2024-02-25T14:10:00Z",
-    poNumber: "PO010",
-    supplier: "Supplier J",
-    importer: "Global Traders",
-  },
-  {
-    id: "PO-2024-011",
-    customerName: "Tech Solutions",
-    status: "Completed",
-    totalValue: 21000,
-    createdAt: "2024-03-01T08:30:00Z",
-    poNumber: "PO011",
-    supplier: "Supplier K",
-    importer: "Tech Innovators",
-  },
-  {
-    id: "PO-2024-012",
-    customerName: "Logistics Pro",
-    status: "Pending",
-    totalValue: 9750,
-    createdAt: "2024-03-05T11:45:00Z",
-    poNumber: "PO012",
-    supplier: "Supplier L",
-    importer: "Logistics Pro",
-  },
-  {
-    id: "PO-2024-013",
-    customerName: "Acme Corporation",
-    status: "In Progress",
-    totalValue: 16800,
-    createdAt: "2024-03-10T13:20:00Z",
-    poNumber: "PO013",
-    supplier: "Supplier M",
-    importer: "Acme Corp",
-  },
-  {
-    id: "PO-2024-014",
-    customerName: "Global Enterprises",
-    status: "Completed",
-    totalValue: 11900,
-    createdAt: "2024-03-15T10:10:00Z",
-    poNumber: "PO014",
-    supplier: "Supplier N",
-    importer: "Global Traders",
-  },
-  {
-    id: "PO-2024-015",
-    customerName: "Tech Solutions",
-    status: "Cancelled",
-    totalValue: 8200,
-    createdAt: "2024-03-20T09:45:00Z",
-    poNumber: "PO015",
-    supplier: "Supplier O",
-    importer: "Tech Innovators",
-  },
-]
 
 export function OrdersContent() {
   console.log("OrdersContent component rendering")
 
   const router = useRouter()
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [filteredOrders, setFilteredOrders] = useState<Order[]>(SAMPLE_ORDERS)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [showNotification, setShowNotification] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Initialize component and show notification
-  useEffect(() => {
-    console.log("Component mounted")
+  // Fetch orders from Supabase
+  const fetchOrders = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
 
-    // Short timeout to simulate loading and ensure component is fully mounted
-    setTimeout(() => {
+      const { data, error: supabaseError } = await supabase
+        .from("orders")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      if (supabaseError) {
+        throw supabaseError
+      }
+
+      console.log("Fetched orders from Supabase:", data)
+      setOrders(data || [])
+
+      if (data && data.length === 0) {
+        toast({
+          title: "No Orders Found",
+          description: "No orders have been created yet. Create your first order!",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error fetching orders:", error)
+      setError(error.message || "Failed to fetch orders")
+      toast({
+        title: "Error",
+        description: "Failed to load orders from database",
+        variant: "destructive",
+      })
+      // Fallback to empty array
+      setOrders([])
+    } finally {
       setIsLoading(false)
-      setShowNotification(true)
+    }
+  }
 
-      // Auto-hide notification after 5 seconds
-      setTimeout(() => {
-        setShowNotification(false)
-      }, 5000)
-    }, 500)
-
-    // Log the sample data to console for debugging
-    console.log("Sample orders:", SAMPLE_ORDERS)
+  // Initialize component and fetch orders
+  useEffect(() => {
+    console.log("Component mounted, fetching orders...")
+    fetchOrders()
   }, [])
 
-  // Filter orders whenever search term or status filter changes
+  // Filter orders whenever search term, status filter, or orders change
   useEffect(() => {
-    console.log("Filtering orders with:", { searchTerm, statusFilter })
+    console.log("Filtering orders with:", { searchTerm, statusFilter, ordersCount: orders.length })
 
-    const filtered = SAMPLE_ORDERS.filter((order) => {
+    const filtered = orders.filter((order) => {
       // Status filter
-      if (statusFilter !== "all" && order.status.toLowerCase() !== statusFilter.toLowerCase()) {
+      if (statusFilter !== "all" && order.status?.toLowerCase() !== statusFilter.toLowerCase()) {
         return false
       }
 
@@ -221,11 +103,13 @@ export function OrdersContent() {
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase()
         return (
-          order.id.toLowerCase().includes(searchLower) ||
-          order.customerName.toLowerCase().includes(searchLower) ||
-          order.poNumber.toLowerCase().includes(searchLower) ||
-          order.supplier.toLowerCase().includes(searchLower) ||
-          order.importer.toLowerCase().includes(searchLower)
+          order.order_number?.toLowerCase().includes(searchLower) ||
+          order.po_number?.toLowerCase().includes(searchLower) ||
+          order.customer_name?.toLowerCase().includes(searchLower) ||
+          order.supplier?.toLowerCase().includes(searchLower) ||
+          order.importer?.toLowerCase().includes(searchLower) ||
+          order.origin?.toLowerCase().includes(searchLower) ||
+          order.destination?.toLowerCase().includes(searchLower)
         )
       }
 
@@ -234,7 +118,7 @@ export function OrdersContent() {
 
     console.log("Filtered orders count:", filtered.length)
     setFilteredOrders(filtered)
-  }, [searchTerm, statusFilter])
+  }, [searchTerm, statusFilter, orders])
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -242,15 +126,17 @@ export function OrdersContent() {
   }
 
   // Get badge variant based on status
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "Completed":
+  const getStatusBadge = (status?: string) => {
+    if (!status) return <Badge variant="outline">Unknown</Badge>
+
+    switch (status.toLowerCase()) {
+      case "completed":
         return <Badge className="bg-green-500 text-white">{status}</Badge>
-      case "In Progress":
+      case "in progress":
         return <Badge className="bg-blue-500 text-white">{status}</Badge>
-      case "Pending":
+      case "pending":
         return <Badge className="bg-yellow-500 text-black">{status}</Badge>
-      case "Cancelled":
+      case "cancelled":
         return <Badge className="bg-red-500 text-white">{status}</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
@@ -274,24 +160,14 @@ export function OrdersContent() {
 
   return (
     <div className="p-6">
-      {/* In-component notification instead of toast */}
-      {showNotification && (
-        <div className="mb-4 p-4 bg-blue-100 text-blue-800 rounded-md flex justify-between items-center">
-          <div>
-            <p className="font-semibold">Sample Data</p>
-            <p className="text-sm">Displaying sample order data for demonstration purposes</p>
-          </div>
-          <button onClick={() => setShowNotification(false)} className="text-blue-800 hover:text-blue-600">
-            ✕
-          </button>
-        </div>
-      )}
-
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Shipment Order Management</h1>
         <div className="flex space-x-4">
           <Button variant="outline" onClick={() => router.push("/dashboard")}>
             Return to Dashboard
+          </Button>
+          <Button variant="outline" onClick={fetchOrders} disabled={isLoading}>
+            {isLoading ? "Refreshing..." : "Refresh List"}
           </Button>
           <Link href="/create-order">
             <Button>Create New Order</Button>
@@ -302,10 +178,10 @@ export function OrdersContent() {
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>All Shipment Orders</CardTitle>
+            <CardTitle>All Shipment Orders ({orders.length} total)</CardTitle>
             <div className="flex items-center space-x-2">
               <Input
-                placeholder="Search orders by ID, PO number, supplier..."
+                placeholder="Search orders by PO number, customer, supplier..."
                 className="max-w-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -329,15 +205,23 @@ export function OrdersContent() {
           </div>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="mb-4 p-4 bg-red-100 text-red-800 rounded-md">
+              <p className="font-semibold">Error loading orders</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
+
           {isLoading ? (
             renderSkeleton()
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order ID</TableHead>
+                  <TableHead>Order Number</TableHead>
                   <TableHead>PO Number</TableHead>
                   <TableHead>Customer</TableHead>
+                  <TableHead>Origin → Destination</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Actions</TableHead>
@@ -347,11 +231,16 @@ export function OrdersContent() {
                 {filteredOrders.length > 0 ? (
                   filteredOrders.map((order) => (
                     <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.id}</TableCell>
-                      <TableCell>{order.poNumber}</TableCell>
-                      <TableCell>{order.importer}</TableCell>
+                      <TableCell className="font-medium">{order.order_number || order.po_number || order.id}</TableCell>
+                      <TableCell>{order.po_number || order.order_number || "N/A"}</TableCell>
+                      <TableCell>{order.customer_name || order.importer || "N/A"}</TableCell>
+                      <TableCell>
+                        {order.origin && order.destination
+                          ? `${order.origin} → ${order.destination}`
+                          : order.origin || order.destination || "N/A"}
+                      </TableCell>
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
-                      <TableCell>{formatDate(order.createdAt)}</TableCell>
+                      <TableCell>{formatDate(order.created_at)}</TableCell>
                       <TableCell>
                         <Button variant="outline" size="sm" onClick={() => router.push(`/orders/${order.id}`)}>
                           View Details
@@ -361,8 +250,17 @@ export function OrdersContent() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
-                      No orders found. Try adjusting your search or filter.
+                    <TableCell colSpan={7} className="h-24 text-center">
+                      {orders.length === 0 ? (
+                        <div className="flex flex-col items-center space-y-2">
+                          <p>No orders found in database.</p>
+                          <Link href="/create-order">
+                            <Button size="sm">Create Your First Order</Button>
+                          </Link>
+                        </div>
+                      ) : (
+                        "No orders match your search criteria. Try adjusting your filters."
+                      )}
                     </TableCell>
                   </TableRow>
                 )}
@@ -372,7 +270,7 @@ export function OrdersContent() {
         </CardContent>
       </Card>
 
-      {filteredOrders.length === 0 && SAMPLE_ORDERS.length > 0 && (
+      {filteredOrders.length === 0 && orders.length > 0 && (
         <div className="flex justify-center mt-4">
           <Button
             onClick={() => {

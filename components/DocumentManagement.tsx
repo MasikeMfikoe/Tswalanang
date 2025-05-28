@@ -11,7 +11,7 @@ export default function DocumentManagement({ orderId, isEditing }: { orderId: st
 
   return (
     <div className="space-y-6">
-      <DocumentUpload isEditing={isEditing} />
+      <DocumentUpload isEditing={isEditing} orderId={orderId} />
     </div>
   )
 }

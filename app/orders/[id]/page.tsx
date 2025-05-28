@@ -13,83 +13,133 @@ import DocumentManagement from "@/components/DocumentManagement"
 import EstimateGeneration from "@/components/EstimateGeneration"
 import PODManagement from "@/components/PODManagement"
 import ClientPackDocuments from "@/components/ClientPackDocuments"
-import { Download } from "lucide-react"
+import { Download, Loader2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { supabase } from "@/lib/supabase"
+
+interface OrderData {
+  id: string
+  order_number?: string
+  po_number?: string
+  supplier?: string
+  importer?: string
+  status?: string
+  cargo_status?: string
+  freight_type?: string
+  cargo_status_comment?: string
+  total_value?: number
+  customer_name?: string
+  origin?: string
+  destination?: string
+  created_at: string
+  updated_at?: string
+}
 
 export default function OrderDetails({ params }: { params: { id: string } }) {
   const { toast } = useToast()
   const router = useRouter()
 
-  const [order, setOrder] = useState({
-    id: params.id,
-    poNumber: "P0001",
-    supplier: "Supplier A",
-    importer: "Importer X",
-    status: "In Progress",
-    cargoStatus: "In Transit",
-    freightType: "",
-    cargoStatusComment: "",
-    documents: [],
-  })
-
-  const [tempOrder, setTempOrder] = useState({
-    id: params.id,
-    poNumber: "P0001",
-    supplier: "Supplier A",
-    importer: "Importer X",
-    status: "In Progress",
-    cargoStatus: "In Transit",
-    freightType: "",
-    cargoStatusComment: "",
-    documents: [],
-  })
-
+  const [order, setOrder] = useState<OrderData | null>(null)
+  const [tempOrder, setTempOrder] = useState<OrderData | null>(null)
   const [customers, setCustomers] = useState([])
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState("documents")
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const [cargoStatusHistory, setCargoStatusHistory] = useState([
     {
-      id: "4",
-      status: "at-destination",
-      comment: "Cargo arrived at destination port",
-      timestamp: new Date().toISOString(),
-      user: {
-        name: "John",
-        surname: "Smith",
-      },
-    },
-    {
-      id: "3",
-      status: "in-transit",
-      comment: "Cargo is in transit",
-      timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      user: {
-        name: "Sarah",
-        surname: "Johnson",
-      },
-    },
-    {
-      id: "2",
-      status: "cargo-departed",
-      comment: "Cargo has departed from origin",
-      timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-      user: {
-        name: "Mike",
-        surname: "Wilson",
-      },
-    },
-    {
       id: "1",
-      status: "instruction-sent",
-      comment: "Initial instruction sent to agent",
-      timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      status: order?.cargo_status || "pending",
+      comment: order?.cargo_status_comment || "Order created",
+      timestamp: order?.created_at || new Date().toISOString(),
       user: {
-        name: "Emma",
-        surname: "Davis",
+        name: "System",
+        surname: "User",
       },
     },
   ])
+
+  // Fetch order details from Supabase
+  const fetchOrderDetails = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      const { data, error: supabaseError } = await supabase.from("orders").select("*").eq("id", params.id).single()
+
+      if (supabaseError) {
+        throw supabaseError
+      }
+
+      if (!data) {
+        throw new Error("Order not found")
+      }
+
+      console.log("Fetched order details:", data)
+      setOrder(data)
+      setTempOrder(data)
+
+      // Update cargo status history with real data
+      setCargoStatusHistory([
+        {
+          id: "1",
+          status: data.cargo_status || "pending",
+          comment: data.cargo_status_comment || "Order created",
+          timestamp: data.created_at,
+          user: {
+            name: "System",
+            surname: "User",
+          },
+        },
+      ])
+    } catch (error: any) {
+      console.error("Error fetching order:", error)
+      setError(error.message || "Failed to fetch order details")
+      toast({
+        title: "Error",
+        description: "Failed to load order details",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Fetch customers for dropdown
+  const fetchCustomers = async () => {
+    try {
+      const { data, error: supabaseError } = await supabase.from("customers").select("id, name").order("name")
+
+      if (supabaseError) {
+        console.error("Error fetching customers:", supabaseError)
+      }
+
+      setCustomers(
+        data || [
+          { id: 1, name: "Acme Corp" },
+          { id: 2, name: "Global Traders" },
+          { id: 3, name: "Tech Innovators" },
+          { id: 4, name: "Default Customer" },
+        ],
+      )
+    } catch (error) {
+      console.error("Error fetching customers:", error)
+      // Use fallback data
+      setCustomers([
+        { id: 1, name: "Acme Corp" },
+        { id: 2, name: "Global Traders" },
+        { id: 3, name: "Tech Innovators" },
+        { id: 4, name: "Default Customer" },
+      ])
+    }
+  }
+
+  useEffect(() => {
+    fetchOrderDetails()
+    fetchCustomers()
+  }, [params.id])
 
   useEffect(() => {
     if (!isEditing && activeTab === "upload") {
@@ -97,40 +147,78 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     }
   }, [isEditing, activeTab])
 
-  useEffect(() => {
-    setCustomers([
-      { id: 1, name: "Acme Corp" },
-      { id: 2, name: "Global Traders" },
-      { id: 3, name: "Tech Innovators" },
-      { id: 4, name: "Importer X" },
-    ])
-  }, [])
-
   const handleChange = (field: string, value: string) => {
-    setTempOrder((prev) => ({ ...prev, [field]: value }))
+    if (tempOrder) {
+      setTempOrder((prev) => ({ ...prev!, [field]: value }))
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (order.cargoStatus !== tempOrder.cargoStatus) {
-      setCargoStatusHistory((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          status: tempOrder.cargoStatus,
-          comment: tempOrder.cargoStatusComment || "",
-          timestamp: new Date().toISOString(),
-          user: {
-            name: user?.name || "Unknown",
-            surname: user?.surname || "User",
+    if (!tempOrder || !order) return
+
+    try {
+      setIsSaving(true)
+
+      // Update order in Supabase
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({
+          order_number: tempOrder.order_number,
+          po_number: tempOrder.po_number,
+          supplier: tempOrder.supplier,
+          importer: tempOrder.importer,
+          status: tempOrder.status,
+          cargo_status: tempOrder.cargo_status,
+          freight_type: tempOrder.freight_type,
+          cargo_status_comment: tempOrder.cargo_status_comment,
+          customer_name: tempOrder.customer_name,
+          origin: tempOrder.origin,
+          destination: tempOrder.destination,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", params.id)
+
+      if (updateError) {
+        throw updateError
+      }
+
+      // Update cargo status history if status changed
+      if (order.cargo_status !== tempOrder.cargo_status) {
+        setCargoStatusHistory((prev) => [
+          {
+            id: Date.now().toString(),
+            status: tempOrder.cargo_status || "pending",
+            comment: tempOrder.cargo_status_comment || "",
+            timestamp: new Date().toISOString(),
+            user: {
+              name: "Current",
+              surname: "User",
+            },
           },
-        },
-      ])
-      tempOrder.cargoStatusComment = ""
+          ...prev,
+        ])
+        // Clear the comment after adding to history
+        setTempOrder((prev) => ({ ...prev!, cargo_status_comment: "" }))
+      }
+
+      setOrder(tempOrder)
+      setIsEditing(false)
+
+      toast({
+        title: "Success",
+        description: "Order updated successfully",
+      })
+    } catch (error: any) {
+      console.error("Error updating order:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update order",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
     }
-    console.log("Updating order:", tempOrder)
-    setOrder(tempOrder)
-    setIsEditing(false)
   }
 
   const handleCancel = () => {
@@ -138,38 +226,60 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     setIsEditing(false)
   }
 
-  const handlePaymentReceived = () => {
-    // Update the order status to Completed
-    setOrder((prev) => ({ ...prev, status: "Completed" }))
-    setTempOrder((prev) => ({ ...prev, status: "Completed" }))
+  const handlePaymentReceived = async () => {
+    if (!order) return
 
-    // Add to cargo status history
-    setCargoStatusHistory((prev) => [
-      {
-        id: Date.now().toString(),
-        status: "payment-received",
-        comment: "Payment received and order completed",
-        timestamp: new Date().toISOString(),
-        user: {
-          name: user?.name || "Unknown",
-          surname: user?.surname || "User",
+    try {
+      // Update the order status to Completed in Supabase
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({
+          status: "Completed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", params.id)
+
+      if (updateError) {
+        throw updateError
+      }
+
+      // Update local state
+      setOrder((prev) => (prev ? { ...prev, status: "Completed" } : null))
+      setTempOrder((prev) => (prev ? { ...prev, status: "Completed" } : null))
+
+      // Add to cargo status history
+      setCargoStatusHistory((prev) => [
+        {
+          id: Date.now().toString(),
+          status: "delivered",
+          comment: "Payment received and order completed",
+          timestamp: new Date().toISOString(),
+          user: {
+            name: "Current",
+            surname: "User",
+          },
         },
-      },
-      ...prev,
-    ])
+        ...prev,
+      ])
 
-    // Show success notification using toast
-    toast({
-      title: "Payment Received",
-      description: `Order ${params.id} has been marked as completed`,
-      variant: "default",
-    })
+      toast({
+        title: "Payment Received",
+        description: `Order ${order.order_number || order.po_number} has been marked as completed`,
+      })
+    } catch (error: any) {
+      console.error("Error updating payment status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update payment status",
+        variant: "destructive",
+      })
+    }
   }
 
   const statuses = ["Pending", "In Progress", "Completed", "Cancelled"]
 
   const exportToExcel = () => {
-    const headers = ["Status", "Comment", "Timestamp"]
+    const headers = ["Status", "Comment", "Timestamp", "User"]
     const csvData = cargoStatusHistory.map((history) => [
       history.status
         .split("-")
@@ -177,6 +287,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         .join(" "),
       history.comment || "",
       new Date(history.timestamp).toLocaleString(),
+      `${history.user.name} ${history.user.surname}`,
     ])
 
     const csvContent = [
@@ -188,19 +299,45 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     const link = document.createElement("a")
     const url = URL.createObjectURL(blob)
     link.setAttribute("href", url)
-    link.setAttribute("download", `cargo_status_report_${order.poNumber}.csv`)
+    link.setAttribute("download", `cargo_status_report_${order?.order_number || order?.po_number || params.id}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
 
-  const user = { name: "Test", surname: "User" }
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading order details...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !order) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h2 className="text-xl font-semibold text-red-600">Order Not Found</h2>
+          <p className="text-gray-600">{error || "The requested order could not be found."}</p>
+          <div className="space-x-2">
+            <Button variant="outline" onClick={() => router.push("/orders")}>
+              Back to Orders
+            </Button>
+            <Button onClick={() => fetchOrderDetails()}>Try Again</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-6">
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">Order Details: {order.poNumber}</h1>
+          <h1 className="text-2xl font-bold">Order Details: {order.order_number || order.po_number || order.id}</h1>
           <div className="flex space-x-2">
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               Return to Dashboard
@@ -215,7 +352,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
           <CardHeader className="flex flex-row justify-between items-center">
             <CardTitle>Order Information</CardTitle>
             <div className="flex space-x-2">
-              <Button variant="outline" onClick={() => handlePaymentReceived()}>
+              <Button variant="outline" onClick={handlePaymentReceived}>
                 Payment Received
               </Button>
               {!isEditing && (
@@ -227,22 +364,29 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <ul className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { label: "PO Number", key: "poNumber", value: order.poNumber },
-                  { label: "Supplier", key: "supplier", value: order.supplier },
-                  { label: "Importer", key: "importer", value: order.importer },
-                  { label: "Order Status", key: "status", value: order.status },
-                  { label: "Cargo Status", key: "cargoStatus", value: order.cargoStatus },
-                  { label: "Freight Type", key: "freightType", value: order.freightType },
+                  { label: "Order Number", key: "order_number", value: order.order_number || "N/A" },
+                  { label: "PO Number", key: "po_number", value: order.po_number || "N/A" },
+                  { label: "Supplier", key: "supplier", value: order.supplier || "N/A" },
+                  { label: "Importer", key: "importer", value: order.importer || "N/A" },
+                  { label: "Customer", key: "customer_name", value: order.customer_name || "N/A" },
+                  { label: "Origin", key: "origin", value: order.origin || "N/A" },
+                  { label: "Destination", key: "destination", value: order.destination || "N/A" },
+                  { label: "Order Status", key: "status", value: order.status || "N/A" },
+                  { label: "Cargo Status", key: "cargo_status", value: order.cargo_status || "N/A" },
+                  { label: "Freight Type", key: "freight_type", value: order.freight_type || "N/A" },
                 ].map(({ label, key, value }) => (
-                  <li key={key} className="flex items-center space-x-3">
-                    <Label className="font-semibold w-32">{label}:</Label>
+                  <div key={key} className="space-y-2">
+                    <Label className="font-semibold">{label}:</Label>
                     {isEditing ? (
-                      key === "freightType" ? (
-                        <Select value={tempOrder.freightType} onValueChange={(val) => handleChange("freightType", val)}>
-                          <SelectTrigger className="w-48">
-                            <SelectValue placeholder="Select freight type">{tempOrder.freightType}</SelectValue>
+                      key === "freight_type" ? (
+                        <Select
+                          value={(tempOrder?.[key as keyof OrderData] as string) || ""}
+                          onValueChange={(val) => handleChange(key, val)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select freight type" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Air Freight">Air Freight</SelectItem>
@@ -252,12 +396,15 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                           </SelectContent>
                         </Select>
                       ) : key === "importer" ? (
-                        <Select value={tempOrder.importer} onValueChange={(val) => handleChange("importer", val)}>
-                          <SelectTrigger className="w-48">
+                        <Select
+                          value={tempOrder?.importer || ""}
+                          onValueChange={(val) => handleChange("importer", val)}
+                        >
+                          <SelectTrigger>
                             <SelectValue placeholder="Select importer" />
                           </SelectTrigger>
                           <SelectContent>
-                            {customers.map((customer) => (
+                            {customers.map((customer: any) => (
                               <SelectItem key={customer.id} value={customer.name}>
                                 {customer.name}
                               </SelectItem>
@@ -265,8 +412,8 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                           </SelectContent>
                         </Select>
                       ) : key === "status" ? (
-                        <Select value={tempOrder.status} onValueChange={(val) => handleChange("status", val)}>
-                          <SelectTrigger className="w-48">
+                        <Select value={tempOrder?.status || ""} onValueChange={(val) => handleChange("status", val)}>
+                          <SelectTrigger>
                             <SelectValue placeholder="Select status" />
                           </SelectTrigger>
                           <SelectContent>
@@ -277,13 +424,13 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                             ))}
                           </SelectContent>
                         </Select>
-                      ) : key === "cargoStatus" ? (
+                      ) : key === "cargo_status" ? (
                         <div className="space-y-2">
                           <Select
-                            value={tempOrder.cargoStatus}
-                            onValueChange={(val) => handleChange("cargoStatus", val)}
+                            value={tempOrder?.cargo_status || ""}
+                            onValueChange={(val) => handleChange("cargo_status", val)}
                           >
-                            <SelectTrigger className="w-48">
+                            <SelectTrigger>
                               <SelectValue placeholder="Select cargo status" />
                             </SelectTrigger>
                             <SelectContent>
@@ -296,44 +443,52 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                               <SelectItem value="delivered">Delivered</SelectItem>
                             </SelectContent>
                           </Select>
-                          {(tempOrder.cargoStatus === "instruction-sent" ||
-                            tempOrder.cargoStatus === "agent-response") && (
+                          {(tempOrder?.cargo_status === "instruction-sent" ||
+                            tempOrder?.cargo_status === "agent-response") && (
                             <Input
-                              className="w-48"
                               placeholder="Add comment"
-                              value={tempOrder.cargoStatusComment || ""}
-                              onChange={(e) => handleChange("cargoStatusComment", e.target.value)}
+                              value={tempOrder?.cargo_status_comment || ""}
+                              onChange={(e) => handleChange("cargo_status_comment", e.target.value)}
                             />
                           )}
                         </div>
                       ) : (
                         <Input
-                          className="w-48"
-                          value={tempOrder[key as keyof typeof order]}
+                          value={(tempOrder?.[key as keyof OrderData] as string) || ""}
                           onChange={(e) => handleChange(key, e.target.value)}
                         />
                       )
                     ) : (
-                      <p className="text-gray-700">
+                      <p className="text-gray-700 p-2 bg-gray-50 rounded">
                         {value}
-                        {key === "cargoStatus" &&
-                          (order.cargoStatus === "instruction-sent" || order.cargoStatus === "agent-response") &&
-                          order.cargoStatusComment && (
+                        {key === "cargo_status" &&
+                          (order.cargo_status === "instruction-sent" || order.cargo_status === "agent-response") &&
+                          order.cargo_status_comment && (
                             <span className="block text-sm text-gray-500 mt-1">
-                              Comment: {order.cargoStatusComment}
+                              Comment: {order.cargo_status_comment}
                             </span>
                           )}
                       </p>
                     )}
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
+
               {isEditing && (
-                <div className="flex justify-end space-x-2">
+                <div className="flex justify-end space-x-2 pt-4">
                   <Button type="button" variant="outline" onClick={handleCancel}>
                     Cancel
                   </Button>
-                  <Button type="submit">Save Changes</Button>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Changes"
+                    )}
+                  </Button>
                 </div>
               )}
             </form>
@@ -370,7 +525,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
             <TabsContent value="estimate">
               <div className="pr-4 text-[15px]">
                 <div className="[&_span:first-child]:font-bold [&_.flex.justify-between]:gap-1">
-                  <EstimateGeneration orderId={order.id} freightType={order.freightType} />
+                  <EstimateGeneration orderId={order.id} freightType={order.freight_type || ""} />
                 </div>
               </div>
             </TabsContent>
@@ -396,12 +551,15 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                         <tr className="border-b bg-muted/50">
                           <th className="h-12 px-4 text-left align-middle font-medium w-[140px]">Status Type</th>
                           <th className="h-12 px-4 text-left align-middle font-medium">Status</th>
+                          <th className="h-12 px-4 text-left align-middle font-medium">Comment</th>
+                          <th className="h-12 px-4 text-left align-middle font-medium">User</th>
+                          <th className="h-12 px-4 text-left align-middle font-medium">Timestamp</th>
                         </tr>
                       </thead>
                       <tbody>
                         {cargoStatusHistory.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="p-4 text-center text-muted-foreground">
+                            <td colSpan={5} className="p-4 text-center text-muted-foreground">
                               No cargo status changes recorded yet.
                             </td>
                           </tr>
@@ -446,7 +604,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
               </Card>
             </TabsContent>
             <TabsContent value="client-pack">
-              <ClientPackDocuments orderId={params.id} freightType={order.freightType} />
+              <ClientPackDocuments orderId={params.id} freightType={order.freight_type || ""} />
             </TabsContent>
           </Tabs>
         </div>

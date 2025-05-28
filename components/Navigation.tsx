@@ -17,7 +17,6 @@ import {
   Settings,
   LineChart,
   Search,
-  Users,
   BarChart2,
   CreditCard,
   Menu,
@@ -28,7 +27,6 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
-// Add named export
 export function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -79,7 +77,7 @@ export function Navigation() {
       hasSubmenu: true,
       current: pathname === "/orders" || pathname?.startsWith("/orders/"),
       children: [
-        { name: "Shipment Orders", href: "/orders" }, // Changed from "All Orders" to "Shipment Orders"
+        { name: "Shipment Orders", href: "/orders" },
         { name: "Courier Orders", href: "/courier-orders" },
       ],
     },
@@ -152,13 +150,6 @@ export function Navigation() {
         { name: "Tracking Users", href: "/admin/tracking-users" },
       ],
     },
-  ]
-
-  // Admin submenu items
-  const adminSubmenuItems = [
-    { name: "Users", href: "/admin/users", icon: User, module: "admin" },
-    { name: "User Groups", href: "/admin/user-groups", icon: Users, module: "admin" },
-    { name: "Settings", href: "/admin/settings", icon: Settings, module: "admin" },
   ]
 
   // Only render navigation when not on the landing page
@@ -521,5 +512,4 @@ export function Navigation() {
   )
 }
 
-// Add default export
 export default Navigation
