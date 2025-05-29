@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import DocumentManagement from "@/components/DocumentManagement"
-import EstimateGeneration from "@/components/EstimateGeneration"
 import PODManagement from "@/components/PODManagement"
 import ClientPackDocuments from "@/components/ClientPackDocuments"
 import { Download, Loader2 } from "lucide-react"
@@ -33,6 +32,14 @@ interface OrderData {
   destination?: string
   created_at: string
   updated_at?: string
+  // Financial fields
+  commercial_value?: number
+  customs_duties?: number
+  handling_fees?: number
+  shipping_cost?: number
+  documentation_fee?: number
+  communication_fee?: number
+  financial_notes?: string
 }
 
 export default function OrderDetails({ params }: { params: { id: string } }) {
@@ -502,7 +509,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                 View Documents
               </TabsTrigger>
               {isEditing && <TabsTrigger value="upload">Upload Documents</TabsTrigger>}
-              <TabsTrigger value="estimate">Estimate</TabsTrigger>
+              <TabsTrigger value="financials">Order Financials</TabsTrigger>
               <TabsTrigger value="pod">Proof of Delivery</TabsTrigger>
               <TabsTrigger value="cargo-history">Cargo Status Report</TabsTrigger>
               <TabsTrigger
@@ -522,12 +529,155 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                 <DocumentManagement orderId={order.id} isEditing={true} />
               </TabsContent>
             )}
-            <TabsContent value="estimate">
-              <div className="pr-4 text-[15px]">
-                <div className="[&_span:first-child]:font-bold [&_.flex.justify-between]:gap-1">
-                  <EstimateGeneration orderId={order.id} freightType={order.freight_type || ""} />
-                </div>
-              </div>
+            <TabsContent value="financials">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Order Financials</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {/* Financial Form - Read Only */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="commercialValue">Commercial Value (R)</Label>
+                        <Input
+                          id="commercialValue"
+                          type="text"
+                          value={`R ${(order?.commercial_value || 0).toFixed(2)}`}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="customsDuties">Customs Duties (R)</Label>
+                        <Input
+                          id="customsDuties"
+                          type="text"
+                          value={`R ${(order?.customs_duties || 0).toFixed(2)}`}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="customsVAT">Customs VAT (15% of commercial value)</Label>
+                        <Input
+                          id="customsVAT"
+                          type="text"
+                          value={`R ${((order?.commercial_value || 0) * 0.15).toFixed(2)}`}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="handlingFees">Handling Fees (R)</Label>
+                        <Input
+                          id="handlingFees"
+                          type="text"
+                          value={`R ${(order?.handling_fees || 0).toFixed(2)}`}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="shippingCost">Shipping Cost (R)</Label>
+                        <Input
+                          id="shippingCost"
+                          type="text"
+                          value={`R ${(order?.shipping_cost || 0).toFixed(2)}`}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="documentationFee">Documentation Fee ({order?.freight_type || "Air"}) (R)</Label>
+                        <Input
+                          id="documentationFee"
+                          type="text"
+                          value={`R ${(order?.documentation_fee || 0).toFixed(2)}`}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="communicationFee">Communication Fee ({order?.freight_type || "Air"}) (R)</Label>
+                        <Input
+                          id="communicationFee"
+                          type="text"
+                          value={`R ${(order?.communication_fee || 0).toFixed(2)}`}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Notes - Full Width */}
+                    <div className="space-y-2">
+                      <Label htmlFor="financialNotes">Notes</Label>
+                      <div className="min-h-[100px] p-3 bg-gray-50 border rounded-md">
+                        {order?.financial_notes || "No financial notes available"}
+                      </div>
+                    </div>
+
+                    {/* Summary Section */}
+                    <div className="border-t pt-6">
+                      <h3 className="text-lg font-semibold mb-4">Financial Summary</h3>
+                      <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                        {(() => {
+                          const commercialValue = order?.commercial_value || 0
+                          const customsDuties = order?.customs_duties || 0
+                          const customsVAT = commercialValue * 0.15
+                          const handlingFees = order?.handling_fees || 0
+                          const shippingCost = order?.shipping_cost || 0
+                          const documentationFee = order?.documentation_fee || 0
+                          const communicationFee = order?.communication_fee || 0
+
+                          const totalDisbursements =
+                            customsDuties +
+                            customsVAT +
+                            handlingFees +
+                            shippingCost +
+                            documentationFee +
+                            communicationFee
+                          const facilityFee = totalDisbursements * 0.025 // 2.5%
+                          const agencyFee = totalDisbursements * 0.035 // 3.5%
+                          const subtotal = totalDisbursements + facilityFee + agencyFee
+                          const vat = subtotal * 0.15
+                          const total = subtotal + vat
+
+                          return (
+                            <>
+                              <div className="flex justify-between">
+                                <span>Total Disbursements:</span>
+                                <span>R {totalDisbursements.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Facility Fee (2.5%):</span>
+                                <span>R {facilityFee.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Agency Fee (3.5%):</span>
+                                <span>R {agencyFee.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between border-t pt-2">
+                                <span>Subtotal:</span>
+                                <span>R {subtotal.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>VAT (15%):</span>
+                                <span>R {vat.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between border-t pt-2 text-lg font-bold">
+                                <span>Total:</span>
+                                <span className="text-green-600">R {total.toFixed(2)}</span>
+                              </div>
+                            </>
+                          )
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
             <TabsContent value="pod">
               <PODManagement orderId={params.id} />

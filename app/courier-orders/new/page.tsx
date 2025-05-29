@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,12 +10,15 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 import { emailService } from "@/lib/email-service"
 import { generateSecureToken } from "@/lib/qr-code-utils"
+import { supabase } from "@/lib/supabase"
+import { toast } from "@/lib/toast"
 
 export default function NewCourierOrderPage() {
   const router = useRouter()
-  // Update the formData state to include sender email and notification preferences
   const [formData, setFormData] = useState({
     orderDate: "",
     poNumber: "",
@@ -30,7 +33,7 @@ export default function NewCourierOrderPage() {
     fromPostalCode: "",
     fromSender: "",
     fromTel: "",
-    fromEmail: "", // New field for sender email
+    fromEmail: "",
 
     // To details
     toStreetAddress: "",
@@ -40,7 +43,7 @@ export default function NewCourierOrderPage() {
     toPostalCode: "",
     toReceiver: "",
     toTel: "",
-    toEmail: "", // Recipient email
+    toEmail: "",
 
     // Service type
     overnightExpress: false,
@@ -70,14 +73,46 @@ export default function NewCourierOrderPage() {
     enableElectronicDeliveryReceipt: false,
     notifyRecipient: false,
     sendConfirmationToAdmin: false,
-    notifySenderOnCreate: false, // New field
-    notifySenderOnConfirm: false, // New field
+    notifySenderOnCreate: false,
+    notifySenderOnConfirm: false,
   })
 
   const [emailPreview, setEmailPreview] = useState<string | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [columnsExist, setColumnsExist] = useState({
+    checked: false,
+    hasNewColumns: false,
+  })
 
-  // Update the handleChange function to handle the new notification toggles
+  // Check if the new columns exist in the database
+  useEffect(() => {
+    const checkColumns = async () => {
+      try {
+        // Try to select a row with the new columns to see if they exist
+        const { error } = await supabase
+          .from("courier_orders")
+          .select("order_date, senders_name")
+          .limit(1)
+          .maybeSingle()
+
+        // If there's no error, the columns exist
+        setColumnsExist({
+          checked: true,
+          hasNewColumns: !error,
+        })
+      } catch (error) {
+        console.error("Error checking columns:", error)
+        setColumnsExist({
+          checked: true,
+          hasNewColumns: false,
+        })
+      }
+    }
+
+    checkColumns()
+  }, [])
+
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => {
       const newData = {
@@ -85,7 +120,6 @@ export default function NewCourierOrderPage() {
         [field]: value,
       }
 
-      // Auto-enable/disable notification options based on electronic delivery receipt
       if (field === "enableElectronicDeliveryReceipt") {
         newData.notifyRecipient = value
         newData.sendConfirmationToAdmin = value
@@ -125,12 +159,163 @@ export default function NewCourierOrderPage() {
     }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle form submission logic here
-    console.log("Form submitted:", formData)
-    // Navigate back to courier orders page after submission
-    router.push("/courier-orders")
+
+    if (!formData.fromSender || !formData.toReceiver) {
+      toast.error("Sender and receiver information is required")
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      // Base courier order data that works with the default table structure
+      const courierOrderData: any = {
+        waybill_no: formData.waybillNo || `WB${Date.now()}`,
+        po_number: formData.poNumber,
+        sender: formData.fromSender,
+        receiver: formData.toReceiver,
+        from_location: `${formData.fromStreetAddress}, ${formData.fromSuburb}, ${formData.fromCity}, ${formData.fromCountry}`,
+        to_location: `${formData.toStreetAddress}, ${formData.toSuburb}, ${formData.toCity}, ${formData.toCountry}`,
+        status: "pending",
+        service_type: getSelectedServiceType(),
+        special_instructions: formData.specialInstructions,
+
+        // Electronic delivery receipt fields
+        enable_electronic_delivery_receipt: formData.enableElectronicDeliveryReceipt,
+        notify_recipient: formData.notifyRecipient,
+        send_confirmation_to_admin: formData.sendConfirmationToAdmin,
+        recipient_email: formData.toEmail,
+
+        // Sender notification fields
+        sender_email: formData.fromEmail,
+        notify_sender_on_create: formData.notifySenderOnCreate,
+        notify_sender_on_confirm: formData.notifySenderOnConfirm,
+
+        // Contact details as JSONB
+        contact_details: {
+          sender: {
+            name: formData.fromSender,
+            phone: formData.fromTel,
+            email: formData.fromEmail,
+            address: {
+              street: formData.fromStreetAddress,
+              suburb: formData.fromSuburb,
+              city: formData.fromCity,
+              country: formData.fromCountry,
+              postal_code: formData.fromPostalCode,
+            },
+          },
+          receiver: {
+            name: formData.toReceiver,
+            phone: formData.toTel,
+            email: formData.toEmail,
+            address: {
+              street: formData.toStreetAddress,
+              suburb: formData.toSuburb,
+              city: formData.toCity,
+              country: formData.toCountry,
+              postal_code: formData.toPostalCode,
+            },
+          },
+        },
+
+        // Account details
+        account_details: {
+          account_number: formData.accountNo,
+        },
+      }
+
+      // Only add the new columns if they exist in the database
+      if (columnsExist.hasNewColumns) {
+        // Format dates for PostgreSQL
+        const formatDate = (dateString: string) => {
+          return dateString ? dateString : null
+        }
+
+        // Add the new columns
+        courierOrderData.order_date = formatDate(formData.orderDate)
+        courierOrderData.senders_name = formData.sendersName
+        courierOrderData.senders_date = formatDate(formData.sendersDate)
+        courierOrderData.receivers_name = formData.receiversName
+        courierOrderData.receivers_date = formatDate(formData.receiversDate)
+      } else {
+        // Store these fields in the contact_details JSONB as a fallback
+        courierOrderData.contact_details.order_date = formData.orderDate
+        courierOrderData.contact_details.senders_name = formData.sendersName
+        courierOrderData.contact_details.senders_date = formData.sendersDate
+        courierOrderData.contact_details.receivers_name = formData.receiversName
+        courierOrderData.contact_details.receivers_date = formData.receiversDate
+      }
+
+      // Save courier order to Supabase
+      const { data: courierOrder, error: orderError } = await supabase
+        .from("courier_orders")
+        .insert([courierOrderData])
+        .select()
+        .single()
+
+      if (orderError) {
+        console.error("Error creating courier order:", orderError)
+        toast.error("Error creating courier order: " + orderError.message)
+        return
+      }
+
+      // Save courier order items
+      if (formData.items && formData.items.length > 0) {
+        const itemsData = formData.items.map((item) => ({
+          courier_order_id: courierOrder.id,
+          description: item.description,
+          dimensions: item.dimensions,
+          vol_kgs: Number.parseFloat(item.volKgs) || 0,
+          mass_kgs: Number.parseFloat(item.massKgs) || 0,
+        }))
+
+        const { error: itemsError } = await supabase.from("courier_order_items").insert(itemsData)
+
+        if (itemsError) {
+          console.error("Error creating courier order items:", itemsError)
+          // Continue anyway, items are optional
+        }
+      }
+
+      // Create initial tracking event
+      const { error: trackingError } = await supabase.from("tracking_events").insert([
+        {
+          courier_order_id: courierOrder.id,
+          status: "Order Created",
+          location: courierOrderData.from_location,
+          notes: "Courier order created successfully",
+        },
+      ])
+
+      if (trackingError) {
+        console.error("Error creating tracking event:", trackingError)
+        // Continue anyway
+      }
+
+      console.log("Courier order created successfully:", courierOrder)
+      toast.success("Courier order created successfully!")
+
+      // Navigate back to courier orders page after submission
+      router.push("/courier-orders")
+    } catch (error) {
+      console.error("Unexpected error:", error)
+      toast.error("An unexpected error occurred. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Helper function to get selected service type
+  const getSelectedServiceType = () => {
+    if (formData.overnightExpress) return "overnight-express"
+    if (formData.sameDayExpress) return "same-day-express"
+    if (formData.roadFreight) return "road-freight"
+    if (formData.economy) return "economy"
+    if (formData.nextDay) return "next-day"
+    return "standard"
   }
 
   // Add a new function to preview sender emails
@@ -212,11 +397,27 @@ export default function NewCourierOrderPage() {
           <Button variant="outline" onClick={() => router.push("/courier-orders")}>
             Cancel
           </Button>
-          <Button type="submit" className="bg-black text-white hover:bg-gray-800" onClick={handleSubmit}>
-            Save Order
+          <Button
+            type="submit"
+            className="bg-black text-white hover:bg-gray-800"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Saving..." : "Save Order"}
           </Button>
         </div>
       </div>
+
+      {columnsExist.checked && !columnsExist.hasNewColumns && (
+        <Alert variant="warning" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Database Update Required</AlertTitle>
+          <AlertDescription>
+            Some columns are missing in your database. Please run the SQL migration to add the missing columns. Your
+            order will still be saved, but some fields will be stored in the contact_details JSON field instead.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <form className="space-y-6" onSubmit={handleSubmit}>
         {/* Order Information */}
@@ -240,6 +441,7 @@ export default function NewCourierOrderPage() {
               id="waybillNo"
               value={formData.waybillNo}
               onChange={(e) => handleChange("waybillNo", e.target.value)}
+              placeholder="Auto-generated if empty"
             />
           </div>
         </div>
@@ -312,6 +514,7 @@ export default function NewCourierOrderPage() {
                     id="fromSender"
                     value={formData.fromSender}
                     onChange={(e) => handleChange("fromSender", e.target.value)}
+                    required
                   />
                 </div>
                 <div>
@@ -388,6 +591,7 @@ export default function NewCourierOrderPage() {
                     id="toReceiver"
                     value={formData.toReceiver}
                     onChange={(e) => handleChange("toReceiver", e.target.value)}
+                    required
                   />
                 </div>
                 <div>

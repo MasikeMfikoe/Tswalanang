@@ -1,156 +1,107 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-
-// Sample data for courier orders
-const courierOrders = [
-  {
-    id: "CO-001",
-    sender: "Acme Corp",
-    recipient: "TechGiant Inc",
-    date: "2023-05-15",
-    status: "Delivered",
-    priority: "High",
-  },
-  {
-    id: "CO-002",
-    sender: "Global Logistics",
-    recipient: "City Distributors",
-    date: "2023-05-14",
-    status: "In Transit",
-    priority: "Medium",
-  },
-  {
-    id: "CO-003",
-    sender: "Express Shipping",
-    recipient: "Quick Delivery Co",
-    date: "2023-05-13",
-    status: "Processing",
-    priority: "Low",
-  },
-  {
-    id: "CO-004",
-    sender: "Fast Freight Ltd",
-    recipient: "Warehouse Solutions",
-    date: "2023-05-12",
-    status: "Delivered",
-    priority: "Medium",
-  },
-  {
-    id: "CO-005",
-    sender: "Package Plus",
-    recipient: "Office Supplies Inc",
-    date: "2023-05-11",
-    status: "Cancelled",
-    priority: "High",
-  },
-]
+import { supabase } from "@/lib/supabase"
+import { toast } from "@/lib/toast"
 
 export default function CourierOrdersPage() {
   const router = useRouter()
-  const [searchTerm, setSearchTerm] = useState("")
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const filteredOrders = courierOrders.filter(
-    (order) =>
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.sender.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.recipient.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.status.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  useEffect(() => {
+    fetchCourierOrders()
+  }, [])
+
+  const fetchCourierOrders = async () => {
+    try {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from("courier_orders")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      setOrders(data || [])
+    } catch (error) {
+      console.error("Error fetching courier orders:", error)
+      toast.error("Failed to load courier orders")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleViewDetails = (id) => {
+    router.push(`/courier-orders/details/${id}`)
+  }
 
   return (
-    <div className="p-6">
+    <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Courier Orders</h1>
-        <div className="flex space-x-4">
-          <Button variant="outline" onClick={() => router.push("/dashboard")}>
-            Return to Dashboard
-          </Button>
-          <Button onClick={() => router.push("/courier-orders/new")}>Create New Courier Order</Button>
-        </div>
+        <Button className="bg-black text-white hover:bg-gray-800" onClick={() => router.push("/courier-orders/new")}>
+          New Courier Order
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>All Courier Orders</CardTitle>
-            <Input
-              placeholder="Search courier orders..."
-              className="max-w-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order ID</TableHead>
-                <TableHead>Sender</TableHead>
-                <TableHead>Recipient</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell>{order.id}</TableCell>
-                  <TableCell>{order.sender}</TableCell>
-                  <TableCell>{order.recipient}</TableCell>
-                  <TableCell>{order.date}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        order.status === "Delivered"
-                          ? "default"
-                          : order.status === "In Transit"
-                            ? "secondary"
-                            : order.status === "Processing"
-                              ? "outline"
-                              : "destructive"
-                      }
+      {loading ? (
+        <div className="text-center py-10">Loading courier orders...</div>
+      ) : orders.length === 0 ? (
+        <div className="text-center py-10">
+          <p className="text-gray-500 mb-4">No courier orders found</p>
+          <Button onClick={() => router.push("/courier-orders/new")}>Create your first courier order</Button>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="border p-2 text-left">Waybill No</th>
+                <th className="border p-2 text-left">Date</th>
+                <th className="border p-2 text-left">Sender</th>
+                <th className="border p-2 text-left">Receiver</th>
+                <th className="border p-2 text-left">Status</th>
+                <th className="border p-2 text-left">Service Type</th>
+                <th className="border p-2 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <tr key={order.id} className="hover:bg-gray-50">
+                  <td className="border p-2">{order.waybill_no}</td>
+                  <td className="border p-2">{new Date(order.created_at).toLocaleDateString()}</td>
+                  <td className="border p-2">{order.sender}</td>
+                  <td className="border p-2">{order.receiver}</td>
+                  <td className="border p-2">
+                    <span
+                      className={`px-2 py-1 rounded text-xs ${
+                        order.status === "delivered"
+                          ? "bg-green-100 text-green-800"
+                          : order.status === "in-transit"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-yellow-100 text-yellow-800"
+                      }`}
                     >
                       {order.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        order.priority === "High"
-                          ? "destructive"
-                          : order.priority === "Medium"
-                            ? "secondary"
-                            : "outline"
-                      }
-                    >
-                      {order.priority}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push(`/courier-orders/details/${order.id}`)}
-                    >
+                    </span>
+                  </td>
+                  <td className="border p-2">{order.service_type}</td>
+                  <td className="border p-2">
+                    <Button variant="outline" size="sm" onClick={() => handleViewDetails(order.id)}>
                       View Details
                     </Button>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
