@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { format, subDays, startOfDay, endOfDay } from "date-fns"
-import { orders, customers } from "@/lib/sample-data"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TabsContent } from "@/components/ui/tabs"
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader"
@@ -14,6 +13,9 @@ import { CustomerStatistics } from "@/components/dashboard/CustomerStatistics"
 import { PerformanceMetrics } from "@/components/dashboard/PerformanceMetrics"
 import { PerformanceCharts } from "@/components/dashboard/PerformanceCharts"
 import { ErrorDisplay } from "@/components/ErrorDisplay"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { toast } from "@/lib/toast"
+import { orders as sampleOrders, customers as sampleCustomers } from "@/lib/sample-data"
 
 type DateRange = {
   startDate: Date | null
@@ -27,6 +29,9 @@ type PeriodOption = {
 }
 
 export default function DashboardContent() {
+  // Supabase client
+  const supabase = createClientComponentClient()
+
   // Error handling state
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
@@ -36,21 +41,78 @@ export default function DashboardContent() {
   const [startDate, setStartDate] = useState<string>("")
   const [endDate, setEndDate] = useState<string>("")
   const [showCustomDateRange, setShowCustomDateRange] = useState(false)
-  const [filteredOrders, setFilteredOrders] = useState(orders)
+  const [filteredOrders, setFilteredOrders] = useState(sampleOrders)
+  const [allOrders, setAllOrders] = useState(sampleOrders)
+  const [customers, setCustomers] = useState(sampleCustomers)
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null])
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [showNotifications, setShowNotifications] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
+  const [dataSource, setDataSource] = useState<"supabase" | "sample">("sample")
+
+  // Fetch data from Supabase
+  useEffect(() => {
+    async function fetchData() {
+      setIsLoading(true)
+      try {
+        // Fetch orders from Supabase
+        const { data: ordersData, error: ordersError } = await supabase.from("orders").select("*")
+
+        if (ordersError) {
+          console.error("Error fetching orders:", ordersError)
+          toast({
+            title: "Error fetching orders",
+            description: "Using sample data instead",
+            variant: "destructive",
+          })
+          setDataSource("sample")
+        } else if (ordersData && ordersData.length > 0) {
+          setAllOrders(ordersData)
+          setDataSource("supabase")
+        }
+
+        // Fetch customers from Supabase
+        const { data: customersData, error: customersError } = await supabase.from("customers").select("*")
+
+        if (customersError) {
+          console.error("Error fetching customers:", customersError)
+          if (dataSource !== "sample") {
+            toast({
+              title: "Error fetching customers",
+              description: "Using sample data instead",
+              variant: "destructive",
+            })
+            setDataSource("sample")
+          }
+        } else if (customersData && customersData.length > 0) {
+          setCustomers(customersData)
+          setDataSource("supabase")
+        }
+      } catch (error) {
+        console.error("Error in data fetching:", error)
+        toast({
+          title: "Error connecting to database",
+          description: "Using sample data instead",
+          variant: "destructive",
+        })
+        setDataSource("sample")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [supabase])
 
   // Simulate loading state
   useEffect(() => {
     const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 1000)
+      if (isLoading) setIsLoading(false)
+    }, 3000) // Fallback timeout in case the data fetch hangs
     return () => clearTimeout(timer)
-  }, [])
+  }, [isLoading])
 
   // Predefined period options
   const periodOptions: PeriodOption[] = useMemo(
@@ -161,14 +223,6 @@ export default function DashboardContent() {
       setStartDate(format(dateRange[0], "yyyy-MM-dd"))
       setEndDate(format(dateRange[1], "yyyy-MM-dd"))
     }
-  }, [dateRange, periodOptions])
-
-  // Date handling improvements
-  useEffect(() => {
-    if (dateRange[0] && dateRange[1]) {
-      setStartDate(format(dateRange[0], "yyyy-MM-dd"))
-      setEndDate(format(dateRange[1], "yyyy-MM-dd"))
-    }
   }, [dateRange])
 
   // Filter orders when date range changes
@@ -176,29 +230,33 @@ export default function DashboardContent() {
     if (startDate && endDate) {
       setIsLoading(true)
       setTimeout(() => {
-        const filtered = orders.filter((order) => {
-          const orderDate = new Date(order.createdAt)
+        const filtered = allOrders.filter((order) => {
+          const orderDate = new Date(order.createdAt || order.created_at)
           return orderDate >= new Date(startDate) && orderDate <= new Date(endDate)
         })
         setFilteredOrders(filtered)
         setIsLoading(false)
       }, 500)
     }
-  }, [startDate, endDate])
+  }, [startDate, endDate, allOrders])
 
   // Calculate order statistics
-  const totalOrderValue = filteredOrders.reduce((sum, order) => sum + order.totalValue, 0)
-  const activeOrders = filteredOrders.filter((order) => order.status === "In Progress")
-  const completedOrders = filteredOrders.filter((order) => order.status === "Completed")
-  const pendingOrders = filteredOrders.filter((order) => order.status === "Pending")
+  const totalOrderValue = filteredOrders.reduce((sum, order) => sum + (order.totalValue || order.total_value || 0), 0)
+  const activeOrders = filteredOrders.filter(
+    (order) => order.status === "In Progress" || order.status === "in_progress",
+  )
+  const completedOrders = filteredOrders.filter((order) => order.status === "Completed" || order.status === "completed")
+  const pendingOrders = filteredOrders.filter((order) => order.status === "Pending" || order.status === "pending")
 
   // Sort orders by date for recent activity
   const recentOrders = [...filteredOrders]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort((a, b) => new Date(b.createdAt || b.created_at).getTime() - new Date(a.createdAt || a.created_at).getTime())
     .slice(0, 5)
 
   // Sort customers by total orders for top customers
-  const topCustomers = [...customers].sort((a, b) => b.totalOrders - a.totalOrders).slice(0, 3)
+  const topCustomers = [...customers]
+    .sort((a, b) => (b.totalOrders || b.total_orders || 0) - (a.totalOrders || a.total_orders || 0))
+    .slice(0, 3)
 
   // Combined order status data for visualization
   const orderStatusData = [
@@ -371,6 +429,21 @@ export default function DashboardContent() {
   return (
     <div className={`min-h-screen h-full overflow-y-auto ${isDarkMode ? "bg-zinc-950" : "bg-gray-50"}`}>
       <div className="p-6">
+        {/* Data source indicator */}
+        <div
+          className={`mb-4 p-2 rounded-md text-sm ${
+            dataSource === "supabase"
+              ? "bg-green-100 text-green-800 border border-green-300"
+              : "bg-yellow-100 text-yellow-800 border border-yellow-300"
+          }`}
+        >
+          <span className="font-medium">
+            {dataSource === "supabase"
+              ? "✓ Connected to Supabase database"
+              : "⚠ Using sample data (not connected to Supabase)"}
+          </span>
+        </div>
+
         {/* Header with improved controls */}
         <DashboardHeader
           isDarkMode={isDarkMode}
@@ -416,7 +489,7 @@ export default function DashboardContent() {
             ) : (
               <>
                 <RecentOrdersList isDarkMode={isDarkMode} recentOrders={recentOrders} />
-                <OrderStatistics isDarkMode={isDarkMode} />
+                <OrderStatistics isDarkMode={isDarkMode} isDarkMode={isDarkMode} />
               </>
             )}
           </TabsContent>

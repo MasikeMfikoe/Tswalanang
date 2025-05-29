@@ -33,6 +33,22 @@ export default function CreateOrder() {
     destination: "", // Add destination field
   })
 
+  // State for order financials
+  const [financials, setFinancials] = useState({
+    commercialValue: 0,
+    customsDuties: 0,
+    customsVAT: 0, // Auto-calculated (15% of commercial value)
+    handlingFees: 0,
+    shippingCost: 0,
+    documentationFee: 0, // From rate card
+    communicationFee: 0, // From rate card
+    facilityFee: 0, // From rate card (percentage)
+    agencyFee: 0, // From rate card (percentage)
+    notes: "",
+  })
+
+  const [customerRateCard, setCustomerRateCard] = useState<any>(null)
+
   // State for UI
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
@@ -153,6 +169,76 @@ export default function CreateOrder() {
     return Object.keys(newErrors).length === 0
   }
 
+  // Calculate financial totals
+  const calculateFinancials = () => {
+    const customsVAT = financials.commercialValue * 0.15
+    const totalDisbursements =
+      financials.customsDuties +
+      customsVAT +
+      financials.handlingFees +
+      financials.shippingCost +
+      financials.documentationFee +
+      financials.communicationFee
+    const facilityFeeAmount = (totalDisbursements * financials.facilityFee) / 100
+    const agencyFeeAmount = (totalDisbursements * financials.agencyFee) / 100
+    const subtotal = totalDisbursements + facilityFeeAmount + agencyFeeAmount
+    const vat = subtotal * 0.15
+    const total = subtotal + vat
+
+    return {
+      customsVAT,
+      totalDisbursements,
+      facilityFeeAmount,
+      agencyFeeAmount,
+      subtotal,
+      vat,
+      total,
+    }
+  }
+
+  // Handle financial field changes
+  const handleFinancialChange = (field: string, value: string) => {
+    const numericValue = Number.parseFloat(value) || 0
+    setFinancials((prev) => {
+      const updated = { ...prev, [field]: numericValue }
+      // Auto-calculate customs VAT when commercial value changes
+      if (field === "commercialValue") {
+        updated.customsVAT = numericValue * 0.15
+      }
+      return updated
+    })
+  }
+
+  // Fetch customer rate card when customer changes
+  const fetchCustomerRateCard = async (customerName: string) => {
+    try {
+      const customer = customers.find((c) => c.name === customerName)
+      if (customer?.rateCard) {
+        const rateCard = customer.rateCard
+        const freightType = order.freightType || "Air Freight"
+        const rates = freightType === "Air Freight" ? rateCard.airFreight : rateCard.seaFreight
+
+        setCustomerRateCard(rateCard)
+        setFinancials((prev) => ({
+          ...prev,
+          documentationFee: rates.documentationFee,
+          communicationFee: rates.communicationFee,
+          facilityFee: rates.facilityFee,
+          agencyFee: rates.agencyFee,
+        }))
+      }
+    } catch (error) {
+      console.error("Error fetching customer rate card:", error)
+    }
+  }
+
+  // Watch for customer and freight type changes to update rate card
+  React.useEffect(() => {
+    if (order.importer) {
+      fetchCustomerRateCard(order.importer)
+    }
+  }, [order.importer, order.freightType, customers])
+
   // Handle form submission - Save directly to Supabase
   const handleSubmit = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -226,181 +312,307 @@ export default function CreateOrder() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Order Information</CardTitle>
+              <CardTitle>Order Details</CardTitle>
             </CardHeader>
             <CardContent>
-              <form className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="poNumber">PO Number</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="poNumber"
-                        value={order.poNumber || ""}
-                        onChange={(e) => handleChange("poNumber", e.target.value)}
-                        aria-label="PO Number"
-                        required
-                        placeholder="Enter PO number or generate one"
-                        className={errors.poNumber ? "border-red-500" : ""}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => handleChange("poNumber", generatePONumber())}
-                      >
-                        Generate
-                      </Button>
-                    </div>
-                    {errors.poNumber && <p className="text-red-500 text-xs mt-1">{errors.poNumber}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="supplier">Supplier</Label>
-                    <Input
-                      id="supplier"
-                      value={order.supplier || ""}
-                      onChange={(e) => handleChange("supplier", e.target.value)}
-                      required
-                      className={errors.supplier ? "border-red-500" : ""}
-                    />
-                    {errors.supplier && <p className="text-red-500 text-xs mt-1">{errors.supplier}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="importer">Importer</Label>
-                    <Select
-                      value={order.importer || ""}
-                      onValueChange={(value) => handleChange("importer", value)}
-                      disabled={isLoadingCustomers}
-                    >
-                      <SelectTrigger className={errors.importer ? "border-red-500" : ""}>
-                        <SelectValue placeholder="Select importer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {isLoadingCustomers ? (
-                          <SelectItem value="loading" disabled>
-                            Loading customers...
-                          </SelectItem>
-                        ) : customersFetchError ? (
-                          <SelectItem value="error" disabled>
-                            Error loading customers - using fallback data
-                          </SelectItem>
-                        ) : customers && customers.length > 0 ? (
-                          customers.map((customer) => (
-                            <SelectItem key={customer.id} value={customer.name}>
-                              {customer.name}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="no-customers" disabled>
-                            No customers available
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    {errors.importer && <p className="text-red-500 text-xs mt-1">{errors.importer}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="origin">Origin</Label>
-                    <Input
-                      id="origin"
-                      value={order.origin || ""}
-                      onChange={(e) => handleChange("origin", e.target.value)}
-                      required
-                      placeholder="Enter origin location"
-                      className={errors.origin ? "border-red-500" : ""}
-                    />
-                    {errors.origin && <p className="text-red-500 text-xs mt-1">{errors.origin}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="destination">Destination</Label>
-                    <Input
-                      id="destination"
-                      value={order.destination || ""}
-                      onChange={(e) => handleChange("destination", e.target.value)}
-                      required
-                      placeholder="Enter destination location"
-                      className={errors.destination ? "border-red-500" : ""}
-                    />
-                    {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="freightType">Freight Type</Label>
-                    <Select
-                      value={order.freightType || "Sea Freight"}
-                      onValueChange={(value) => handleChange("freightType", value as FreightType)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select freight type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Sea Freight">Sea Freight</SelectItem>
-                        <SelectItem value="Air Freight">Air Freight</SelectItem>
-                        <SelectItem value="EXW">EXW</SelectItem>
-                        <SelectItem value="FOB">FOB</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Order Status</Label>
-                    <Select
-                      value={order.status || "Pending"}
-                      onValueChange={(value) => handleChange("status", value as Status)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                        <SelectItem value="In Progress">In Progress</SelectItem>
-                        <SelectItem value="Completed">Completed</SelectItem>
-                        <SelectItem value="Cancelled">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2 md:col-span-1">
-                    <Label htmlFor="cargoStatus">Cargo Status</Label>
-                    <Select
-                      value={order.cargoStatus || "instruction-sent"}
-                      onValueChange={(value) => handleChange("cargoStatus", value as CargoStatus)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select cargo status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="instruction-sent">Instruction Sent to Agent</SelectItem>
-                        <SelectItem value="agent-response">Agent Response</SelectItem>
-                        <SelectItem value="at-origin">At Origin</SelectItem>
-                        <SelectItem value="cargo-departed">Cargo Departed</SelectItem>
-                        <SelectItem value="in-transit">In Transit</SelectItem>
-                        <SelectItem value="at-destination">At Destination</SelectItem>
-                        <SelectItem value="delivered">Delivered</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2 md:col-span-1">
-                    <Label htmlFor="cargoStatusNotes">Cargo Status Notes</Label>
-                    <Textarea
-                      id="cargoStatusNotes"
-                      placeholder="Add notes about the cargo status"
-                      value={order.cargoStatusComment || ""}
-                      onChange={(e) => handleChange("cargoStatusComment", e.target.value)}
-                      className="resize-y"
-                    />
-                  </div>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Documents</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="upload" className="w-full">
-                <TabsList>
-                  <TabsTrigger value="upload">Upload Documents</TabsTrigger>
+              <Tabs defaultValue="information" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="information">Order Information</TabsTrigger>
+                  <TabsTrigger value="financials">Order Financials</TabsTrigger>
+                  <TabsTrigger value="documents">Documents</TabsTrigger>
                 </TabsList>
-                <TabsContent value="upload">
+
+                <TabsContent value="information" className="mt-6">
+                  <form className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="poNumber">PO Number</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="poNumber"
+                            value={order.poNumber || ""}
+                            onChange={(e) => handleChange("poNumber", e.target.value)}
+                            aria-label="PO Number"
+                            required
+                            placeholder="Enter PO number or generate one"
+                            className={errors.poNumber ? "border-red-500" : ""}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handleChange("poNumber", generatePONumber())}
+                          >
+                            Generate
+                          </Button>
+                        </div>
+                        {errors.poNumber && <p className="text-red-500 text-xs mt-1">{errors.poNumber}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="supplier">Supplier</Label>
+                        <Input
+                          id="supplier"
+                          value={order.supplier || ""}
+                          onChange={(e) => handleChange("supplier", e.target.value)}
+                          required
+                          className={errors.supplier ? "border-red-500" : ""}
+                        />
+                        {errors.supplier && <p className="text-red-500 text-xs mt-1">{errors.supplier}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="importer">Importer</Label>
+                        <Select
+                          value={order.importer || ""}
+                          onValueChange={(value) => handleChange("importer", value)}
+                          disabled={isLoadingCustomers}
+                        >
+                          <SelectTrigger className={errors.importer ? "border-red-500" : ""}>
+                            <SelectValue placeholder="Select importer" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {isLoadingCustomers ? (
+                              <SelectItem value="loading" disabled>
+                                Loading customers...
+                              </SelectItem>
+                            ) : customersFetchError ? (
+                              <SelectItem value="error" disabled>
+                                Error loading customers - using fallback data
+                              </SelectItem>
+                            ) : customers && customers.length > 0 ? (
+                              customers.map((customer) => (
+                                <SelectItem key={customer.id} value={customer.name}>
+                                  {customer.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="no-customers" disabled>
+                                No customers available
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {errors.importer && <p className="text-red-500 text-xs mt-1">{errors.importer}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="origin">Origin</Label>
+                        <Input
+                          id="origin"
+                          value={order.origin || ""}
+                          onChange={(e) => handleChange("origin", e.target.value)}
+                          required
+                          placeholder="Enter origin location"
+                          className={errors.origin ? "border-red-500" : ""}
+                        />
+                        {errors.origin && <p className="text-red-500 text-xs mt-1">{errors.origin}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="destination">Destination</Label>
+                        <Input
+                          id="destination"
+                          value={order.destination || ""}
+                          onChange={(e) => handleChange("destination", e.target.value)}
+                          required
+                          placeholder="Enter destination location"
+                          className={errors.destination ? "border-red-500" : ""}
+                        />
+                        {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="freightType">Freight Type</Label>
+                        <Select
+                          value={order.freightType || "Sea Freight"}
+                          onValueChange={(value) => handleChange("freightType", value as FreightType)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select freight type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Sea Freight">Sea Freight</SelectItem>
+                            <SelectItem value="Air Freight">Air Freight</SelectItem>
+                            <SelectItem value="EXW">EXW</SelectItem>
+                            <SelectItem value="FOB">FOB</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="status">Order Status</Label>
+                        <Select
+                          value={order.status || "Pending"}
+                          onValueChange={(value) => handleChange("status", value as Status)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Pending">Pending</SelectItem>
+                            <SelectItem value="In Progress">In Progress</SelectItem>
+                            <SelectItem value="Completed">Completed</SelectItem>
+                            <SelectItem value="Cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2 md:col-span-1">
+                        <Label htmlFor="cargoStatus">Cargo Status</Label>
+                        <Select
+                          value={order.cargoStatus || "instruction-sent"}
+                          onValueChange={(value) => handleChange("cargoStatus", value as CargoStatus)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select cargo status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="instruction-sent">Instruction Sent to Agent</SelectItem>
+                            <SelectItem value="agent-response">Agent Response</SelectItem>
+                            <SelectItem value="at-origin">At Origin</SelectItem>
+                            <SelectItem value="cargo-departed">Cargo Departed</SelectItem>
+                            <SelectItem value="in-transit">In Transit</SelectItem>
+                            <SelectItem value="at-destination">At Destination</SelectItem>
+                            <SelectItem value="delivered">Delivered</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2 md:col-span-1">
+                        <Label htmlFor="cargoStatusNotes">Cargo Status Notes</Label>
+                        <Textarea
+                          id="cargoStatusNotes"
+                          placeholder="Add notes about the cargo status"
+                          value={order.cargoStatusComment || ""}
+                          onChange={(e) => handleChange("cargoStatusComment", e.target.value)}
+                          className="resize-y"
+                        />
+                      </div>
+                    </div>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="financials" className="mt-6">
+                  <div className="space-y-6">
+                    {/* Financial Form */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="commercialValue">Commercial Value (R)</Label>
+                        <Input
+                          id="commercialValue"
+                          type="number"
+                          step="0.01"
+                          value={financials.commercialValue}
+                          onChange={(e) => handleFinancialChange("commercialValue", e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="customsDuties">Customs Duties (R)</Label>
+                        <Input
+                          id="customsDuties"
+                          type="number"
+                          step="0.01"
+                          value={financials.customsDuties}
+                          onChange={(e) => handleFinancialChange("customsDuties", e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="customsVAT">Customs VAT (15% of commercial value)</Label>
+                        <Input
+                          id="customsVAT"
+                          type="number"
+                          step="0.01"
+                          value={calculateFinancials().customsVAT.toFixed(2)}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="handlingFees">Handling Fees (R)</Label>
+                        <Input
+                          id="handlingFees"
+                          type="number"
+                          step="0.01"
+                          value={financials.handlingFees}
+                          onChange={(e) => handleFinancialChange("handlingFees", e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="shippingCost">Shipping Cost (R)</Label>
+                        <Input
+                          id="shippingCost"
+                          type="number"
+                          step="0.01"
+                          value={financials.shippingCost}
+                          onChange={(e) => handleFinancialChange("shippingCost", e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="documentationFee">Documentation Fee ({order.freightType || "Air"}) (R)</Label>
+                        <Input
+                          id="documentationFee"
+                          type="number"
+                          step="0.01"
+                          value={financials.documentationFee.toFixed(2)}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="communicationFee">Communication Fee ({order.freightType || "Air"}) (R)</Label>
+                        <Input
+                          id="communicationFee"
+                          type="number"
+                          step="0.01"
+                          value={financials.communicationFee.toFixed(2)}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Notes - Full Width */}
+                    <div className="space-y-2">
+                      <Label htmlFor="financialNotes">Notes</Label>
+                      <Textarea
+                        id="financialNotes"
+                        placeholder="Add any financial notes or comments..."
+                        value={financials.notes}
+                        onChange={(e) => handleFinancialChange("notes", e.target.value)}
+                        className="resize-y min-h-[100px]"
+                      />
+                    </div>
+
+                    {/* Summary Section */}
+                    <div className="border-t pt-6">
+                      <h3 className="text-lg font-semibold mb-4">Financial Summary</h3>
+                      <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                        <div className="flex justify-between">
+                          <span>Total Disbursements:</span>
+                          <span>R {calculateFinancials().totalDisbursements.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Facility Fee ({financials.facilityFee}%):</span>
+                          <span>R {calculateFinancials().facilityFeeAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Agency Fee ({financials.agencyFee}%):</span>
+                          <span>R {calculateFinancials().agencyFeeAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-2">
+                          <span>Subtotal:</span>
+                          <span>R {calculateFinancials().subtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>VAT (15%):</span>
+                          <span>R {calculateFinancials().vat.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-2 text-lg font-bold">
+                          <span>Total:</span>
+                          <span className="text-green-600">R {calculateFinancials().total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="documents" className="mt-6">
                   <NewOrderDocumentUpload />
                 </TabsContent>
               </Tabs>

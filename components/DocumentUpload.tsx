@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Upload, Loader2, X, Eye, FileText, AlertCircle, CheckCircle2, TestTube } from "lucide-react"
+import { Upload, Loader2, X, Eye, FileText, AlertCircle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
@@ -33,6 +33,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
   const [showPreview, setShowPreview] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<UploadedDocument | null>(null)
+  const [checklistKey, setChecklistKey] = useState(0)
 
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([
     { id: "ANF", name: "ANF" },
@@ -55,112 +56,6 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-
-  // Test Supabase connection
-  const testSupabaseConnection = async () => {
-    try {
-      console.log("🧪 Testing Supabase connection...")
-
-      // Test 1: Check if we can connect to Supabase
-      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets()
-
-      if (bucketsError) {
-        console.error("❌ Failed to list buckets:", bucketsError)
-        toast({
-          title: "Connection Test Failed",
-          description: `Bucket list error: ${bucketsError.message}`,
-          variant: "destructive",
-        })
-        return
-      }
-
-      console.log("✅ Buckets found:", buckets)
-
-      // Test 2: Check if documents bucket exists
-      const documentsBucket = buckets.find((bucket) => bucket.id === "documents")
-      if (!documentsBucket) {
-        console.error("❌ Documents bucket not found")
-        toast({
-          title: "Connection Test Failed",
-          description: "Documents bucket not found",
-          variant: "destructive",
-        })
-        return
-      }
-
-      console.log("✅ Documents bucket found:", documentsBucket)
-
-      // Test 3: Try to upload a test file
-      const testFile = new Blob(["test content"], { type: "text/plain" })
-      const testFileName = `test-${Date.now()}.txt`
-      const testFilePath = `documents/${testFileName}`
-
-      console.log("🧪 Testing file upload to:", testFilePath)
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(testFilePath, testFile)
-
-      if (uploadError) {
-        console.error("❌ Test upload failed:", uploadError)
-        toast({
-          title: "Upload Test Failed",
-          description: `Upload error: ${uploadError.message}`,
-          variant: "destructive",
-        })
-        return
-      }
-
-      console.log("✅ Test upload successful:", uploadData)
-
-      // Test 4: Try to insert test record
-      const testRecord = {
-        name: "test-document.txt",
-        type: "Test Document",
-        url: "https://test.com/test.txt",
-        order_id: orderId,
-      }
-
-      console.log("🧪 Testing database insert:", testRecord)
-
-      const { data: dbData, error: dbError } = await supabase.from("uploaded_documents").insert([testRecord]).select()
-
-      if (dbError) {
-        console.error("❌ Test database insert failed:", dbError)
-        toast({
-          title: "Database Test Failed",
-          description: `Database error: ${dbError.message}`,
-          variant: "destructive",
-        })
-
-        // Clean up test file
-        await supabase.storage.from("documents").remove([testFilePath])
-        return
-      }
-
-      console.log("✅ Test database insert successful:", dbData)
-
-      // Clean up test data
-      if (dbData && dbData[0]) {
-        await supabase.from("uploaded_documents").delete().eq("id", dbData[0].id)
-      }
-      await supabase.storage.from("documents").remove([testFilePath])
-
-      toast({
-        title: "Connection Test Successful!",
-        description: "All Supabase operations are working correctly",
-      })
-
-      console.log("🎉 All tests passed! Supabase connection is working.")
-    } catch (error: any) {
-      console.error("💥 Connection test exception:", error)
-      toast({
-        title: "Connection Test Failed",
-        description: `Exception: ${error.message}`,
-        variant: "destructive",
-      })
-    }
-  }
 
   // Debug: Log component props
   useEffect(() => {
@@ -202,13 +97,16 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
         name: doc.name,
         type: doc.type,
         url: doc.url,
-        size: 0,
+        size: doc.size || 0,
         uploadedAt: doc.created_at,
         order_id: doc.order_id,
       }))
 
       setUploadedDocuments(formattedDocs)
-      console.log("📋 Set uploaded documents state:", formattedDocs)
+      console.log("📋 Updated uploaded documents state:", formattedDocs)
+
+      // Force checklist to re-render
+      setChecklistKey((prev) => prev + 1)
     } catch (error) {
       console.error("💥 Exception fetching documents:", error)
       toast({
@@ -396,56 +294,71 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
 
   const handleDeleteDocument = async (document: UploadedDocument) => {
     try {
-      console.log("🗑️ Deleting document:", document.id)
+      console.log("🗑️ Starting deletion process for document:", document.id)
+      console.log("📋 Document details:", document)
+      console.log("🔍 Order ID:", orderId)
 
-      // Show confirmation toast
+      // Show loading state
       toast({
         title: "Deleting document...",
         description: `Removing ${document.name}`,
       })
 
-      // Delete from database
-      const { error: dbError } = await supabase.from("uploaded_documents").delete().eq("id", document.id)
+      // Use API route for deletion to bypass RLS issues
+      const response = await fetch("/api/documents/delete", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          documentId: document.id,
+          orderId: orderId,
+          filePath: document.url,
+        }),
+      })
 
-      if (dbError) {
-        console.error("❌ Database delete error:", dbError)
-        throw new Error(`Database error: ${dbError.message}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to delete document")
       }
 
-      // Extract file path from URL and delete from storage
-      try {
-        const urlParts = document.url.split("/")
-        const fileName = urlParts[urlParts.length - 1]
-        const filePath = `documents/${fileName}`
+      const result = await response.json()
+      console.log("✅ Document deleted via API:", result)
 
-        console.log("🗑️ Removing file from storage:", filePath)
-        const { error: storageError } = await supabase.storage.from("documents").remove([filePath])
+      // Update local state immediately
+      setUploadedDocuments((prev) => {
+        const newDocs = prev.filter((doc) => doc.id !== document.id)
+        console.log("📋 Updated documents state after deletion:", newDocs.length, "documents remaining")
+        return newDocs
+      })
 
-        if (storageError) {
-          console.warn("⚠️ Storage delete warning:", storageError)
-          // Continue even if storage delete fails - the database record is more important
-        }
-      } catch (storageError) {
-        console.warn("⚠️ Error parsing file path:", storageError)
-        // Continue even if we can't delete the storage file
-      }
-
-      // Remove from local state
-      setUploadedDocuments((prev) => prev.filter((doc) => doc.id !== document.id))
+      // Force checklist to re-render
+      setChecklistKey((prev) => prev + 1)
 
       toast({
         title: "Success",
         description: "Document deleted successfully",
       })
 
-      console.log("✅ Document deleted successfully")
+      console.log("✅ Document deletion completed successfully")
+
+      // Refresh from database after a short delay to verify
+      setTimeout(async () => {
+        console.log("🔄 Performing verification refresh...")
+        await fetchDocuments()
+      }, 1000)
     } catch (error: any) {
       console.error("❌ Delete error:", error)
+
+      // Show detailed error message
       toast({
-        title: "Error",
+        title: "Deletion Failed",
         description: error.message || "Failed to delete document. Please try again.",
         variant: "destructive",
       })
+
+      // Refresh from database to show current state
+      await fetchDocuments()
     }
   }
 
@@ -465,14 +378,17 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
     }
   }
 
-  // Check if a document type has been uploaded
   const isDocumentTypeUploaded = (typeName: string) => {
+    console.log("🔍 Checking if document type is uploaded:", typeName, "Current docs:", uploadedDocuments.length)
+
     const isUploaded = uploadedDocuments.some((doc) => {
       if (typeName === "Release Letter" && (doc.type === "Release Letter" || doc.type === "Release Letter/DRO")) {
         return true
       }
       return doc.type === typeName
     })
+
+    console.log("✅ Document type", typeName, "is uploaded:", isUploaded)
     return isUploaded
   }
 
@@ -494,10 +410,6 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
             <strong>Debug Info:</strong> Order ID: {orderId} | Documents loaded: {uploadedDocuments.length} | Editing:{" "}
             {isEditing ? "Yes" : "No"}
           </div>
-          <Button onClick={testSupabaseConnection} variant="outline" size="sm">
-            <TestTube className="h-4 w-4 mr-2" />
-            Test Connection
-          </Button>
         </div>
       </div>
 
@@ -565,7 +477,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
         </div>
       )}
 
-      <div className="bg-white rounded-lg p-4 border col-span-2 h-[500px] overflow-y-auto">
+      <div key={checklistKey} className="bg-white rounded-lg p-4 border col-span-2 h-[500px] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold">Required Documents Checklist</h3>
           {isEditing && (
@@ -594,6 +506,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
         <div className="space-y-4">
           {documentTypes.map((type) => {
             const isUploaded = isDocumentTypeUploaded(type.name)
+            console.log(`🔍 Checklist render - ${type.name}: ${isUploaded ? "GREEN" : "RED"}`)
             return (
               <div key={type.id} className="flex items-center gap-3">
                 <Button variant="ghost" size="icon" className="h-8 w-8">
