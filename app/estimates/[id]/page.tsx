@@ -5,55 +5,144 @@ import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
-import { ArrowLeft, Edit, Trash } from "lucide-react"
-import { estimates } from "@/lib/sample-data"
+import { toast } from "@/lib/toast"
+import { ArrowLeft, Edit, Trash2, FileText, Send } from "lucide-react"
+import { getEstimateById, deleteEstimate, updateEstimate } from "@/lib/api/estimatesApi"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
-export default function ViewEstimatePage() {
+export default function EstimateDetailsPage() {
   const router = useRouter()
   const params = useParams()
   const [estimate, setEstimate] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
-    // In a real app, this would be an API call
-    const id = params.id as string
-    const foundEstimate = estimates.find((e) => e.id === id)
-
-    if (foundEstimate) {
-      setEstimate(foundEstimate)
-    } else {
-      // Handle not found
-      router.push("/estimates")
+    const fetchEstimate = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const id = params.id as string
+        const response = await getEstimateById(id)
+        setEstimate(response.data)
+      } catch (err) {
+        console.error("Error fetching estimate:", err)
+        setError("Failed to load estimate details. Please try again.")
+        toast({
+          title: "Error",
+          description: "Failed to load estimate details",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
     }
 
-    setLoading(false)
-  }, [params.id, router])
+    fetchEstimate()
+  }, [params.id])
 
-  // Format currency for display
-  const formatCurrency = (value: number | string) => {
-    const numValue = typeof value === "string" ? Number.parseFloat(value) : value
+  const handleDelete = async () => {
+    try {
+      setIsDeleting(true)
+      await deleteEstimate(estimate.id)
+      toast({
+        title: "Estimate deleted",
+        description: "The estimate has been deleted successfully",
+      })
+      router.push("/estimates")
+    } catch (err) {
+      console.error("Error deleting estimate:", err)
+      toast({
+        title: "Error",
+        description: "Failed to delete estimate. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteDialog(false)
+    }
+  }
+
+  const handleStatusChange = async (newStatus: string) => {
+    try {
+      await updateEstimate(estimate.id, { status: newStatus })
+      setEstimate({ ...estimate, status: newStatus })
+      toast({
+        title: "Status updated",
+        description: `Estimate status changed to ${newStatus}`,
+      })
+    } catch (err) {
+      console.error("Error updating status:", err)
+      toast({
+        title: "Error",
+        description: "Failed to update status. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Draft":
+        return "bg-gray-500"
+      case "Sent":
+        return "bg-blue-500"
+      case "Accepted":
+        return "bg-green-500"
+      case "Rejected":
+        return "bg-red-500"
+      default:
+        return "bg-gray-500"
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return new Intl.DateTimeFormat("en-ZA", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(date)
+  }
+
+  const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-ZA", {
       style: "currency",
       currency: "ZAR",
       minimumFractionDigits: 2,
-    }).format(numValue)
+    }).format(amount)
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Spinner className="h-8 w-8" />
+        <span className="ml-2">Loading estimate details...</span>
       </div>
     )
   }
 
-  if (!estimate) {
+  if (error || !estimate) {
     return (
       <div className="container mx-auto py-6">
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-2">Estimate Not Found</h2>
-          <p className="text-muted-foreground mb-4">The estimate you're looking for doesn't exist.</p>
+          <p className="text-muted-foreground mb-4">
+            The estimate you're looking for doesn't exist or couldn't be loaded.
+          </p>
           <Link href="/estimates">
             <Button>
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -65,39 +154,9 @@ export default function ViewEstimatePage() {
     )
   }
 
-  // Calculate values based on the estimate data
-  const commercialValue = Number.parseFloat(estimate.commercialValue || "0")
-  const customsDuties = Number.parseFloat(estimate.customsDuties || "0")
-  const handlingFees = Number.parseFloat(estimate.handlingFees || "0")
-  const shippingCost = Number.parseFloat(estimate.shippingCost || "0")
-  const documentationFee = Number.parseFloat(estimate.documentationFee || "0")
-  const communicationFee = Number.parseFloat(estimate.communicationFee || "0")
-
-  // Calculate VAT on commercial value (15%)
-  const customsVAT = commercialValue * 0.15
-
-  // Calculate total disbursements
-  const totalDisbursements =
-    customsDuties + customsVAT + handlingFees + shippingCost + documentationFee + communicationFee
-
-  // Calculate facility fee (2.5% of total disbursements)
-  const facilityFee = totalDisbursements * 0.025
-
-  // Calculate agency fee (3.5% of total disbursements)
-  const agencyFee = totalDisbursements * 0.035
-
-  // Calculate subtotal
-  const subtotal = totalDisbursements + facilityFee + agencyFee
-
-  // Calculate VAT on subtotal (15%)
-  const vat = subtotal * 0.15
-
-  // Calculate total
-  const total = subtotal + vat
-
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-2">
           <Link href="/estimates">
             <Button variant="outline" size="icon">
@@ -106,127 +165,176 @@ export default function ViewEstimatePage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Estimate #{estimate.id}</h1>
-            <p className="text-muted-foreground">View estimate details</p>
+            <div className="flex items-center gap-2">
+              <p className="text-muted-foreground">Created on {formatDate(estimate.createdAt)}</p>
+              <Badge variant="secondary" className={getStatusColor(estimate.status)}>
+                {estimate.status}
+              </Badge>
+            </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {estimate.status === "Draft" && (
+            <Button onClick={() => handleStatusChange("Sent")} className="bg-blue-500 hover:bg-blue-600">
+              <Send className="mr-2 h-4 w-4" />
+              Send to Customer
+            </Button>
+          )}
           <Link href={`/estimates/${estimate.id}/edit`}>
-            <Button variant="outline" size="sm">
-              <Edit className="h-4 w-4 mr-2" />
+            <Button variant="outline">
+              <Edit className="mr-2 h-4 w-4" />
               Edit
             </Button>
           </Link>
-          <Button variant="destructive" size="sm">
-            <Trash className="h-4 w-4 mr-2" />
+          <Button
+            variant="outline"
+            className="text-red-500 hover:text-red-600"
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
             Delete
+          </Button>
+          <Button variant="outline">
+            <FileText className="mr-2 h-4 w-4" />
+            Download PDF
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Customer Information</CardTitle>
+            <CardTitle>Estimate Details</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Customer Name</p>
-                <p className="font-medium">{estimate.customerName}</p>
+                <h3 className="text-sm font-medium text-muted-foreground">Customer</h3>
+                <p className="text-lg font-medium">{estimate.customerName}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Customer Email</p>
-                <p className="font-medium">{estimate.customerEmail}</p>
+                <h3 className="text-sm font-medium text-muted-foreground">Email</h3>
+                <p className="text-lg font-medium">{estimate.customerEmail}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Freight Type</h3>
+                <p className="text-lg font-medium">{estimate.freightType}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Commercial Value</h3>
+                <p className="text-lg font-medium">{formatCurrency(Number.parseFloat(estimate.commercialValue))}</p>
               </div>
             </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Freight Type</p>
-              <p className="font-medium">{estimate.freightType}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {estimate.freightType === "Air Freight" && "Air freight provides faster delivery with premium rates"}
-                {estimate.freightType === "Sea Freight" && "Sea freight is more economical for larger shipments"}
-                {estimate.freightType === "EXW" && "Ex Works - Buyer arranges collection from seller's premises"}
-                {estimate.freightType === "FOB" && "Free On Board - Seller delivers goods on board the vessel"}
-              </p>
+
+            <div className="border-t pt-4">
+              <h3 className="font-medium mb-2">Costs Breakdown</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span>Customs Duties</span>
+                  <span>{formatCurrency(Number.parseFloat(estimate.customsDuties))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Customs VAT (15%)</span>
+                  <span>{formatCurrency(estimate.customsVAT)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Handling Fees</span>
+                  <span>{formatCurrency(Number.parseFloat(estimate.handlingFees))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Shipping Cost</span>
+                  <span>{formatCurrency(Number.parseFloat(estimate.shippingCost))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Documentation Fee</span>
+                  <span>{formatCurrency(Number.parseFloat(estimate.documentationFee))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Communication Fee</span>
+                  <span>{formatCurrency(Number.parseFloat(estimate.communicationFee))}</span>
+                </div>
+              </div>
             </div>
+
+            {estimate.notes && (
+              <div className="border-t pt-4">
+                <h3 className="font-medium mb-2">Notes</h3>
+                <p className="text-muted-foreground">{estimate.notes}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Current Estimate</CardTitle>
+            <CardTitle>Summary</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">Commercial Value:</span>
-              <span className="font-medium">{formatCurrency(commercialValue)}</span>
+          <CardContent className="space-y-4">
+            <div className="flex justify-between py-2 border-b">
+              <span>Total Disbursements</span>
+              <span className="font-medium">{formatCurrency(estimate.totalDisbursements)}</span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">Customs Duties:</span>
-              <span className="font-medium">{formatCurrency(customsDuties)}</span>
+            <div className="flex justify-between py-2 border-b">
+              <span>Facility Fee (2.5%)</span>
+              <span className="font-medium">{formatCurrency(estimate.facilityFee)}</span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">Customs VAT (15% of commercial value):</span>
-              <span className="font-medium">{formatCurrency(customsVAT)}</span>
+            <div className="flex justify-between py-2 border-b">
+              <span>Agency Fee (3.5%)</span>
+              <span className="font-medium">{formatCurrency(estimate.agencyFee)}</span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">Handling Fees:</span>
-              <span className="font-medium">{formatCurrency(handlingFees)}</span>
+            <div className="flex justify-between py-2 border-b">
+              <span>Subtotal</span>
+              <span className="font-medium">{formatCurrency(estimate.subtotal)}</span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">Shipping Cost:</span>
-              <span className="font-medium">{formatCurrency(shippingCost)}</span>
+            <div className="flex justify-between py-2 border-b">
+              <span>VAT (15%)</span>
+              <span className="font-medium">{formatCurrency(estimate.vat)}</span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">
-                Documentation Fee ({estimate.freightType === "Air Freight" ? "Air" : "Sea"}):
-              </span>
-              <span className="font-medium">{formatCurrency(documentationFee)}</span>
+            <div className="flex justify-between py-2 font-bold">
+              <span>Total</span>
+              <span className="text-xl">{formatCurrency(estimate.totalAmount)}</span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">
-                Communication Fee ({estimate.freightType === "Air Freight" ? "Air" : "Sea"}):
-              </span>
-              <span className="font-medium">{formatCurrency(communicationFee)}</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">Total Disbursements:</span>
-              <span className="font-medium">{formatCurrency(totalDisbursements)}</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">Facility Fee (2.5%):</span>
-              <span className="font-medium">{formatCurrency(facilityFee)}</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">Agency Fee (3.5%):</span>
-              <span className="font-medium">{formatCurrency(agencyFee)}</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">Subtotal:</span>
-              <span className="font-medium">{formatCurrency(subtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b">
-              <span className="text-sm font-medium">VAT (15%):</span>
-              <span className="font-medium">{formatCurrency(vat)}</span>
-            </div>
-            <div className="flex items-center justify-between py-2 font-bold">
-              <span>Total:</span>
-              <span className="text-xl">{formatCurrency(total)}</span>
-            </div>
+
+            {estimate.status === "Draft" && (
+              <Button onClick={() => handleStatusChange("Sent")} className="w-full bg-blue-500 hover:bg-blue-600 mt-4">
+                <Send className="mr-2 h-4 w-4" />
+                Send to Customer
+              </Button>
+            )}
+            {estimate.status === "Sent" && (
+              <div className="space-y-2 mt-4">
+                <Button
+                  onClick={() => handleStatusChange("Accepted")}
+                  className="w-full bg-green-500 hover:bg-green-600"
+                >
+                  Accept Estimate
+                </Button>
+                <Button onClick={() => handleStatusChange("Rejected")} className="w-full bg-red-500 hover:bg-red-600">
+                  Reject Estimate
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {estimate.notes && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{estimate.notes}</p>
-          </CardContent>
-        </Card>
-      )}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this estimate. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-500 hover:bg-red-600">
+              {isDeleting ? <Spinner className="mr-2 h-4 w-4" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

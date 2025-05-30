@@ -2,29 +2,73 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { estimates } from "@/lib/sample-data"
-import { FileText, Plus, Search } from "lucide-react"
+import { FileText, Plus, Search, RefreshCw, ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { getEstimates } from "@/lib/api/estimatesApi"
+import { Spinner } from "@/components/ui/spinner"
+import { toast } from "@/lib/toast"
+import type { Estimate } from "@/types/models"
 
 export default function EstimatesPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
-  const [filteredEstimates, setFilteredEstimates] = useState(estimates)
+  const [estimates, setEstimates] = useState<Estimate[]>([])
+  const [filteredEstimates, setFilteredEstimates] = useState<Estimate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalEstimates, setTotalEstimates] = useState(0)
+  const [statusFilter, setStatusFilter] = useState<string>("")
+  const pageSize = 10
 
+  // Fetch estimates from API
+  const fetchEstimates = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await getEstimates(currentPage, pageSize, statusFilter || undefined)
+
+      setEstimates(response.data)
+      setTotalEstimates(response.total)
+      setFilteredEstimates(response.data)
+    } catch (err) {
+      console.error("Failed to fetch estimates:", err)
+      setError("Failed to load estimates. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to load estimates. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Initial data fetch
   useEffect(() => {
-    // In a real app, this would be an API call
+    fetchEstimates()
+  }, [currentPage, statusFilter])
+
+  // Filter estimates based on search term
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setFilteredEstimates(estimates)
+      return
+    }
+
     const filtered = estimates.filter(
       (estimate) =>
         estimate.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         estimate.id.toLowerCase().includes(searchTerm.toLowerCase()),
     )
     setFilteredEstimates(filtered)
-  }, [searchTerm])
+  }, [searchTerm, estimates])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -58,6 +102,14 @@ export default function EstimatesPage() {
     }).format(amount)
   }
 
+  const handleRefresh = () => {
+    fetchEstimates()
+    toast({
+      title: "Refreshed",
+      description: "Estimate list has been refreshed",
+    })
+  }
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -65,76 +117,137 @@ export default function EstimatesPage() {
           <h1 className="text-3xl font-bold tracking-tight">Estimates</h1>
           <p className="text-muted-foreground">Manage customer estimates and quotes</p>
         </div>
-        <Link href="/estimates/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New Estimate
+        <div className="flex gap-2">
+          <Link href="/estimates/new">
+            <Button className="bg-black text-white hover:bg-gray-800">
+              <Plus className="mr-2 h-4 w-4" />
+              Create Estimate
+            </Button>
+          </Link>
+          <Button variant="outline" onClick={handleRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
           </Button>
-        </Link>
+          <Button variant="outline" asChild>
+            <Link href="/dashboard">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Dashboard
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>All Estimates</CardTitle>
-          <CardDescription>View and manage all customer estimates</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex items-center gap-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search estimates..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
+        <CardContent className="pt-6">
+          {/* Filters and Controls Row */}
+          <div className="mb-6 mt-2 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search estimates..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <select
+              className="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All Statuses</option>
+              <option value="Draft">Draft</option>
+              <option value="Sent">Sent</option>
+              <option value="Accepted">Accepted</option>
+              <option value="Rejected">Rejected</option>
+            </select>
           </div>
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Estimate ID</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date Created</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Total Amount</TableHead>
-                  <TableHead>Freight Type</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEstimates.length === 0 ? (
+          {loading ? (
+            <div className="flex justify-center items-center py-8">
+              <Spinner className="h-8 w-8" />
+              <span className="ml-2">Loading estimates...</span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-8 text-red-500">
+              <p>{error}</p>
+              <Button variant="outline" onClick={fetchEstimates} className="mt-4">
+                Try Again
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-4">
-                      No estimates found
-                    </TableCell>
+                    <TableHead>Estimate ID</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Date Created</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Total Amount</TableHead>
+                    <TableHead>Freight Type</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filteredEstimates.map((estimate) => (
-                    <TableRow key={estimate.id}>
-                      <TableCell>{estimate.id}</TableCell>
-                      <TableCell>{estimate.customerName}</TableCell>
-                      <TableCell>{formatDate(estimate.createdAt)}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={getStatusColor(estimate.status)}>
-                          {estimate.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{formatCurrency(estimate.totalAmount)}</TableCell>
-                      <TableCell>{estimate.freightType}</TableCell>
-                      <TableCell className="text-right">
-                        <Link href={`/estimates/${estimate.id}`}>
-                          <Button variant="ghost" size="sm">
-                            <FileText className="h-4 w-4 mr-1" />
-                            View
-                          </Button>
-                        </Link>
+                </TableHeader>
+                <TableBody>
+                  {filteredEstimates.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-4">
+                        No estimates found
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    filteredEstimates.map((estimate) => (
+                      <TableRow key={estimate.id}>
+                        <TableCell>{estimate.id}</TableCell>
+                        <TableCell>{estimate.customerName}</TableCell>
+                        <TableCell>{formatDate(estimate.createdAt)}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className={getStatusColor(estimate.status)}>
+                            {estimate.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{formatCurrency(estimate.totalAmount)}</TableCell>
+                        <TableCell>{estimate.freightType}</TableCell>
+                        <TableCell className="text-right">
+                          <Link href={`/estimates/${estimate.id}`}>
+                            <Button variant="ghost" size="sm">
+                              <FileText className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Pagination and results summary */}
+          <div className="mt-4 flex justify-between items-center text-sm text-muted-foreground">
+            <div>
+              Showing {filteredEstimates.length} of {totalEstimates} estimates
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1 || loading}
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={filteredEstimates.length < pageSize || loading}
+                onClick={() => setCurrentPage((prev) => prev + 1)}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

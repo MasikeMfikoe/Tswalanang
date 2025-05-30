@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/lib/toast"
-import { customers } from "@/lib/sample-data" // Add this import
+import { useQuery } from "@tanstack/react-query"
+import { estimatesApi } from "@/lib/api/estimatesApi"
 
 // Define the form schema
 const estimateFormSchema = z.object({
@@ -31,22 +32,24 @@ const estimateFormSchema = z.object({
 
 type EstimateFormValues = z.infer<typeof estimateFormSchema>
 
-// Default values for the form
-const defaultValues: Partial<EstimateFormValues> = {
+// Default values for the form - ensure all fields have defined values
+const defaultValues: EstimateFormValues = {
   customerId: "",
+  customerEmail: "",
   freightType: "Air Freight",
-  commercialValue: "",
-  customsDuties: "",
-  handlingFees: "",
-  shippingCost: "",
-  documentationFee: "",
-  communicationFee: "",
+  commercialValue: "0",
+  customsDuties: "0",
+  handlingFees: "0",
+  shippingCost: "0",
+  documentationFee: "0",
+  communicationFee: "0",
   notes: "",
 }
 
 interface EstimateFormProps {
   initialData?: Partial<EstimateFormValues>
   isEditing?: boolean
+  estimateId?: string
 }
 
 // Format currency for display
@@ -58,27 +61,60 @@ const formatCurrency = (value: number) => {
   }).format(value)
 }
 
-export function EstimateForm({ initialData, isEditing = false }: EstimateFormProps) {
+export function EstimateForm({ initialData, isEditing = false, estimateId }: EstimateFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Fetch customers from Supabase via API
+  const {
+    data: customersResponse,
+    isLoading: isLoadingCustomers,
+    error: customersError,
+  } = useQuery({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      console.log("Fetching customers...")
+      const response = await fetch("/api/customers")
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("API Error:", errorText)
+        throw new Error(`Failed to fetch customers: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      console.log("Customers API response:", data)
+      return data
+    },
+    retry: 3,
+    retryDelay: 1000,
+  })
+
+  // Extract customers array from API response
+  const customersData = customersResponse?.data || []
+
+  // Ensure initialData has all required fields with defined values
+  const mergedInitialValues = {
+    ...defaultValues,
+    ...initialData,
+  }
 
   // Initialize form with react-hook-form
   const form = useForm<EstimateFormValues>({
     resolver: zodResolver(estimateFormSchema),
-    defaultValues: initialData || defaultValues,
+    defaultValues: mergedInitialValues,
   })
 
-  // Add this after the form initialization
   // Update customer email when customer changes
   useEffect(() => {
     const customerId = form.watch("customerId")
-    if (customerId) {
-      const selectedCustomer = customers.find((c) => c.id === customerId)
+    if (customerId && customersData.length > 0) {
+      const selectedCustomer = customersData.find((c: any) => c.id === customerId)
       if (selectedCustomer) {
-        form.setValue("customerEmail", selectedCustomer.email)
+        form.setValue("customerEmail", selectedCustomer.email || "")
       }
     }
-  }, [form.watch("customerId")])
+  }, [form.watch("customerId"), customersData, form])
 
   // Watch specific form values that affect calculations
   const commercialValue = form.watch("commercialValue")
@@ -136,37 +172,53 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
       setIsSubmitting(true)
 
       // Get the selected customer's name
-      const selectedCustomer = customers.find((c) => c.id === data.customerId)
+      const selectedCustomer = customersData.find((c: any) => c.id === data.customerId)
       const customerName = selectedCustomer ? selectedCustomer.name : "Unknown Customer"
 
       // Combine form data with calculated values
       const estimateData = {
-        ...data,
-        customerName,
-        customsVAT: calculatedValues.customsVAT,
-        totalDisbursements: calculatedValues.totalDisbursements,
-        facilityFee: calculatedValues.facilityFee,
-        agencyFee: calculatedValues.agencyFee,
+        customer_id: data.customerId,
+        customer_name: customerName,
+        customer_email: data.customerEmail,
+        freight_type: data.freightType,
+        commercial_value: Number.parseFloat(data.commercialValue || "0"),
+        customs_duties: Number.parseFloat(data.customsDuties || "0"),
+        customs_vat: calculatedValues.customsVAT,
+        handling_fees: Number.parseFloat(data.handlingFees || "0"),
+        shipping_cost: Number.parseFloat(data.shippingCost || "0"),
+        documentation_fee: Number.parseFloat(data.documentationFee || "0"),
+        communication_fee: Number.parseFloat(data.communicationFee || "0"),
+        total_disbursements: calculatedValues.totalDisbursements,
+        facility_fee: calculatedValues.facilityFee,
+        agency_fee: calculatedValues.agencyFee,
         subtotal: calculatedValues.subtotal,
         vat: calculatedValues.vat,
-        total: calculatedValues.total,
+        total_amount: calculatedValues.total,
+        notes: data.notes || "",
+        status: "Draft",
       }
 
-      // In a real app, this would be an API call to save the estimate
-      console.log("Form data:", estimateData)
+      console.log("Submitting estimate data:", estimateData)
 
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      toast({
-        title: isEditing ? "Estimate updated" : "Estimate created",
-        description: isEditing
-          ? "Your estimate has been updated successfully."
-          : "Your estimate has been created successfully.",
-      })
+      if (isEditing && estimateId) {
+        // Update existing estimate
+        await estimatesApi.updateEstimate(estimateId, estimateData)
+        toast({
+          title: "Estimate updated",
+          description: "Your estimate has been updated successfully.",
+        })
+      } else {
+        // Create new estimate
+        await estimatesApi.createEstimate(estimateData)
+        toast({
+          title: "Estimate created",
+          description: "Your estimate has been created successfully.",
+        })
+      }
 
       // Navigate back to estimates list
       router.push("/estimates")
+      router.refresh()
     } catch (error) {
       console.error("Error submitting form:", error)
       toast({
@@ -179,6 +231,30 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
     }
   }
 
+  // Show loading state
+  if (isLoadingCustomers) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Spinner className="h-8 w-8" />
+        <span className="ml-2">Loading customers...</span>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (customersError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <p className="text-red-600">Error loading customers: {customersError.message}</p>
+        <Button onClick={() => window.location.reload()}>Try Again</Button>
+      </div>
+    )
+  }
+
+  // Show debug info
+  console.log("Customers data:", customersData)
+  console.log("Number of customers:", customersData.length)
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -187,7 +263,9 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Customer Information</CardTitle>
-                <CardDescription>Enter customer details for this estimate</CardDescription>
+                <CardDescription>
+                  Select a customer from your database ({customersData.length} customers available)
+                </CardDescription>
               </div>
               <div className="flex items-center space-x-2">
                 <Button
@@ -213,20 +291,33 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Customer</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a customer" />
+                          <SelectValue
+                            placeholder={customersData.length > 0 ? "Select a customer" : "No customers available"}
+                          />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.name}
+                        {customersData.length > 0 ? (
+                          customersData.map((customer: any) => (
+                            <SelectItem key={customer.id} value={customer.id}>
+                              {customer.name} ({customer.email})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-customers" disabled>
+                            No customers found
                           </SelectItem>
-                        ))}
+                        )}
                       </SelectContent>
                     </Select>
+                    <FormDescription>
+                      {customersData.length === 0 && (
+                        <span className="text-red-600">No customers found. Please add customers first.</span>
+                      )}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -239,7 +330,7 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
                   <FormItem>
                     <FormLabel>Customer Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="contact@acmecorp.com" {...field} />
+                      <Input placeholder="contact@acmecorp.com" {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -253,7 +344,7 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Freight Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || "Air Freight"}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select freight type" />
@@ -293,7 +384,7 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
                   <FormItem>
                     <FormLabel>Commercial Value (R)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="100000" {...field} />
+                      <Input type="number" placeholder="100000" {...field} value={field.value || "0"} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -307,7 +398,7 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
                   <FormItem>
                     <FormLabel>Customs Duties (R)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="9250" {...field} />
+                      <Input type="number" placeholder="9250" {...field} value={field.value || "0"} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -326,7 +417,7 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
                   <FormItem>
                     <FormLabel>Handling Fees (R)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="4625" {...field} />
+                      <Input type="number" placeholder="4625" {...field} value={field.value || "0"} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -340,7 +431,7 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
                   <FormItem>
                     <FormLabel>Shipping Cost (R)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="18500" {...field} />
+                      <Input type="number" placeholder="18500" {...field} value={field.value || "0"} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -354,7 +445,7 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
                   <FormItem>
                     <FormLabel>Documentation Fee ({freightType === "Air Freight" ? "Air" : "Sea"}) (R)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="250" {...field} />
+                      <Input type="number" placeholder="250" {...field} value={field.value || "0"} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -368,7 +459,7 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
                   <FormItem>
                     <FormLabel>Communication Fee ({freightType === "Air Freight" ? "Air" : "Sea"}) (R)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="150" {...field} />
+                      <Input type="number" placeholder="150" {...field} value={field.value || "0"} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -386,6 +477,7 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
                         placeholder="Priority shipment for manufacturing equipment"
                         className="min-h-[100px]"
                         {...field}
+                        value={field.value || ""}
                       />
                     </FormControl>
                     <FormMessage />
@@ -429,7 +521,6 @@ export function EstimateForm({ initialData, isEditing = false }: EstimateFormPro
               </div>
             </div>
           </CardContent>
-          {/* Footer content removed and moved to header */}
         </Card>
       </form>
     </Form>

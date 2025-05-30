@@ -4,8 +4,10 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
+import { Card, CardContent } from "@/components/ui/card"
+import { Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 interface Customer {
   id: string
@@ -24,8 +26,9 @@ export default function Customers() {
   const [searchTerm, setSearchTerm] = useState("")
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Fetch customers from Supabase
+  // Fetch customers from API instead of direct Supabase
   useEffect(() => {
     fetchCustomers()
   }, [])
@@ -33,25 +36,33 @@ export default function Customers() {
   const fetchCustomers = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false })
+      setError(null)
 
-      if (error) {
-        console.error("Error fetching customers:", error)
-        toast({
-          variant: "destructive",
-          title: "Error loading customers",
-          description: error.message,
-        })
-        return
+      // Use the API endpoint instead of direct Supabase
+      const response = await fetch("/api/customers")
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to fetch customers")
       }
 
-      setCustomers(data || [])
+      const result = await response.json()
+
+      if (!result.data) {
+        throw new Error("Invalid response format")
+      }
+
+      setCustomers(result.data || [])
+
+      // Log success for debugging
+      console.log(`Successfully loaded ${result.data.length} customers`)
     } catch (error) {
-      console.error("Error:", error)
+      console.error("Error fetching customers:", error)
+      setError((error as Error).message)
       toast({
         variant: "destructive",
         title: "Error loading customers",
-        description: "Failed to load customers from database",
+        description: (error as Error).message,
       })
     } finally {
       setLoading(false)
@@ -77,6 +88,23 @@ export default function Customers() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <h2 className="text-red-800 font-medium">Error loading customers</h2>
+          <p className="text-red-600">{error}</p>
+          <Button onClick={fetchCustomers} className="mt-2">
+            Try Again
+          </Button>
+        </div>
+        <Button variant="outline" onClick={() => router.push("/dashboard")}>
+          Return to Dashboard
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -89,50 +117,67 @@ export default function Customers() {
         </div>
       </div>
 
-      {/* Search field */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search customers..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full p-2 border rounded-lg"
-        />
-      </div>
-
-      {/* Refresh button */}
-      <div className="mb-4">
-        <Button variant="outline" onClick={fetchCustomers}>
-          Refresh List
-        </Button>
-      </div>
-
-      {/* Customer list */}
-      <div className="space-y-4">
-        {filteredCustomers.length > 0 ? (
-          filteredCustomers.map((customer) => (
-            <div key={customer.id} className="flex justify-between items-center p-4 border rounded-lg">
-              <div>
-                <p className="font-semibold">{customer.name}</p>
-                <p className="text-sm text-gray-600">{customer.email || "No email"}</p>
-                <p className="text-sm text-gray-500">Contact: {customer.contact_person || "No contact person"}</p>
-                <p className="text-sm text-gray-500">Total Orders: {customer.total_orders}</p>
-                <p className="text-sm text-gray-400">Created: {new Date(customer.created_at).toLocaleDateString()}</p>
-              </div>
-              <Button asChild>
-                <Link href={`/customers/${customer.id}`}>View</Link>
-              </Button>
+      <Card>
+        <CardContent className="pt-6">
+          {/* Search and controls */}
+          <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search customers..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
             </div>
-          ))
-        ) : (
-          <div className="text-center py-8">
-            <p className="text-gray-500 mb-4">
-              {customers.length === 0 ? "No customers found." : "No customers match your search."}
-            </p>
-            {customers.length === 0 && <Button onClick={handleCreateNewCustomer}>Create Your First Customer</Button>}
+            <Button variant="outline" onClick={fetchCustomers} className="whitespace-nowrap">
+              Refresh List
+            </Button>
           </div>
-        )}
-      </div>
+
+          {/* Customer list */}
+          <div className="space-y-4">
+            {filteredCustomers.length > 0 ? (
+              filteredCustomers.map((customer) => (
+                <div
+                  key={customer.id}
+                  className="flex justify-between items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div>
+                    <p className="font-semibold">{customer.name}</p>
+                    <p className="text-sm text-gray-600">{customer.email || "No email"}</p>
+                    <p className="text-sm text-gray-500">Contact: {customer.contact_person || "No contact person"}</p>
+                    <p className="text-sm text-gray-500">Total Orders: {customer.total_orders}</p>
+                    <p className="text-sm text-gray-400">
+                      Created: {new Date(customer.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Button asChild variant="ghost">
+                    <Link href={`/customers/${customer.id}`}>View</Link>
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500 mb-4">
+                  {customers.length === 0 ? "No customers found." : "No customers match your search."}
+                </p>
+                {customers.length === 0 && (
+                  <Button onClick={handleCreateNewCustomer}>Create Your First Customer</Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Results summary */}
+          {customers.length > 0 && (
+            <div className="mt-4 text-sm text-gray-500">
+              Showing {filteredCustomers.length} of {customers.length} customers
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

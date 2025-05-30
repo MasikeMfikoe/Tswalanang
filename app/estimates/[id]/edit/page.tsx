@@ -6,44 +6,58 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { EstimateForm } from "@/components/EstimateForm"
-import { estimates } from "@/lib/sample-data"
 import { ArrowLeft } from "lucide-react"
+import { getEstimateById } from "@/lib/api/estimatesApi"
+import { toast } from "@/lib/toast"
 
 export default function EditEstimatePage() {
   const router = useRouter()
   const params = useParams()
   const [estimate, setEstimate] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // In a real app, this would be an API call
-    const id = params.id as string
-    const foundEstimate = estimates.find((e) => e.id === id)
-
-    if (foundEstimate) {
-      setEstimate(foundEstimate)
-    } else {
-      // Handle not found
-      router.push("/estimates")
+    const fetchEstimate = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const id = params.id as string
+        const response = await getEstimateById(id)
+        setEstimate(response.data)
+      } catch (err) {
+        console.error("Error fetching estimate:", err)
+        setError("Failed to load estimate details. Please try again.")
+        toast({
+          title: "Error",
+          description: "Failed to load estimate details",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
     }
 
-    setLoading(false)
-  }, [params.id, router])
+    fetchEstimate()
+  }, [params.id])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Spinner className="h-8 w-8" />
+        <span className="ml-2">Loading estimate details...</span>
       </div>
     )
   }
 
-  if (!estimate) {
+  if (error || !estimate) {
     return (
       <div className="container mx-auto py-6">
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-2">Estimate Not Found</h2>
-          <p className="text-muted-foreground mb-4">The estimate you're looking for doesn't exist.</p>
+          <p className="text-muted-foreground mb-4">
+            The estimate you're looking for doesn't exist or couldn't be loaded.
+          </p>
           <Link href="/estimates">
             <Button>
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -69,7 +83,22 @@ export default function EditEstimatePage() {
         </div>
       </div>
 
-      <EstimateForm initialData={estimate} isEditing={true} />
+      <EstimateForm
+        initialData={{
+          customerId: estimate.customer_id || estimate.customerId,
+          customerEmail: estimate.customerEmail,
+          freightType: estimate.freightType,
+          commercialValue: estimate.commercialValue.toString(),
+          customsDuties: estimate.customsDuties.toString(),
+          handlingFees: estimate.handlingFees.toString(),
+          shippingCost: estimate.shippingCost.toString(),
+          documentationFee: estimate.documentationFee.toString(),
+          communicationFee: estimate.communicationFee.toString(),
+          notes: estimate.notes || "",
+        }}
+        isEditing={true}
+        estimateId={estimate.id}
+      />
     </div>
   )
 }

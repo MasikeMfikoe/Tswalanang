@@ -2,17 +2,15 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Filter } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
+import { ArrowLeft, Eye, RefreshCw, Search } from "lucide-react"
 
 // Define the Order type to match Supabase data
 type Order = {
@@ -33,8 +31,6 @@ type Order = {
 }
 
 export function OrdersContent() {
-  console.log("OrdersContent component rendering")
-
   const router = useRouter()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
@@ -76,7 +72,6 @@ export function OrdersContent() {
         description: "Failed to load orders from database",
         variant: "destructive",
       })
-      // Fallback to empty array
       setOrders([])
     } finally {
       setIsLoading(false)
@@ -85,126 +80,130 @@ export function OrdersContent() {
 
   // Initialize component and fetch orders
   useEffect(() => {
-    console.log("Component mounted, fetching orders...")
     fetchOrders()
   }, [])
 
   // Filter orders whenever search term, status filter, or orders change
   useEffect(() => {
-    console.log("Filtering orders with:", { searchTerm, statusFilter, ordersCount: orders.length })
-
-    const filtered = orders.filter((order) => {
-      // Status filter
-      if (statusFilter !== "all" && order.status?.toLowerCase() !== statusFilter.toLowerCase()) {
-        return false
-      }
-
-      // Search filter
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase()
-        return (
-          order.order_number?.toLowerCase().includes(searchLower) ||
-          order.po_number?.toLowerCase().includes(searchLower) ||
-          order.customer_name?.toLowerCase().includes(searchLower) ||
-          order.supplier?.toLowerCase().includes(searchLower) ||
-          order.importer?.toLowerCase().includes(searchLower) ||
-          order.origin?.toLowerCase().includes(searchLower) ||
-          order.destination?.toLowerCase().includes(searchLower)
-        )
-      }
-
-      return true
-    })
-
-    console.log("Filtered orders count:", filtered.length)
-    setFilteredOrders(filtered)
+    filterOrders()
   }, [searchTerm, statusFilter, orders])
+
+  const filterOrders = () => {
+    let filtered = orders
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (order) =>
+          order.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.po_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.supplier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.importer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.origin?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.destination?.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    }
+
+    // Filter by status
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((order) => order.status?.toLowerCase() === statusFilter.toLowerCase())
+    }
+
+    setFilteredOrders(filtered)
+  }
 
   // Format date for display
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString()
+    const date = new Date(dateString)
+    return new Intl.DateTimeFormat("en-ZA", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+    }).format(date)
   }
 
   // Get badge variant based on status
-  const getStatusBadge = (status?: string) => {
-    if (!status) return <Badge variant="outline">Unknown</Badge>
+  const getStatusColor = (status?: string) => {
+    if (!status) return "bg-gray-500"
 
     switch (status.toLowerCase()) {
       case "completed":
-        return <Badge className="bg-green-500 text-white">{status}</Badge>
+        return "bg-green-500"
       case "in progress":
-        return <Badge className="bg-blue-500 text-white">{status}</Badge>
+        return "bg-blue-500"
       case "pending":
-        return <Badge className="bg-yellow-500 text-black">{status}</Badge>
+        return "bg-yellow-500"
       case "cancelled":
-        return <Badge className="bg-red-500 text-white">{status}</Badge>
+        return "bg-red-500"
       default:
-        return <Badge variant="outline">{status}</Badge>
+        return "bg-gray-500"
     }
   }
 
-  // Render loading skeleton
-  const renderSkeleton = () => (
-    <div className="space-y-4">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="flex items-center p-4 border rounded-lg">
-          <Skeleton className="h-6 w-24 mr-4" />
-          <Skeleton className="h-6 w-32 mr-4" />
-          <Skeleton className="h-6 w-24 mr-4" />
-          <Skeleton className="h-6 w-24 mr-4" />
-          <Skeleton className="h-6 w-24 ml-auto" />
+  const capitalizeFirst = (str: string) => {
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
+  }
+
+  const handleRefresh = () => {
+    fetchOrders()
+    toast({
+      title: "Success",
+      description: "Orders refreshed successfully",
+    })
+  }
+
+  const handleViewOrder = (orderId: string) => {
+    router.push(`/orders/${orderId}`)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">All Shipment Orders</h1>
+            <p className="text-muted-foreground">View and manage all shipment orders</p>
+          </div>
         </div>
-      ))}
-    </div>
-  )
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center h-32">
+              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Loading shipment orders...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Shipment Order Management</h1>
-        <div className="flex space-x-4">
+    <div className="container mx-auto py-6 space-y-6">
+      {/* Header Section */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">All Shipment Orders</h1>
+          <p className="text-muted-foreground">View and manage all shipment orders</p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => router.push("/create-order")} className="bg-black text-white hover:bg-gray-800">
+            Create Order
+          </Button>
+          <Button variant="outline" onClick={handleRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
           <Button variant="outline" onClick={() => router.push("/dashboard")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Return to Dashboard
           </Button>
-          <Button variant="outline" onClick={fetchOrders} disabled={isLoading}>
-            {isLoading ? "Refreshing..." : "Refresh List"}
-          </Button>
-          <Link href="/create-order">
-            <Button>Create New Order</Button>
-          </Link>
         </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>All Shipment Orders ({orders.length} total)</CardTitle>
-            <div className="flex items-center space-x-2">
-              <Input
-                placeholder="Search orders by PO number, customer, supplier..."
-                className="max-w-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <div className="flex items-center">
-                    <Filter className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Filter by status" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="in progress">In Progress</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
         <CardContent>
+          {/* Error Display */}
           {error && (
             <div className="mb-4 p-4 bg-red-100 text-red-800 rounded-md">
               <p className="font-semibold">Error loading orders</p>
@@ -212,9 +211,33 @@ export function OrdersContent() {
             </div>
           )}
 
-          {isLoading ? (
-            renderSkeleton()
-          ) : (
+          {/* Filters and Controls Row */}
+          <div className="mt-6 mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search orders..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="in progress">In Progress</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Data Table */}
+          <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -224,13 +247,26 @@ export function OrdersContent() {
                   <TableHead>Origin → Destination</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOrders.length > 0 ? (
+                {filteredOrders.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <div className="flex flex-col items-center justify-center text-muted-foreground">
+                        <p className="text-lg font-medium">No shipment orders found</p>
+                        <p className="text-sm">
+                          {searchTerm || statusFilter !== "all"
+                            ? "Try adjusting your search or filters"
+                            : "Create your first shipment order to get started"}
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
                   filteredOrders.map((order) => (
-                    <TableRow key={order.id}>
+                    <TableRow key={order.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-medium">{order.order_number || order.po_number || order.id}</TableCell>
                       <TableCell>{order.po_number || order.order_number || "N/A"}</TableCell>
                       <TableCell>{order.customer_name || order.importer || "N/A"}</TableCell>
@@ -239,50 +275,38 @@ export function OrdersContent() {
                           ? `${order.origin} → ${order.destination}`
                           : order.origin || order.destination || "N/A"}
                       </TableCell>
-                      <TableCell>{getStatusBadge(order.status)}</TableCell>
-                      <TableCell>{formatDate(order.created_at)}</TableCell>
                       <TableCell>
-                        <Button variant="outline" size="sm" onClick={() => router.push(`/orders/${order.id}`)}>
-                          View Details
+                        <Badge variant="secondary" className={`${getStatusColor(order.status)} text-white`}>
+                          {order.status ? capitalizeFirst(order.status) : "Unknown"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(order.created_at)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewOrder(order.id)}
+                          className="hover:bg-muted"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
                         </Button>
                       </TableCell>
                     </TableRow>
                   ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
-                      {orders.length === 0 ? (
-                        <div className="flex flex-col items-center space-y-2">
-                          <p>No orders found in database.</p>
-                          <Link href="/create-order">
-                            <Button size="sm">Create Your First Order</Button>
-                          </Link>
-                        </div>
-                      ) : (
-                        "No orders match your search criteria. Try adjusting your filters."
-                      )}
-                    </TableCell>
-                  </TableRow>
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Results Summary */}
+          {filteredOrders.length > 0 && (
+            <div className="mt-4 text-sm text-muted-foreground">
+              Showing {filteredOrders.length} of {orders.length} shipment orders
+            </div>
           )}
         </CardContent>
       </Card>
-
-      {filteredOrders.length === 0 && orders.length > 0 && (
-        <div className="flex justify-center mt-4">
-          <Button
-            onClick={() => {
-              setSearchTerm("")
-              setStatusFilter("all")
-            }}
-            variant="outline"
-          >
-            Reset Filters
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

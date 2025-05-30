@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { RateCard } from "@/components/RateCard"
-import { supabase } from "@/lib/supabase"
 
 interface CustomerFormData {
   name: string
@@ -132,13 +131,13 @@ export default function NewCustomer() {
     )
   }
 
-  // Updated handleSubmit to save to Supabase
+  // Replace the handleSubmit function with this:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      // Prepare customer data for Supabase
+      // Prepare customer data for API
       const customerData = {
         name: formData.name,
         contact_person: formData.primaryContact.name,
@@ -150,38 +149,37 @@ export default function NewCustomer() {
         address_country: formData.address.country,
         vat_number: formData.vatNumber,
         importers_code: formData.importersCode,
-        total_orders: 0,
-        total_spent: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       }
 
-      // Save to Supabase
-      const { data, error } = await supabase.from("customers").insert([customerData]).select().single()
+      // Use API endpoint instead of direct Supabase call
+      const response = await fetch("/api/customers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(customerData),
+      })
 
-      if (error) {
-        console.error("Supabase error:", error)
-        toast({
-          variant: "destructive",
-          title: "Error creating customer.",
-          description: `Database error: ${error.message}`,
-        })
-        return
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to create customer")
       }
+
+      const result = await response.json()
 
       toast({
         title: "Customer created successfully!",
         description: `${formData.name} has been added to your customer database.`,
       })
 
-      // Redirect to customers list or dashboard
+      // Redirect to customers list
       router.push("/customers")
     } catch (error) {
       console.error("Error creating customer:", error)
       toast({
         variant: "destructive",
         title: "Error creating customer.",
-        description: "Something went wrong. Please try again.",
+        description: error instanceof Error ? error.message : "Something went wrong. Please try again.",
       })
     } finally {
       setLoading(false)
