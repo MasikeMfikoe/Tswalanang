@@ -10,15 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { format, parseISO } from "date-fns"
 import { Activity, Banknote, Clock, TrendingUp, Ship } from "lucide-react"
 import { BarChart } from "@/components/Charts"
-import {
-  customers,
-  filterOrders,
-  calculateMetrics,
-  getRecentOrders,
-  getMonthlyOrderData,
-} from "@/lib/customer-summary-data"
 import { toast } from "@/lib/toast"
 import CargoStatusTab from "@/components/CargoStatusTab"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Customer, Order } from "@/types/models"
 
 type DateRange = {
   startDate: Date | null
@@ -34,13 +29,16 @@ type PeriodOption = {
 export default function CustomerSummary() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const supabase = createClientComponentClient()
+
   const [selectedCustomer, setSelectedCustomer] = useState<string>("")
   const [selectedPeriod, setSelectedPeriod] = useState<string>("last30days")
   const [startDate, setStartDate] = useState<string>("")
   const [endDate, setEndDate] = useState<string>("")
   const [showCustomDateRange, setShowCustomDateRange] = useState(false)
-  const [filteredOrders, setFilteredOrders] = useState<any[]>([])
-  const [recentOrders, setRecentOrders] = useState<any[]>([])
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
+  const [recentOrders, setRecentOrders] = useState<Order[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [metrics, setMetrics] = useState({
     totalRevenue: 0,
     totalVAT: 0,
@@ -50,7 +48,7 @@ export default function CustomerSummary() {
     inProgressOrders: 0,
   })
   const [monthlyOrderData, setMonthlyOrderData] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [isLoading, setIsLoading] = useState<boolean>(true)
   const [activeTab, setActiveTab] = useState<string>("overview")
 
   // Initialize active tab from URL if present
@@ -61,10 +59,35 @@ export default function CustomerSummary() {
     }
   }, [searchParams])
 
+  // Fetch customers on component mount
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
+
   // Update URL when tab changes
   const handleTabChange = (value: string) => {
     setActiveTab(value)
     router.push(`/customer-summary?tab=${value}`)
+  }
+
+  // Fetch customers from Supabase
+  const fetchCustomers = async () => {
+    try {
+      const { data, error } = await supabase.from("customers").select("*").order("name")
+
+      if (error) {
+        throw error
+      }
+
+      setCustomers(data || [])
+    } catch (error) {
+      console.error("Error fetching customers:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load customers. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   // Predefined period options
@@ -174,20 +197,106 @@ export default function CustomerSummary() {
   }, [selectedPeriod, periodOptions])
 
   // Update data when filters change
-  const updateData = useCallback(() => {
+  const updateData = useCallback(async () => {
     setIsLoading(true)
 
-    // Simulate API call with setTimeout
-    setTimeout(() => {
-      const filtered = filterOrders(selectedCustomer || null, startDate || null, endDate || null)
+    try {
+      // Build the query
+      let query = supabase.from("orders").select("*")
 
-      setFilteredOrders(filtered)
-      setRecentOrders(getRecentOrders(filtered))
-      setMetrics(calculateMetrics(filtered))
-      setMonthlyOrderData(getMonthlyOrderData(filtered))
+      // Apply customer filter if selected
+      if (selectedCustomer && selectedCustomer !== "all") {
+        query = query.eq("importer", selectedCustomer)
+      }
+
+      // Apply date filters
+      if (startDate) {
+        query = query.gte("created_at", startDate)
+      }
+
+      if (endDate) {
+        // Add one day to include the end date fully
+        const nextDay = new Date(endDate)
+        nextDay.setDate(nextDay.getDate() + 1)
+        query = query.lt("created_at", nextDay.toISOString().split("T")[0])
+      }
+
+      // Execute the query
+      const { data: orders, error } = await query
+
+      if (error) {
+        throw error
+      }
+
+      // Set filtered orders
+      setFilteredOrders(orders || [])
+
+      // Calculate metrics
+      const totalRevenue = orders?.reduce((sum, order) => sum + (order.totalValue || 0), 0) || 0
+      const totalVAT = totalRevenue * 0.15
+      const totalCustomsDuties = totalRevenue * 0.2
+      const orderCount = orders?.length || 0
+      const completedOrders = orders?.filter((order) => order.status === "Completed").length || 0
+      const inProgressOrders = orderCount - completedOrders
+
+      setMetrics({
+        totalRevenue,
+        totalVAT,
+        totalCustomsDuties,
+        orderCount,
+        completedOrders,
+        inProgressOrders,
+      })
+
+      // Get recent orders (last 7 days)
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+      const recent =
+        orders
+          ?.filter((order) => new Date(order.created_at) >= sevenDaysAgo)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 5) || []
+
+      setRecentOrders(recent)
+
+      // Calculate monthly order data
+      const last6Months = Array.from({ length: 6 }, (_, i) => {
+        const date = new Date()
+        date.setMonth(date.getMonth() - i)
+        return {
+          month: format(date, "MMM"),
+          year: date.getFullYear(),
+          monthIndex: date.getMonth(),
+          yearMonth: `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`,
+        }
+      }).reverse()
+
+      const monthlyData = last6Months.map((monthData) => {
+        const monthOrders =
+          orders?.filter((order) => {
+            const orderDate = new Date(order.created_at)
+            return orderDate.getMonth() === monthData.monthIndex && orderDate.getFullYear() === monthData.year
+          }) || []
+
+        return {
+          name: monthData.month,
+          value: monthOrders.length,
+        }
+      })
+
+      setMonthlyOrderData(monthlyData)
+    } catch (error) {
+      console.error("Error fetching orders:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load order data. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
       setIsLoading(false)
-    }, 300)
-  }, [selectedCustomer, startDate, endDate])
+    }
+  }, [selectedCustomer, startDate, endDate, supabase])
 
   // Update data when filters change
   useEffect(() => {
@@ -439,7 +548,7 @@ export default function CustomerSummary() {
                               <p className="font-medium">{order.poNumber}</p>
                               <div className="flex items-center gap-2">
                                 <p className="text-sm text-muted-foreground">
-                                  {format(parseISO(order.createdAt), "MMM dd, yyyy")}
+                                  {format(parseISO(order.created_at), "MMM dd, yyyy")}
                                 </p>
                                 <span
                                   className={`text-xs px-2 py-0.5 rounded-full ${
@@ -470,7 +579,7 @@ export default function CustomerSummary() {
                   </Card>
 
                   {/* Customer Details */}
-                  {selectedCustomer && (
+                  {selectedCustomer && selectedCustomer !== "all" && (
                     <Card>
                       <CardHeader>
                         <CardTitle>Customer Details</CardTitle>
@@ -497,25 +606,31 @@ export default function CustomerSummary() {
                                   <p className="text-sm font-medium text-muted-foreground">VAT Number</p>
                                   <p>{customer.vatNumber}</p>
                                 </div>
-                                <div>
-                                  <p className="text-sm font-medium text-muted-foreground">Importer's Code</p>
-                                  <p>{customer.importersCode}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-muted-foreground">Customer Since</p>
-                                  <p>{format(parseISO(customer.createdAt), "MMMM yyyy")}</p>
-                                </div>
+                                {customer.importersCode && (
+                                  <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Importer's Code</p>
+                                    <p>{customer.importersCode}</p>
+                                  </div>
+                                )}
+                                {customer.createdAt && (
+                                  <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Customer Since</p>
+                                    <p>{format(parseISO(customer.createdAt), "MMMM yyyy")}</p>
+                                  </div>
+                                )}
                               </div>
-                              <div>
-                                <p className="text-sm font-medium text-muted-foreground">Address</p>
-                                <p>
-                                  {customer.address.street}, {customer.address.city}, {customer.address.postalCode}
-                                </p>
-                                <p>{customer.address.country}</p>
-                              </div>
+                              {customer.address && (
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground">Address</p>
+                                  <p>
+                                    {customer.address.street}, {customer.address.city}, {customer.address.postalCode}
+                                  </p>
+                                  <p>{customer.address.country}</p>
+                                </div>
+                              )}
                             </div>
                           ))}
-                        {!customers.some((c) => c.name === selectedCustomer) && (
+                        {selectedCustomer !== "all" && !customers.some((c) => c.name === selectedCustomer) && (
                           <p className="text-muted-foreground text-center py-4">Customer details not found</p>
                         )}
                       </CardContent>
@@ -529,7 +644,10 @@ export default function CustomerSummary() {
                     <div>
                       <CardTitle>Order History</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        {selectedCustomer ? `Orders for ${selectedCustomer}` : "All orders"} •
+                        {selectedCustomer && selectedCustomer !== "all"
+                          ? `Orders for ${selectedCustomer}`
+                          : "All orders"}{" "}
+                        •
                         {startDate && endDate
                           ? ` ${format(new Date(startDate), "MMM dd, yyyy")} to ${format(
                               new Date(endDate),
@@ -562,7 +680,7 @@ export default function CustomerSummary() {
                             {filteredOrders.slice(0, 10).map((order) => (
                               <tr key={order.id} className="border-b hover:bg-muted/30">
                                 <td className="p-2">{order.poNumber}</td>
-                                <td className="p-2">{format(parseISO(order.createdAt), "MMM dd, yyyy")}</td>
+                                <td className="p-2">{format(parseISO(order.created_at), "MMM dd, yyyy")}</td>
                                 <td className="p-2">{order.importer}</td>
                                 <td className="p-2">{order.freightType}</td>
                                 <td className="p-2">

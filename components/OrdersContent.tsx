@@ -157,6 +157,27 @@ export function OrdersContent() {
     router.push(`/orders/${orderId}`)
   }
 
+  // Add this new function to refresh data when returning from order details
+  const handleReturnFromOrder = () => {
+    fetchOrders() // Refresh the orders list
+  }
+
+  // Add useEffect to refresh when component becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Page became visible again, refresh data
+        fetchOrders()
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [])
+
   if (isLoading) {
     return (
       <div className="container mx-auto py-6 space-y-6">

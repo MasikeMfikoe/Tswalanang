@@ -1,5 +1,32 @@
-import { supabase } from "@/lib/supabaseClient"
 import type { Estimate, ApiResponse, PaginatedResponse } from "@/types/models"
+
+// Helper function to transform database row to frontend format
+function transformEstimateFromDB(item: any): Estimate {
+  return {
+    id: item.id,
+    customerId: item.customer_id || "",
+    customerName: item.customer_name || "",
+    customerEmail: item.customer_email || "",
+    status: item.status || "Draft",
+    freightType: item.freight_type || "",
+    commercialValue: item.commercial_value?.toString() || "0",
+    customsDuties: item.customs_duties?.toString() || "0",
+    customsVAT: item.customs_vat?.toString() || "0",
+    handlingFees: item.handling_fees?.toString() || "0",
+    shippingCost: item.shipping_cost?.toString() || "0",
+    documentationFee: item.documentation_fee?.toString() || "0",
+    communicationFee: item.communication_fee?.toString() || "0",
+    totalDisbursements: item.total_disbursements?.toString() || "0",
+    facilityFee: item.facility_fee?.toString() || "0",
+    agencyFee: item.agency_fee?.toString() || "0",
+    subtotal: item.subtotal?.toString() || "0",
+    vat: item.vat?.toString() || "0",
+    totalAmount: item.total_amount || 0,
+    notes: item.notes || "",
+    createdAt: item.created_at,
+    updatedAt: item.updated_at,
+  }
+}
 
 // Estimates API service
 export const estimatesApi = {
@@ -14,77 +41,47 @@ export const estimatesApi = {
     sortOrder?: "asc" | "desc"
   }): Promise<PaginatedResponse<Estimate[]>> {
     try {
-      // Start building the query
-      let query = supabase.from("estimates").select("*", { count: "exact" })
+      console.log("getEstimates called with params:", params)
 
-      // Apply filters
-      if (params?.search) {
-        query = query.or(`customer_name.ilike.%${params.search}%,id.ilike.%${params.search}%`)
+      const searchParams = new URLSearchParams()
+
+      if (params?.page) searchParams.set("page", params.page.toString())
+      if (params?.pageSize) searchParams.set("pageSize", params.pageSize.toString())
+      if (params?.search) searchParams.set("search", params.search)
+      if (params?.status) searchParams.set("status", params.status)
+      if (params?.customerId) searchParams.set("customerId", params.customerId)
+      if (params?.sortBy) searchParams.set("sortBy", params.sortBy)
+      if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder)
+
+      const response = await fetch(`/api/estimates?${searchParams.toString()}`)
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      if (params?.status) {
-        query = query.eq("status", params.status)
+      const result = await response.json()
+      console.log("API response:", result)
+
+      if (!result.success) {
+        console.log("API returned error, using empty result")
+        return {
+          data: [],
+          total: 0,
+          page: params?.page || 1,
+          pageSize: params?.pageSize || 10,
+          totalPages: 0,
+        }
       }
 
-      if (params?.customerId) {
-        query = query.eq("customer_id", params.customerId)
-      }
-
-      // Apply sorting
-      if (params?.sortBy) {
-        const order = params.sortOrder || "desc"
-        query = query.order(params.sortBy, { ascending: order === "asc" })
-      } else {
-        // Default sort by created_at desc
-        query = query.order("created_at", { ascending: false })
-      }
-
-      // Apply pagination
-      const page = params?.page || 1
-      const pageSize = params?.pageSize || 10
-      const from = (page - 1) * pageSize
-      const to = from + pageSize - 1
-      query = query.range(from, to)
-
-      // Execute the query
-      const { data, error, count } = await query
-
-      if (error) {
-        throw new Error(`Error fetching estimates: ${error.message}`)
-      }
-
-      // Transform snake_case to camelCase
-      const transformedData = data.map((item) => ({
-        id: item.id,
-        customerId: item.customer_id,
-        customerName: item.customer_name,
-        customerEmail: item.customer_email,
-        status: item.status,
-        freightType: item.freight_type,
-        commercialValue: item.commercial_value.toString(),
-        customsDuties: item.customs_duties.toString(),
-        customsVAT: item.customs_vat,
-        handlingFees: item.handling_fees.toString(),
-        shippingCost: item.shipping_cost.toString(),
-        documentationFee: item.documentation_fee.toString(),
-        communicationFee: item.communication_fee.toString(),
-        totalDisbursements: item.total_disbursements,
-        facilityFee: item.facility_fee,
-        agencyFee: item.agency_fee,
-        subtotal: item.subtotal,
-        vat: item.vat,
-        totalAmount: item.total_amount,
-        notes: item.notes || "",
-        createdAt: item.created_at,
-        updatedAt: item.updated_at,
-      }))
+      // Transform the data
+      const transformedData = result.data.map(transformEstimateFromDB)
 
       return {
         data: transformedData,
-        total: count || 0,
-        page,
-        pageSize,
-        totalPages: Math.ceil((count || 0) / pageSize),
+        total: result.total,
+        page: result.pagination?.page || params?.page || 1,
+        pageSize: result.pagination?.pageSize || params?.pageSize || 10,
+        totalPages: result.pagination?.totalPages || Math.ceil(result.total / (params?.pageSize || 10)),
       }
     } catch (error) {
       console.error("Error in getEstimates:", error)
@@ -101,46 +98,31 @@ export const estimatesApi = {
   // Get a single estimate by ID
   async getEstimateById(id: string): Promise<ApiResponse<Estimate>> {
     try {
-      const { data, error } = await supabase.from("estimates").select("*").eq("id", id).single()
+      console.log("getEstimateById called with id:", id)
 
-      if (error) {
-        throw new Error(`Error fetching estimate: ${error.message}`)
+      const response = await fetch(`/api/estimates/${id}`)
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("Estimate not found")
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      if (!data) {
-        throw new Error("Estimate not found")
+      const result = await response.json()
+      console.log("Single estimate API response:", result)
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch estimate")
       }
 
       // Transform snake_case to camelCase
-      const transformedData = {
-        id: data.id,
-        customerId: data.customer_id,
-        customerName: data.customer_name,
-        customerEmail: data.customer_email,
-        status: data.status,
-        freightType: data.freight_type,
-        commercialValue: data.commercial_value.toString(),
-        customsDuties: data.customs_duties.toString(),
-        customsVAT: data.customs_vat,
-        handlingFees: data.handling_fees.toString(),
-        shippingCost: data.shipping_cost.toString(),
-        documentationFee: data.documentation_fee.toString(),
-        communicationFee: data.communication_fee.toString(),
-        totalDisbursements: data.total_disbursements,
-        facilityFee: data.facility_fee,
-        agencyFee: data.agency_fee,
-        subtotal: data.subtotal,
-        vat: data.vat,
-        totalAmount: data.total_amount,
-        notes: data.notes || "",
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
-      }
+      const transformedData = transformEstimateFromDB(result.data)
 
       return {
         data: transformedData,
         success: true,
-        message: "Estimate retrieved successfully",
+        message: result.message || "Estimate retrieved successfully",
       }
     } catch (error: any) {
       console.error("Error in getEstimateById:", error)
@@ -165,18 +147,21 @@ export const estimatesApi = {
         body: JSON.stringify(estimateData),
       })
 
+      const result = await response.json()
+      console.log("Create estimate API response:", result)
+
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        throw new Error(result.error || `HTTP error! status: ${response.status}`)
       }
 
-      const result = await response.json()
-      console.log("Estimate created successfully:", result)
+      if (!result.success) {
+        throw new Error(result.error || "Failed to create estimate")
+      }
 
       return {
         data: result.data,
         success: true,
-        message: "Estimate created successfully",
+        message: result.message || "Estimate created successfully",
       }
     } catch (error: any) {
       console.error("Error in createEstimate:", error)
@@ -212,7 +197,7 @@ export const estimatesApi = {
       return {
         data: result.data,
         success: true,
-        message: "Estimate updated successfully",
+        message: result.message || "Estimate updated successfully",
       }
     } catch (error: any) {
       console.error("Error in updateEstimate:", error)
@@ -227,16 +212,21 @@ export const estimatesApi = {
   // Delete an estimate
   async deleteEstimate(id: string): Promise<ApiResponse<void>> {
     try {
-      const { error } = await supabase.from("estimates").delete().eq("id", id)
+      const response = await fetch(`/api/estimates/${id}`, {
+        method: "DELETE",
+      })
 
-      if (error) {
-        throw new Error(`Error deleting estimate: ${error.message}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
+
+      const result = await response.json()
 
       return {
         data: undefined,
         success: true,
-        message: "Estimate deleted successfully",
+        message: result.message || "Estimate deleted successfully",
       }
     } catch (error: any) {
       console.error("Error in deleteEstimate:", error)
@@ -251,16 +241,25 @@ export const estimatesApi = {
   // Update estimate status
   async updateEstimateStatus(id: string, status: string): Promise<ApiResponse<void>> {
     try {
-      const { error } = await supabase.from("estimates").update({ status }).eq("id", id)
+      const response = await fetch(`/api/estimates/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status }),
+      })
 
-      if (error) {
-        throw new Error(`Error updating estimate status: ${error.message}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
+
+      const result = await response.json()
 
       return {
         data: undefined,
         success: true,
-        message: "Estimate status updated successfully",
+        message: result.message || "Estimate status updated successfully",
       }
     } catch (error: any) {
       console.error("Error in updateEstimateStatus:", error)

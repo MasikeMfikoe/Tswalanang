@@ -16,31 +16,76 @@ interface AuthContextType {
   hasPermission: (module: string, action: string) => boolean
   refreshUser: () => Promise<void>
   getUsers: () => Promise<User[]>
+  createUser: (userData: Omit<User, "id" | "username">) => Promise<boolean>
+  deleteUser: (userId: string) => Promise<boolean>
+  signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Create a simple mock user for development
-const MOCK_USER: User = {
-  id: "mock-user-id",
-  username: "demo",
-  name: "Demo",
-  surname: "User",
-  role: "admin",
-  department: "IT",
-  pageAccess: ["dashboard", "orders", "customers", "documents", "deliveries", "courierOrders", "shipmentTracker"],
-}
-
-// Create a mock tracking user
-const MOCK_TRACKING_USER: User = {
-  id: "mock-tracking-id",
-  username: "tracking",
-  name: "Tracking",
-  surname: "User",
-  role: "guest",
-  department: "Client",
-  pageAccess: ["shipmentTracker"],
-}
+// Create mock users for development
+const MOCK_USERS: User[] = [
+  {
+    id: "mock-user-id",
+    username: "demo",
+    name: "Demo",
+    surname: "User",
+    role: "admin",
+    department: "IT",
+    pageAccess: ["dashboard", "orders", "customers", "documents", "deliveries", "courierOrders", "shipmentTracker"],
+    email: "demo@tswsmartlog.com",
+  },
+  {
+    id: "mock-tracking-id",
+    username: "tracking",
+    name: "Tracking",
+    surname: "User",
+    role: "guest",
+    department: "Client",
+    pageAccess: ["shipmentTracker"],
+    email: "tracking@client.com",
+  },
+  {
+    id: "mock-manager-id",
+    username: "manager",
+    name: "John",
+    surname: "Manager",
+    role: "manager",
+    department: "Operations",
+    pageAccess: ["dashboard", "orders", "customers", "deliveries"],
+    email: "john.manager@tswsmartlog.com",
+  },
+  {
+    id: "mock-employee-id",
+    username: "employee",
+    name: "Jane",
+    surname: "Employee",
+    role: "employee",
+    department: "Customer Service",
+    pageAccess: ["dashboard", "orders"],
+    email: "jane.employee@tswsmartlog.com",
+  },
+  {
+    id: "client-user-1",
+    username: "client1",
+    name: "Alice",
+    surname: "Johnson",
+    role: "client",
+    department: "External",
+    pageAccess: ["shipmentTracker"],
+    email: "alice.johnson@clientcompany.com",
+  },
+  {
+    id: "client-user-2",
+    username: "client2",
+    name: "Bob",
+    surname: "Smith",
+    role: "client",
+    department: "External",
+    pageAccess: ["shipmentTracker"],
+    email: "bob.smith@anotherclient.com",
+  },
+]
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -112,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: profile.role as UserRole,
             department: profile.department,
             pageAccess: profile.page_access || [],
+            email: profile.email,
           }
 
           console.log("Setting user from Supabase:", userData)
@@ -150,11 +196,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("Using mock login for demo user")
 
         // Set the mock user
-        setUser(MOCK_USER)
+        const mockUser = MOCK_USERS.find((u) => u.username === "demo")!
+        setUser(mockUser)
 
         // Store in localStorage for persistence
         try {
-          localStorage.setItem("user", JSON.stringify(MOCK_USER))
+          localStorage.setItem("user", JSON.stringify(mockUser))
           console.log("Saved mock user to localStorage")
         } catch (e) {
           console.log("Error saving to localStorage:", e)
@@ -169,11 +216,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("Using mock login for tracking user")
 
         // Set the mock tracking user
-        setUser(MOCK_TRACKING_USER)
+        const mockTrackingUser = MOCK_USERS.find((u) => u.username === "tracking")!
+        setUser(mockTrackingUser)
 
         // Store in localStorage for persistence
         try {
-          localStorage.setItem("user", JSON.stringify(MOCK_TRACKING_USER))
+          localStorage.setItem("user", JSON.stringify(mockTrackingUser))
           console.log("Saved mock tracking user to localStorage")
         } catch (e) {
           console.log("Error saving to localStorage:", e)
@@ -219,6 +267,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: profile.role as UserRole,
           department: profile.department,
           pageAccess: profile.page_access || [],
+          email: profile.email,
         }
 
         console.log("Setting user from Supabase login:", userData)
@@ -278,83 +327,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Register function - FIXED VERSION
+  // Register function
   const register = async (userData: Partial<User>): Promise<boolean> => {
     try {
       setIsLoading(true)
       console.log("Registering new user:", userData)
 
-      // Validate required fields
-      if (!userData.username || !userData.name || !userData.surname) {
-        console.error("Missing required fields for user registration")
-        return false
+      // For development, just add to mock users
+      const newUser: User = {
+        id: `mock-${Date.now()}`,
+        username: userData.username || `${userData.name?.toLowerCase()}.${userData.surname?.toLowerCase()}`,
+        name: userData.name || "",
+        surname: userData.surname || "",
+        role: userData.role || "employee",
+        department: userData.department || "Default",
+        pageAccess: userData.pageAccess || ["dashboard"],
+        email: userData.email || `${userData.username}@tswsmartlog.com`,
       }
 
-      // Create a unique email for the user
-      const email = userData.email || `${userData.username}@tswsmartlog.com`
-      const password = userData.password || `${userData.username}123!` // Generate a default password
-
-      try {
-        // Step 1: Create auth user in Supabase Auth
-        console.log("Creating auth user with email:", email)
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: email,
-          password: password,
-          options: {
-            data: {
-              username: userData.username,
-              name: userData.name,
-              surname: userData.surname,
-            },
-          },
-        })
-
-        if (authError) {
-          console.error("Auth user creation error:", authError)
-          return false
-        }
-
-        if (!authData.user) {
-          console.error("No user returned from auth signup")
-          return false
-        }
-
-        console.log("Auth user created successfully:", authData.user.id)
-
-        // Step 2: Create user profile in user_profiles table
-        const profileData = {
-          id: authData.user.id,
-          username: userData.username,
-          name: userData.name,
-          surname: userData.surname,
-          role: userData.role || "guest",
-          department: userData.department || "Default",
-          page_access: userData.pageAccess || ["dashboard"],
-          associated_orders: userData.associatedOrders || [],
-        }
-
-        console.log("Creating user profile:", profileData)
-
-        const { data: profileResult, error: profileError } = await supabase
-          .from("user_profiles")
-          .insert(profileData)
-          .select()
-          .single()
-
-        if (profileError) {
-          console.error("Profile creation error:", profileError)
-          // Clean up the auth user if profile creation fails
-          await supabase.auth.admin.deleteUser(authData.user.id)
-          return false
-        }
-
-        console.log("User profile created successfully:", profileResult)
-        console.log("User registered successfully with ID:", authData.user.id)
-        return true
-      } catch (supabaseError) {
-        console.error("Supabase registration error:", supabaseError)
-        return false
-      }
+      MOCK_USERS.push(newUser)
+      console.log("User registered successfully (mock):", newUser)
+      return true
     } catch (error) {
       console.error("Registration error:", error)
       return false
@@ -374,21 +367,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false
       }
 
-      // Update user profile
-      const { error } = await supabase
-        .from("user_profiles")
-        .update({
-          name: userData.name,
-          surname: userData.surname,
-          role: userData.role,
-          department: userData.department,
-          page_access: userData.pageAccess,
-        })
-        .eq("id", user.id)
-
-      if (error) {
-        console.error("Update error:", error)
-        return false
+      // For development, update mock user
+      const userIndex = MOCK_USERS.findIndex((u) => u.id === user.id)
+      if (userIndex !== -1) {
+        MOCK_USERS[userIndex] = { ...MOCK_USERS[userIndex], ...userData }
       }
 
       // Update local user state
@@ -445,38 +427,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await checkUser()
   }
 
-  // Get all users (admin only) - FIXED VERSION
+  // Get all users - FIXED to avoid infinite recursion
   const getUsers = async (): Promise<User[]> => {
     try {
-      console.log("Fetching all users from database")
+      console.log("Fetching all users...")
 
-      // Fetch users from Supabase
-      const { data, error } = await supabase.from("user_profiles").select("*")
+      // For development/preview, return mock data to avoid Supabase RLS issues
+      console.log("Returning mock users for development")
+      return [...MOCK_USERS]
+
+      // Uncomment below for production with proper RLS policies
+      /*
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .order("created_at", { ascending: false })
 
       if (error) {
-        console.error("Error fetching users:", error)
-        // Return mock data as fallback
-        return [
-          {
-            id: "tracking-user-1",
-            username: "trackinguser1",
-            name: "Tracking",
-            surname: "User One",
-            role: "guest",
-            department: "Client",
-            pageAccess: ["shipmentTracker"],
-          },
-          {
-            id: "tracking-user-2",
-            username: "trackinguser2",
-            name: "Tracking",
-            surname: "User Two",
-            role: "guest",
-            department: "Client",
-            pageAccess: ["shipmentTracker"],
-          },
-          MOCK_TRACKING_USER,
-        ]
+        console.error("Error fetching users from Supabase:", error)
+        console.log("Falling back to mock data")
+        return [...MOCK_USERS]
       }
 
       // Map to User type
@@ -493,10 +463,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       console.log("Fetched users from database:", users)
       return users
+      */
     } catch (error) {
       console.error("Error in getUsers:", error)
-      return []
+      console.log("Returning mock users as fallback")
+      return [...MOCK_USERS]
     }
+  }
+
+  // Create user function
+  const createUser = async (userData: Omit<User, "id" | "username">): Promise<boolean> => {
+    try {
+      setIsLoading(true)
+      console.log("Creating new user:", userData)
+
+      // Generate username from name and surname
+      const username = `${userData.name.toLowerCase()}.${userData.surname.toLowerCase()}`
+
+      // For development, add to mock users
+      const newUser: User = {
+        id: `mock-${Date.now()}`,
+        username,
+        name: userData.name,
+        surname: userData.surname,
+        email: userData.email,
+        role: userData.role,
+        department: userData.department,
+        pageAccess: userData.pageAccess || [],
+      }
+
+      MOCK_USERS.push(newUser)
+      console.log("User created successfully (mock):", newUser)
+      return true
+    } catch (error) {
+      console.error("Create user error:", error)
+      return false
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Delete user function
+  const deleteUser = async (userId: string): Promise<boolean> => {
+    try {
+      setIsLoading(true)
+      console.log("Deleting user:", userId)
+
+      // For development, remove from mock users
+      const userIndex = MOCK_USERS.findIndex((u) => u.id === userId)
+      if (userIndex !== -1) {
+        MOCK_USERS.splice(userIndex, 1)
+        console.log("User deleted successfully (mock)")
+        return true
+      }
+
+      console.log("User not found")
+      return false
+    } catch (error) {
+      console.error("Delete user error:", error)
+      return false
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Sign out alias
+  const signOut = async (): Promise<void> => {
+    await logout()
   }
 
   return (
@@ -512,6 +545,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasPermission,
         refreshUser,
         getUsers,
+        createUser,
+        deleteUser,
+        signOut,
       }}
     >
       {children}

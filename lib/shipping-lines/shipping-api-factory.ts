@@ -1,41 +1,64 @@
-import type { ShippingLine, ShippingLineCredentials } from "@/types/shipping"
-import type { BaseShippingAPI } from "./base-shipping-api"
 import { MaerskAPI } from "./maersk-api"
 import { MSCAPI } from "./msc-api"
-
-// Add more imports for other shipping lines as they are implemented
+import type { ShippingLine, ShippingLineCredentials } from "@/types/shipping"
 
 export class ShippingAPIFactory {
-  static getApiClient(shippingLine: ShippingLine, credentials: ShippingLineCredentials): BaseShippingAPI {
+  static getCredentials(shippingLine: ShippingLine): ShippingLineCredentials {
+    switch (shippingLine) {
+      case "maersk":
+        return {
+          baseUrl: process.env.MAERSK_API_URL || "",
+          clientId: process.env.MAERSK_CLIENT_ID || "",
+          clientSecret: process.env.MAERSK_CLIENT_SECRET || "",
+        }
+      case "msc":
+        return {
+          baseUrl: process.env.MSC_API_URL || "",
+          username: process.env.MSC_USERNAME || "",
+          password: process.env.MSC_PASSWORD || "",
+        }
+      default:
+        throw new Error(`Unsupported shipping line: ${shippingLine}`)
+    }
+  }
+
+  static hasValidCredentials(shippingLine: ShippingLine): boolean {
+    try {
+      const credentials = this.getCredentials(shippingLine)
+
+      switch (shippingLine) {
+        case "maersk":
+          return !!(
+            credentials.baseUrl &&
+            credentials.clientId &&
+            credentials.clientSecret &&
+            credentials.clientId !== "undefined" &&
+            credentials.clientSecret !== "undefined"
+          )
+        case "msc":
+          return !!(
+            credentials.baseUrl &&
+            credentials.username &&
+            credentials.password &&
+            credentials.username !== "undefined" &&
+            credentials.password !== "undefined"
+          )
+        default:
+          return false
+      }
+    } catch (error) {
+      return false
+    }
+  }
+
+  static getApiClient(shippingLine: ShippingLine, credentials: ShippingLineCredentials) {
     switch (shippingLine) {
       case "maersk":
         return new MaerskAPI(credentials)
       case "msc":
         return new MSCAPI(credentials)
-      // Add cases for other shipping lines
       default:
-        throw new Error(`Shipping line API not implemented: ${shippingLine}`)
-    }
-  }
-
-  static getCredentials(shippingLine: ShippingLine): ShippingLineCredentials {
-    // In a real implementation, these would come from environment variables or a secure store
-    switch (shippingLine) {
-      case "maersk":
-        return {
-          baseUrl: process.env.MAERSK_API_URL || "https://api.maersk.com",
-          clientId: process.env.MAERSK_CLIENT_ID,
-          clientSecret: process.env.MAERSK_CLIENT_SECRET,
-        }
-      case "msc":
-        return {
-          baseUrl: process.env.MSC_API_URL || "https://api.msc.com",
-          username: process.env.MSC_USERNAME,
-          password: process.env.MSC_PASSWORD,
-        }
-      // Add cases for other shipping lines
-      default:
-        throw new Error(`Credentials not configured for shipping line: ${shippingLine}`)
+        throw new Error(`Unsupported shipping line: ${shippingLine}`)
     }
   }
 }

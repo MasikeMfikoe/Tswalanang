@@ -28,44 +28,13 @@ export default function AdminUsersPage() {
     const fetchData = async () => {
       try {
         setIsLoading(true)
-        // Mock data for users
-        const mockUsers: User[] = [
-          {
-            id: "1",
-            name: "John",
-            surname: "Doe",
-            email: "john.doe@example.com",
-            username: "john.doe",
-            department: "Sales",
-            role: "manager",
-            pageAccess: [],
-          },
-          {
-            id: "2",
-            name: "Jane",
-            surname: "Smith",
-            email: "jane.smith@example.com",
-            username: "jane.smith",
-            department: "HR",
-            role: "employee",
-            pageAccess: [],
-          },
-          {
-            id: "3",
-            name: "Admin",
-            surname: "User",
-            email: "admin@example.com",
-            username: "admin",
-            department: "Super Admin",
-            role: "admin",
-            pageAccess: [],
-          },
-        ]
 
-        setUsers(mockUsers)
-        setFilteredUsers(mockUsers)
+        // Fetch real users from Supabase via AuthContext
+        const fetchedUsers = await getUsers()
+        setUsers(fetchedUsers)
+        setFilteredUsers(fetchedUsers)
 
-        // Mock data for user groups
+        // Keep the mock user groups for now (these could also be moved to Supabase)
         const groups: UserGroup[] = [
           { id: "1", name: "Super Admin", isDefault: true, createdAt: new Date().toISOString() },
           { id: "2", name: "Sales", isDefault: false, createdAt: new Date().toISOString() },
@@ -88,7 +57,7 @@ export default function AdminUsersPage() {
     }
 
     fetchData()
-  }, [toast]) // Only depend on toast
+  }, [toast, getUsers]) // Only depend on toast
 
   // Filter users when search query changes
   useEffect(() => {

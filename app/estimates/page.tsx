@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { FileText, Plus, Search, RefreshCw, ArrowLeft } from "lucide-react"
+import { FileText, Plus, Search, RefreshCw, ArrowLeft, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { getEstimates } from "@/lib/api/estimatesApi"
 import { Spinner } from "@/components/ui/spinner"
@@ -24,6 +24,7 @@ export default function EstimatesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalEstimates, setTotalEstimates] = useState(0)
   const [statusFilter, setStatusFilter] = useState<string>("")
+  const [debugInfo, setDebugInfo] = useState<any>(null)
   const pageSize = 10
 
   // Fetch estimates from API
@@ -32,11 +33,30 @@ export default function EstimatesPage() {
       setLoading(true)
       setError(null)
 
-      const response = await getEstimates(currentPage, pageSize, statusFilter || undefined)
+      console.log("Fetching estimates with params:", { currentPage, pageSize, statusFilter })
 
-      setEstimates(response.data)
-      setTotalEstimates(response.total)
-      setFilteredEstimates(response.data)
+      const response = await getEstimates({
+        page: currentPage,
+        pageSize: pageSize,
+        status: statusFilter || undefined,
+      })
+
+      console.log("Estimates API response:", response)
+      setDebugInfo(response)
+
+      if (response.data) {
+        setEstimates(response.data)
+        setTotalEstimates(response.total || 0)
+        setFilteredEstimates(response.data)
+
+        console.log("Set estimates:", response.data)
+        console.log("Total estimates:", response.total)
+      } else {
+        console.log("No data in response")
+        setEstimates([])
+        setTotalEstimates(0)
+        setFilteredEstimates([])
+      }
     } catch (err) {
       console.error("Failed to fetch estimates:", err)
       setError("Failed to load estimates. Please try again.")
@@ -86,6 +106,7 @@ export default function EstimatesPage() {
   }
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A"
     const date = new Date(dateString)
     return new Intl.DateTimeFormat("en-ZA", {
       year: "numeric",
@@ -95,6 +116,7 @@ export default function EstimatesPage() {
   }
 
   const formatCurrency = (amount: number) => {
+    if (!amount) return "R 0.00"
     return new Intl.NumberFormat("en-ZA", {
       style: "currency",
       currency: "ZAR",
@@ -116,6 +138,11 @@ export default function EstimatesPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Estimates</h1>
           <p className="text-muted-foreground">Manage customer estimates and quotes</p>
+          {debugInfo && (
+            <p className="text-xs text-gray-500 mt-1">
+              Debug: Found {debugInfo.total} records, showing {debugInfo.data?.length || 0}
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           <Link href="/estimates/new">
@@ -128,6 +155,12 @@ export default function EstimatesPage() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
+          <Link href="/debug-estimates">
+            <Button variant="outline">
+              <AlertCircle className="mr-2 h-4 w-4" />
+              Debug
+            </Button>
+          </Link>
           <Button variant="outline" asChild>
             <Link href="/dashboard">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -192,15 +225,23 @@ export default function EstimatesPage() {
                 <TableBody>
                   {filteredEstimates.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-4">
-                        No estimates found
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2">
+                          <AlertCircle className="h-8 w-8 text-gray-400" />
+                          <p className="text-gray-500">No estimates found</p>
+                          <p className="text-xs text-gray-400">
+                            {totalEstimates > 0
+                              ? `${totalEstimates} total records in database`
+                              : "Database appears to be empty"}
+                          </p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredEstimates.map((estimate) => (
                       <TableRow key={estimate.id}>
-                        <TableCell>{estimate.id}</TableCell>
-                        <TableCell>{estimate.customerName}</TableCell>
+                        <TableCell className="font-mono text-sm">{estimate.id}</TableCell>
+                        <TableCell>{estimate.customerName || "N/A"}</TableCell>
                         <TableCell>{formatDate(estimate.createdAt)}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className={getStatusColor(estimate.status)}>
@@ -208,7 +249,7 @@ export default function EstimatesPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>{formatCurrency(estimate.totalAmount)}</TableCell>
-                        <TableCell>{estimate.freightType}</TableCell>
+                        <TableCell>{estimate.freightType || "N/A"}</TableCell>
                         <TableCell className="text-right">
                           <Link href={`/estimates/${estimate.id}`}>
                             <Button variant="ghost" size="sm">
@@ -229,6 +270,11 @@ export default function EstimatesPage() {
           <div className="mt-4 flex justify-between items-center text-sm text-muted-foreground">
             <div>
               Showing {filteredEstimates.length} of {totalEstimates} estimates
+              {debugInfo && (
+                <span className="ml-2 text-xs">
+                  (Page {currentPage}, API returned {debugInfo.data?.length || 0} records)
+                </span>
+              )}
             </div>
             <div className="flex gap-2">
               <Button

@@ -32,7 +32,7 @@ interface OrderData {
   destination?: string
   created_at: string
   updated_at?: string
-  // Financial fields
+  // Financial fields (may not exist in all tables)
   commercial_value?: number
   customs_duties?: number
   handling_fees?: number
@@ -54,6 +54,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasFinancialColumns, setHasFinancialColumns] = useState(false)
 
   const [cargoStatusHistory, setCargoStatusHistory] = useState([
     {
@@ -68,11 +69,38 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     },
   ])
 
+  // Check if financial columns exist in the orders table
+  const checkFinancialColumns = async () => {
+    try {
+      // Try to select financial columns to see if they exist
+      const { data, error } = await supabase
+        .from("orders")
+        .select(
+          "commercial_value, customs_duties, handling_fees, shipping_cost, documentation_fee, communication_fee, financial_notes",
+        )
+        .limit(1)
+
+      if (!error) {
+        setHasFinancialColumns(true)
+        console.log("Financial columns exist in orders table")
+      } else {
+        setHasFinancialColumns(false)
+        console.log("Financial columns do not exist in orders table")
+      }
+    } catch (error) {
+      setHasFinancialColumns(false)
+      console.log("Financial columns check failed, assuming they don't exist")
+    }
+  }
+
   // Fetch order details from Supabase
   const fetchOrderDetails = async () => {
     try {
       setIsLoading(true)
       setError(null)
+
+      // First check if financial columns exist
+      await checkFinancialColumns()
 
       const { data, error: supabaseError } = await supabase.from("orders").select("*").eq("id", params.id).single()
 
@@ -167,31 +195,68 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     try {
       setIsSaving(true)
 
+      // Prepare the update data with only basic fields that definitely exist
+      const updateData: any = {
+        order_number: tempOrder.order_number || null,
+        po_number: tempOrder.po_number || null,
+        supplier: tempOrder.supplier || null,
+        importer: tempOrder.importer || null,
+        status: tempOrder.status || null,
+        cargo_status: tempOrder.cargo_status || null,
+        freight_type: tempOrder.freight_type || null,
+        cargo_status_comment: tempOrder.cargo_status_comment || null,
+        customer_name: tempOrder.customer_name || null,
+        origin: tempOrder.origin || null,
+        destination: tempOrder.destination || null,
+        total_value: tempOrder.total_value || null,
+        updated_at: new Date().toISOString(),
+      }
+
+      // Only add financial fields if they exist in the table
+      if (hasFinancialColumns) {
+        updateData.commercial_value = tempOrder.commercial_value || null
+        updateData.customs_duties = tempOrder.customs_duties || null
+        updateData.handling_fees = tempOrder.handling_fees || null
+        updateData.shipping_cost = tempOrder.shipping_cost || null
+        updateData.documentation_fee = tempOrder.documentation_fee || null
+        updateData.communication_fee = tempOrder.communication_fee || null
+        updateData.financial_notes = tempOrder.financial_notes || null
+      }
+
+      console.log("Updating order with data:", updateData)
+
       // Update order in Supabase
-      const { error: updateError } = await supabase
+      const { data, error: updateError } = await supabase
         .from("orders")
-        .update({
-          order_number: tempOrder.order_number,
-          po_number: tempOrder.po_number,
-          supplier: tempOrder.supplier,
-          importer: tempOrder.importer,
-          status: tempOrder.status,
-          cargo_status: tempOrder.cargo_status,
-          freight_type: tempOrder.freight_type,
-          cargo_status_comment: tempOrder.cargo_status_comment,
-          customer_name: tempOrder.customer_name,
-          origin: tempOrder.origin,
-          destination: tempOrder.destination,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", params.id)
+        .select()
+        .single()
 
       if (updateError) {
+        console.error("Supabase update error:", updateError)
         throw updateError
       }
 
+      console.log("Order updated successfully:", data)
+
       // Update cargo status history if status changed
       if (order.cargo_status !== tempOrder.cargo_status) {
+        const historyEntry = {
+          order_id: params.id,
+          status: tempOrder.cargo_status || "pending",
+          comment: tempOrder.cargo_status_comment || "",
+          created_at: new Date().toISOString(),
+          user_name: "Current User", // You can replace this with actual user data
+        }
+
+        const { error: historyError } = await supabase.from("cargo_status_history").insert(historyEntry)
+
+        if (historyError) {
+          console.warn("Failed to create cargo status history:", historyError)
+          // Don't throw error here, just log it
+        }
+
         setCargoStatusHistory((prev) => [
           {
             id: Date.now().toString(),
@@ -205,17 +270,23 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
           },
           ...prev,
         ])
+
         // Clear the comment after adding to history
         setTempOrder((prev) => ({ ...prev!, cargo_status_comment: "" }))
       }
 
-      setOrder(tempOrder)
+      // Update local state with the returned data
+      setOrder(data)
+      setTempOrder(data)
       setIsEditing(false)
 
       toast({
         title: "Success",
         description: "Order updated successfully",
       })
+
+      // Refresh the page data to ensure consistency
+      await fetchOrderDetails()
     } catch (error: any) {
       console.error("Error updating order:", error)
       toast({
@@ -237,24 +308,45 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     if (!order) return
 
     try {
+      console.log("Marking order as completed:", order.id)
+
       // Update the order status to Completed in Supabase
-      const { error: updateError } = await supabase
+      const { data, error: updateError } = await supabase
         .from("orders")
         .update({
           status: "Completed",
           updated_at: new Date().toISOString(),
         })
         .eq("id", params.id)
+        .select()
+        .single()
 
       if (updateError) {
+        console.error("Error updating payment status:", updateError)
         throw updateError
       }
 
+      console.log("Payment status updated successfully:", data)
+
       // Update local state
-      setOrder((prev) => (prev ? { ...prev, status: "Completed" } : null))
-      setTempOrder((prev) => (prev ? { ...prev, status: "Completed" } : null))
+      setOrder(data)
+      setTempOrder(data)
 
       // Add to cargo status history
+      const historyEntry = {
+        order_id: params.id,
+        status: "delivered",
+        comment: "Payment received and order completed",
+        created_at: new Date().toISOString(),
+        user_name: "Current User",
+      }
+
+      const { error: historyError } = await supabase.from("cargo_status_history").insert(historyEntry)
+
+      if (historyError) {
+        console.warn("Failed to create cargo status history:", historyError)
+      }
+
       setCargoStatusHistory((prev) => [
         {
           id: Date.now().toString(),
@@ -535,147 +627,162 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                   <CardTitle>Order Financials</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-6">
-                    {/* Financial Form - Read Only */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="commercialValue">Commercial Value (R)</Label>
-                        <Input
-                          id="commercialValue"
-                          type="text"
-                          value={`R ${(order?.commercial_value || 0).toFixed(2)}`}
-                          readOnly
-                          className="bg-gray-50"
-                        />
+                  {!hasFinancialColumns ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground mb-4">
+                        Financial columns are not available in the current orders table.
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Run the financial columns migration to enable this feature.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {/* Financial Form - Read Only */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="commercialValue">Commercial Value (R)</Label>
+                          <Input
+                            id="commercialValue"
+                            type="text"
+                            value={`R ${(order?.commercial_value || 0).toFixed(2)}`}
+                            readOnly
+                            className="bg-gray-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="customsDuties">Customs Duties (R)</Label>
+                          <Input
+                            id="customsDuties"
+                            type="text"
+                            value={`R ${(order?.customs_duties || 0).toFixed(2)}`}
+                            readOnly
+                            className="bg-gray-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="customsVAT">Customs VAT (15% of commercial value)</Label>
+                          <Input
+                            id="customsVAT"
+                            type="text"
+                            value={`R ${((order?.commercial_value || 0) * 0.15).toFixed(2)}`}
+                            readOnly
+                            className="bg-gray-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="handlingFees">Handling Fees (R)</Label>
+                          <Input
+                            id="handlingFees"
+                            type="text"
+                            value={`R ${(order?.handling_fees || 0).toFixed(2)}`}
+                            readOnly
+                            className="bg-gray-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="shippingCost">Shipping Cost (R)</Label>
+                          <Input
+                            id="shippingCost"
+                            type="text"
+                            value={`R ${(order?.shipping_cost || 0).toFixed(2)}`}
+                            readOnly
+                            className="bg-gray-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="documentationFee">
+                            Documentation Fee ({order?.freight_type || "Air"}) (R)
+                          </Label>
+                          <Input
+                            id="documentationFee"
+                            type="text"
+                            value={`R ${(order?.documentation_fee || 0).toFixed(2)}`}
+                            readOnly
+                            className="bg-gray-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="communicationFee">
+                            Communication Fee ({order?.freight_type || "Air"}) (R)
+                          </Label>
+                          <Input
+                            id="communicationFee"
+                            type="text"
+                            value={`R ${(order?.communication_fee || 0).toFixed(2)}`}
+                            readOnly
+                            className="bg-gray-50"
+                          />
+                        </div>
                       </div>
+
+                      {/* Notes - Full Width */}
                       <div className="space-y-2">
-                        <Label htmlFor="customsDuties">Customs Duties (R)</Label>
-                        <Input
-                          id="customsDuties"
-                          type="text"
-                          value={`R ${(order?.customs_duties || 0).toFixed(2)}`}
-                          readOnly
-                          className="bg-gray-50"
-                        />
+                        <Label htmlFor="financialNotes">Notes</Label>
+                        <div className="min-h-[100px] p-3 bg-gray-50 border rounded-md">
+                          {order?.financial_notes || "No financial notes available"}
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="customsVAT">Customs VAT (15% of commercial value)</Label>
-                        <Input
-                          id="customsVAT"
-                          type="text"
-                          value={`R ${((order?.commercial_value || 0) * 0.15).toFixed(2)}`}
-                          readOnly
-                          className="bg-gray-50"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="handlingFees">Handling Fees (R)</Label>
-                        <Input
-                          id="handlingFees"
-                          type="text"
-                          value={`R ${(order?.handling_fees || 0).toFixed(2)}`}
-                          readOnly
-                          className="bg-gray-50"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="shippingCost">Shipping Cost (R)</Label>
-                        <Input
-                          id="shippingCost"
-                          type="text"
-                          value={`R ${(order?.shipping_cost || 0).toFixed(2)}`}
-                          readOnly
-                          className="bg-gray-50"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="documentationFee">Documentation Fee ({order?.freight_type || "Air"}) (R)</Label>
-                        <Input
-                          id="documentationFee"
-                          type="text"
-                          value={`R ${(order?.documentation_fee || 0).toFixed(2)}`}
-                          readOnly
-                          className="bg-gray-50"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="communicationFee">Communication Fee ({order?.freight_type || "Air"}) (R)</Label>
-                        <Input
-                          id="communicationFee"
-                          type="text"
-                          value={`R ${(order?.communication_fee || 0).toFixed(2)}`}
-                          readOnly
-                          className="bg-gray-50"
-                        />
+
+                      {/* Summary Section */}
+                      <div className="border-t pt-6">
+                        <h3 className="text-lg font-semibold mb-4">Financial Summary</h3>
+                        <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                          {(() => {
+                            const commercialValue = order?.commercial_value || 0
+                            const customsDuties = order?.customs_duties || 0
+                            const customsVAT = commercialValue * 0.15
+                            const handlingFees = order?.handling_fees || 0
+                            const shippingCost = order?.shipping_cost || 0
+                            const documentationFee = order?.documentation_fee || 0
+                            const communicationFee = order?.communication_fee || 0
+
+                            const totalDisbursements =
+                              customsDuties +
+                              customsVAT +
+                              handlingFees +
+                              shippingCost +
+                              documentationFee +
+                              communicationFee
+                            const facilityFee = totalDisbursements * 0.025 // 2.5%
+                            const agencyFee = totalDisbursements * 0.035 // 3.5%
+                            const subtotal = totalDisbursements + facilityFee + agencyFee
+                            const vat = subtotal * 0.15
+                            const total = subtotal + vat
+
+                            return (
+                              <>
+                                <div className="flex justify-between">
+                                  <span>Total Disbursements:</span>
+                                  <span>R {totalDisbursements.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Facility Fee (2.5%):</span>
+                                  <span>R {facilityFee.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Agency Fee (3.5%):</span>
+                                  <span>R {agencyFee.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between border-t pt-2">
+                                  <span>Subtotal:</span>
+                                  <span>R {subtotal.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>VAT (15%):</span>
+                                  <span>R {vat.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between border-t pt-2 text-lg font-bold">
+                                  <span>Total:</span>
+                                  <span className="text-green-600">R {total.toFixed(2)}</span>
+                                </div>
+                              </>
+                            )
+                          })()}
+                        </div>
                       </div>
                     </div>
-
-                    {/* Notes - Full Width */}
-                    <div className="space-y-2">
-                      <Label htmlFor="financialNotes">Notes</Label>
-                      <div className="min-h-[100px] p-3 bg-gray-50 border rounded-md">
-                        {order?.financial_notes || "No financial notes available"}
-                      </div>
-                    </div>
-
-                    {/* Summary Section */}
-                    <div className="border-t pt-6">
-                      <h3 className="text-lg font-semibold mb-4">Financial Summary</h3>
-                      <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-                        {(() => {
-                          const commercialValue = order?.commercial_value || 0
-                          const customsDuties = order?.customs_duties || 0
-                          const customsVAT = commercialValue * 0.15
-                          const handlingFees = order?.handling_fees || 0
-                          const shippingCost = order?.shipping_cost || 0
-                          const documentationFee = order?.documentation_fee || 0
-                          const communicationFee = order?.communication_fee || 0
-
-                          const totalDisbursements =
-                            customsDuties +
-                            customsVAT +
-                            handlingFees +
-                            shippingCost +
-                            documentationFee +
-                            communicationFee
-                          const facilityFee = totalDisbursements * 0.025 // 2.5%
-                          const agencyFee = totalDisbursements * 0.035 // 3.5%
-                          const subtotal = totalDisbursements + facilityFee + agencyFee
-                          const vat = subtotal * 0.15
-                          const total = subtotal + vat
-
-                          return (
-                            <>
-                              <div className="flex justify-between">
-                                <span>Total Disbursements:</span>
-                                <span>R {totalDisbursements.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Facility Fee (2.5%):</span>
-                                <span>R {facilityFee.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Agency Fee (3.5%):</span>
-                                <span>R {agencyFee.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between border-t pt-2">
-                                <span>Subtotal:</span>
-                                <span>R {subtotal.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>VAT (15%):</span>
-                                <span>R {vat.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                                <span>Total:</span>
-                                <span className="text-green-600">R {total.toFixed(2)}</span>
-                              </div>
-                            </>
-                          )
-                        })()}
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

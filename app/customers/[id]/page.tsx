@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,123 +10,239 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { RateCard } from "@/components/RateCard"
+import { Spinner } from "@/components/ui/spinner"
+import { supabase } from "@/lib/supabaseClient"
 
 interface Customer {
   id: string
   name: string
-  address: {
-    street: string
-    city: string
-    postalCode: string
-    country: string
-  }
-  primaryContact: {
-    name: string
-    landline: string
-    cellphone: string
-    email: string
-  }
-  secondaryContact: {
-    name: string
-    landline: string
-    cellphone: string
-    email: string
-  }
-  totalOrders: number
-  vatNumber?: string
-  importersCode?: string
+  contact_person: string
+  email: string
+  phone: string
+  address_street: string
+  address_city: string
+  address_postal_code: string
+  address_country: string
+  vat_number?: string
+  importers_code?: string
+  total_orders?: number
+  total_spent?: number
+  created_at?: string
+  updated_at?: string
 }
 
 interface Order {
   id: string
-  poNumber: string
+  po_number: string
+  supplier: string
+  status: string
+  freight_type: string
+  total_value: number
+  created_at: string
+  customer_name?: string
+  importer?: string
 }
 
 export default function CustomerDetails({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { toast } = useToast()
+
+  // State management
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [orders, setOrders] = useState<Order[]>([])
   const [isEditing, setIsEditing] = useState(false)
   const [editedCustomer, setEditedCustomer] = useState<Customer | null>(null)
   const [activeTab, setActiveTab] = useState("details")
+  const [loading, setLoading] = useState(true)
+  const [ordersLoading, setOrdersLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    // In a real application, fetch customer data from API
-    const fetchedCustomer: Customer = {
-      id: params.id,
-      name: "Acme Corp",
-      address: {
-        street: "123 Business Road",
-        city: "Johannesburg",
-        postalCode: "2000",
-        country: "South Africa",
-      },
-      primaryContact: {
-        name: "John Doe",
-        landline: "011-123-4567",
-        cellphone: "+27 82 123 4567",
-        email: "john.doe@acmecorp.com",
-      },
-      secondaryContact: {
-        name: "Jane Smith",
-        landline: "011-987-6543",
-        cellphone: "+27 72 987 6543",
-        email: "jane.smith@acmecorp.com",
-      },
-      totalOrders: 15,
-      vatNumber: "4220195124",
-      importersCode: "IC78901234",
+  // Fetch customer details
+  const fetchCustomer = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const { data, error } = await supabase.from("customers").select("*").eq("id", params.id).single()
+
+      if (error) {
+        throw error
+      }
+
+      if (!data) {
+        throw new Error("Customer not found")
+      }
+
+      setCustomer(data)
+      setEditedCustomer(data)
+    } catch (error: any) {
+      console.error("Error fetching customer:", error)
+      setError(error.message || "Failed to fetch customer details")
+      toast({
+        title: "Error",
+        description: "Failed to fetch customer details",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
+  }
 
-    setCustomer(fetchedCustomer)
-    setEditedCustomer(fetchedCustomer)
+  // Fetch customer orders with fallback logic
+  const fetchCustomerOrders = async () => {
+    if (!customer) return
 
-    setOrders([
-      { id: "1", poNumber: "PO12345" },
-      { id: "2", poNumber: "PO67890" },
-      { id: "3", poNumber: "PO24680" },
-    ])
+    try {
+      setOrdersLoading(true)
+
+      // First, check if customer_id column exists by trying to query it
+      const ordersQuery = supabase
+        .from("orders")
+        .select("id, po_number, supplier, status, freight_type, total_value, created_at, customer_name, importer")
+
+      // Try to filter by customer_id first
+      try {
+        const { data: testData, error: testError } = await supabase.from("orders").select("customer_id").limit(1)
+
+        if (!testError) {
+          // customer_id column exists, use it
+          const { data, error } = await ordersQuery
+            .eq("customer_id", params.id)
+            .order("created_at", { ascending: false })
+
+          if (error) throw error
+          setOrders(data || [])
+          return
+        }
+      } catch (columnError) {
+        console.log("customer_id column doesn't exist, falling back to name matching")
+      }
+
+      // Fallback: match by customer name or importer name
+      const { data, error } = await ordersQuery
+        .or(`customer_name.eq.${customer.name},importer.eq.${customer.name}`)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      setOrders(data || [])
+    } catch (error: any) {
+      console.error("Error fetching customer orders:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch customer orders",
+        variant: "destructive",
+      })
+      setOrders([])
+    } finally {
+      setOrdersLoading(false)
+    }
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchCustomer()
   }, [params.id])
 
+  // Fetch orders after customer is loaded
+  useEffect(() => {
+    if (customer) {
+      fetchCustomerOrders()
+    }
+  }, [customer])
+
+  // Handle input changes
   const handleInputChange = (field: string, value: string) => {
     setEditedCustomer((prev) => {
       if (!prev) return null
-      if (field === "primaryContact" || field === "secondaryContact") {
-        const [name, email, cellphone, landline] = value.split(" | ")
-        return {
-          ...prev,
-          [field]: { ...prev[field], name, email, cellphone, landline },
-        }
-      }
-      if (field in prev) {
-        return { ...prev, [field]: value }
-      }
-      if (field in prev.address) {
-        return { ...prev, address: { ...prev.address, [field]: value } }
-      }
-      return prev
+      return { ...prev, [field]: value }
     })
   }
 
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Updating customer:", editedCustomer)
-    setCustomer(editedCustomer)
-    setIsEditing(false)
-    toast({
-      title: "Success",
-      description: "Customer details updated successfully.",
-    })
+
+    if (!editedCustomer) return
+
+    try {
+      setSaving(true)
+
+      const { data, error } = await supabase
+        .from("customers")
+        .update({
+          name: editedCustomer.name,
+          contact_person: editedCustomer.contact_person,
+          email: editedCustomer.email,
+          phone: editedCustomer.phone,
+          address_street: editedCustomer.address_street,
+          address_city: editedCustomer.address_city,
+          address_postal_code: editedCustomer.address_postal_code,
+          address_country: editedCustomer.address_country,
+          vat_number: editedCustomer.vat_number,
+          importers_code: editedCustomer.importers_code,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", params.id)
+        .select()
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      setCustomer(data)
+      setEditedCustomer(data)
+      setIsEditing(false)
+
+      toast({
+        title: "Success",
+        description: "Customer details updated successfully",
+      })
+    } catch (error: any) {
+      console.error("Error updating customer:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update customer details",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
+  // Handle cancel
   const handleCancel = () => {
     setEditedCustomer(customer)
     setIsEditing(false)
   }
 
-  if (!customer) {
-    return <div>Loading...</div>
+  // Loading state
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <Spinner />
+          <p>Loading customer details...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error || !customer) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2">Customer Not Found</h2>
+          <p className="text-gray-600 mb-4">{error || "The requested customer could not be found."}</p>
+          <Button onClick={() => router.push("/customers")}>Back to Customers</Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -148,7 +263,7 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="details">Customer Details</TabsTrigger>
-            <TabsTrigger value="orders">Orders</TabsTrigger>
+            <TabsTrigger value="orders">Orders ({orders.length})</TabsTrigger>
             <TabsTrigger value="rateCard">Rate Card</TabsTrigger>
           </TabsList>
 
@@ -156,60 +271,65 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
             <Card>
               <CardHeader className="flex flex-row justify-between items-center">
                 <CardTitle>Customer Information</CardTitle>
-                {!isEditing && (
+                {!isEditing ? (
+                  <Button onClick={() => setIsEditing(true)}>Edit Details</Button>
+                ) : (
                   <div className="flex space-x-2">
-                    <Button type="button" onClick={() => setIsEditing(true)}>
-                      Edit Details
+                    <Button type="button" variant="outline" onClick={handleCancel} disabled={saving}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSubmit} disabled={saving}>
+                      {saving ? "Saving..." : "Save Changes"}
                     </Button>
                   </div>
                 )}
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <ul className="space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {[
                       { label: "Customer Name", key: "name", value: customer.name },
-                      { label: "VAT Number", key: "vatNumber", value: customer.vatNumber || "Not provided" },
-                      {
-                        label: "Importer's Code",
-                        key: "importersCode",
-                        value: customer.importersCode || "Not provided",
-                      },
-                      { label: "Address", key: "address", value: customer.address.street },
-                      { label: "City", key: "city", value: customer.address.city },
-                      { label: "Postal Code", key: "postalCode", value: customer.address.postalCode },
-                      { label: "Country", key: "country", value: customer.address.country },
-                      {
-                        label: "Primary Contact",
-                        key: "primaryContact",
-                        value: `${customer.primaryContact.name} | ${customer.primaryContact.email} | ${customer.primaryContact.cellphone} | ${customer.primaryContact.landline}`,
-                      },
-                      {
-                        label: "Secondary Contact",
-                        key: "secondaryContact",
-                        value: `${customer.secondaryContact.name} | ${customer.secondaryContact.email} | ${customer.secondaryContact.cellphone} | ${customer.secondaryContact.landline}`,
-                      },
-                    ].map(({ label, key, value }) => (
-                      <li key={key} className="flex items-center space-x-3">
-                        <Label className="font-semibold w-32">{label}:</Label>
+                      { label: "Contact Person", key: "contact_person", value: customer.contact_person },
+                      { label: "Email", key: "email", value: customer.email, type: "email" },
+                      { label: "Phone", key: "phone", value: customer.phone },
+                      { label: "Street Address", key: "address_street", value: customer.address_street },
+                      { label: "City", key: "address_city", value: customer.address_city },
+                      { label: "Postal Code", key: "address_postal_code", value: customer.address_postal_code },
+                      { label: "Country", key: "address_country", value: customer.address_country },
+                      { label: "VAT Number", key: "vat_number", value: customer.vat_number || "" },
+                      { label: "Importer's Code", key: "importers_code", value: customer.importers_code || "" },
+                    ].map(({ label, key, value, type = "text" }) => (
+                      <div key={key} className="space-y-2">
+                        <Label htmlFor={key} className="font-semibold">
+                          {label}
+                        </Label>
                         {isEditing ? (
                           <Input
-                            className="w-48"
-                            value={editedCustomer?.[key as keyof typeof editedCustomer] || ""}
+                            id={key}
+                            type={type}
+                            value={editedCustomer?.[key as keyof Customer] || ""}
                             onChange={(e) => handleInputChange(key, e.target.value)}
+                            className="w-full"
                           />
                         ) : (
-                          <p className="text-gray-700">{value}</p>
+                          <p className="text-gray-700 p-2 bg-gray-50 rounded border min-h-[40px] flex items-center">
+                            {value || "Not provided"}
+                          </p>
                         )}
-                      </li>
+                      </div>
                     ))}
-                  </ul>
-                  {isEditing && (
-                    <div className="flex justify-end space-x-2">
-                      <Button type="button" variant="outline" onClick={handleCancel}>
-                        Cancel
-                      </Button>
-                      <Button type="submit">Save Changes</Button>
+                  </div>
+
+                  {customer.created_at && (
+                    <div className="pt-4 border-t">
+                      <p className="text-sm text-gray-500">
+                        Created: {new Date(customer.created_at).toLocaleDateString()}
+                        {customer.updated_at && (
+                          <span className="ml-4">
+                            Last updated: {new Date(customer.updated_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </p>
                     </div>
                   )}
                 </form>
@@ -220,25 +340,81 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
           <TabsContent value="orders" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Orders</CardTitle>
+                <CardTitle>Customer Orders</CardTitle>
+                <p className="text-sm text-gray-600">
+                  {orders.length > 0
+                    ? `Found ${orders.length} orders linked to this customer`
+                    : "No orders found. Orders are matched by customer name or importer name."}
+                </p>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {orders.map((order) => (
-                    <div key={order.id} className="flex justify-between items-center p-4 border rounded-lg">
-                      <div>
-                        <p className="font-semibold">{order.poNumber}</p>
+                {ordersLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner />
+                    <span className="ml-2">Loading orders...</span>
+                  </div>
+                ) : orders.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 mb-2">No orders found for this customer.</p>
+                    <p className="text-sm text-gray-400 mb-4">
+                      Orders are linked by matching customer name or importer name.
+                    </p>
+                    <Button className="mt-4" onClick={() => router.push("/orders/new")}>
+                      Create First Order
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {orders.map((order) => (
+                      <div
+                        key={order.id}
+                        className="flex justify-between items-center p-4 border rounded-lg hover:bg-gray-50"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-4">
+                            <div>
+                              <p className="font-semibold">{order.po_number}</p>
+                              <p className="text-sm text-gray-600">Supplier: {order.supplier}</p>
+                            </div>
+                            <div>
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-medium ${
+                                  order.status === "Completed"
+                                    ? "bg-green-100 text-green-800"
+                                    : order.status === "In Progress"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : order.status === "Pending"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {order.status}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">{order.freight_type}</p>
+                            </div>
+                            <div>
+                              <p className="font-medium">R {order.total_value?.toLocaleString() || "0"}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">{new Date(order.created_at).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <Button onClick={() => router.push(`/orders/${order.id}`)} size="sm">
+                          View Details
+                        </Button>
                       </div>
-                      <Button onClick={() => router.push(`/orders/${order.id}`)}>View</Button>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="rateCard" className="mt-4">
-            <RateCard customerId={params.id} />
+            <RateCard customerId={params.id} isEditable={isEditing} />
           </TabsContent>
         </Tabs>
       </div>

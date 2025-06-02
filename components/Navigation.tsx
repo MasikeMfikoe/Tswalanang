@@ -150,6 +150,13 @@ export function Navigation() {
         { name: "Tracking Users", href: "/admin/tracking-users" },
       ],
     },
+    {
+      name: "User Management",
+      href: "/user-management",
+      icon: User,
+      module: "admin",
+      current: pathname === "/user-management",
+    },
   ]
 
   // Only render navigation when not on the landing page

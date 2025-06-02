@@ -1,16 +1,19 @@
 "use client"
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
+import { Spinner } from "@/components/ui/spinner"
+import { supabase } from "@/lib/supabaseClient"
 
 interface RateCardProps {
   customerId?: string
   isNewCustomer?: boolean
+  isEditable?: boolean
   initialData?: {
     seaFreight?: {
       communicationFee: number
@@ -27,7 +30,22 @@ interface RateCardProps {
   }
 }
 
-export function RateCard({ customerId, isNewCustomer = false, initialData }: RateCardProps) {
+interface RateCardData {
+  id?: string
+  customer_id: string
+  sea_freight_communication_fee: number
+  sea_freight_documentation_fee: number
+  sea_freight_agency_fee: number
+  sea_freight_facility_fee: number
+  air_freight_communication_fee: number
+  air_freight_documentation_fee: number
+  air_freight_agency_fee: number
+  air_freight_facility_fee: number
+  created_at?: string
+  updated_at?: string
+}
+
+export function RateCard({ customerId, isNewCustomer = false, isEditable = true, initialData }: RateCardProps) {
   const { toast } = useToast()
 
   // Default values for sea and air freight
@@ -51,55 +69,194 @@ export function RateCard({ customerId, isNewCustomer = false, initialData }: Rat
     [],
   )
 
-  // Initialize state with default values or provided initialData
+  // State management
   const [seaFreight, setSeaFreight] = useState(initialData?.seaFreight || defaultSeaFreight)
-
   const [airFreight, setAirFreight] = useState(initialData?.airFreight || defaultAirFreight)
-
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [activeFreightTab, setActiveFreightTab] = useState("seaFreight")
+  const [rateCardId, setRateCardId] = useState<string | null>(null)
+  const [tableExists, setTableExists] = useState(true)
+
+  // Check if customer_rate_cards table exists
+  const checkTableExists = useCallback(async () => {
+    try {
+      const { error } = await supabase.from("customer_rate_cards").select("id").limit(1)
+
+      if (error && error.code === "42P01") {
+        // Table doesn't exist
+        setTableExists(false)
+        return false
+      }
+
+      setTableExists(true)
+      return true
+    } catch (error) {
+      console.error("Error checking table existence:", error)
+      setTableExists(false)
+      return false
+    }
+  }, [])
+
+  // Fetch existing rate card data
+  const fetchRateCard = useCallback(async () => {
+    if (!customerId || isNewCustomer) return
+
+    try {
+      setLoading(true)
+
+      // First check if table exists
+      const exists = await checkTableExists()
+      if (!exists) {
+        console.log("customer_rate_cards table does not exist, using default values")
+        return
+      }
+
+      const { data, error } = await supabase
+        .from("customer_rate_cards")
+        .select("*")
+        .eq("customer_id", customerId)
+        .single()
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 = no rows returned
+        throw error
+      }
+
+      if (data) {
+        setRateCardId(data.id)
+        setSeaFreight({
+          communicationFee: data.sea_freight_communication_fee,
+          documentationFee: data.sea_freight_documentation_fee,
+          agencyFee: data.sea_freight_agency_fee,
+          facilityFee: data.sea_freight_facility_fee,
+        })
+        setAirFreight({
+          communicationFee: data.air_freight_communication_fee,
+          documentationFee: data.air_freight_documentation_fee,
+          agencyFee: data.air_freight_agency_fee,
+          facilityFee: data.air_freight_facility_fee,
+        })
+      }
+    } catch (error: any) {
+      console.error("Error fetching rate card:", error)
+      if (error.code === "42P01") {
+        setTableExists(false)
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch rate card data",
+          variant: "destructive",
+        })
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [customerId, isNewCustomer, toast, checkTableExists])
+
+  // Load rate card data on mount
+  useEffect(() => {
+    fetchRateCard()
+  }, [fetchRateCard])
 
   // Memoized handlers to prevent unnecessary re-renders
-  const handleSeaFreightChange = useCallback((field: string, value: string) => {
-    setSeaFreight((prev) => ({
-      ...prev,
-      [field]:
-        field.includes("Fee") && !field.includes("documentation") && !field.includes("communication")
-          ? Number.parseFloat(value)
-          : Number.parseInt(value, 10),
-    }))
-  }, [])
+  const handleSeaFreightChange = useCallback(
+    (field: string, value: string) => {
+      if (!isEditable) return
 
-  const handleAirFreightChange = useCallback((field: string, value: string) => {
-    setAirFreight((prev) => ({
-      ...prev,
-      [field]:
-        field.includes("Fee") && !field.includes("documentation") && !field.includes("communication")
-          ? Number.parseFloat(value)
-          : Number.parseInt(value, 10),
-    }))
-  }, [])
+      setSeaFreight((prev) => ({
+        ...prev,
+        [field]:
+          field.includes("Fee") && !field.includes("documentation") && !field.includes("communication")
+            ? Number.parseFloat(value) || 0
+            : Number.parseInt(value, 10) || 0,
+      }))
+    },
+    [isEditable],
+  )
+
+  const handleAirFreightChange = useCallback(
+    (field: string, value: string) => {
+      if (!isEditable) return
+
+      setAirFreight((prev) => ({
+        ...prev,
+        [field]:
+          field.includes("Fee") && !field.includes("documentation") && !field.includes("communication")
+            ? Number.parseFloat(value) || 0
+            : Number.parseInt(value, 10) || 0,
+      }))
+    },
+    [isEditable],
+  )
 
   const handleSave = useCallback(async () => {
-    setLoading(true)
+    if (!customerId) {
+      toast({
+        title: "Error",
+        description: "Customer ID is required to save rate card",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!tableExists) {
+      toast({
+        title: "Error",
+        description: "Rate card table not available. Please run the database migration first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSaving(true)
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      const rateCardData: Partial<RateCardData> = {
+        customer_id: customerId,
+        sea_freight_communication_fee: seaFreight.communicationFee,
+        sea_freight_documentation_fee: seaFreight.documentationFee,
+        sea_freight_agency_fee: seaFreight.agencyFee,
+        sea_freight_facility_fee: seaFreight.facilityFee,
+        air_freight_communication_fee: airFreight.communicationFee,
+        air_freight_documentation_fee: airFreight.documentationFee,
+        air_freight_agency_fee: airFreight.agencyFee,
+        air_freight_facility_fee: airFreight.facilityFee,
+        updated_at: new Date().toISOString(),
+      }
+
+      let result
+      if (rateCardId) {
+        // Update existing rate card
+        result = await supabase.from("customer_rate_cards").update(rateCardData).eq("id", rateCardId).select().single()
+      } else {
+        // Create new rate card
+        rateCardData.created_at = new Date().toISOString()
+        result = await supabase.from("customer_rate_cards").insert(rateCardData).select().single()
+      }
+
+      if (result.error) {
+        throw result.error
+      }
+
+      if (result.data && !rateCardId) {
+        setRateCardId(result.data.id)
+      }
 
       toast({
         title: "Success",
         description: "Rate card saved successfully",
       })
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error saving rate card:", error)
       toast({
         title: "Error",
-        description: "Failed to save rate card",
+        description: error.message || "Failed to save rate card",
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
-  }, [toast])
+  }, [customerId, seaFreight, airFreight, rateCardId, tableExists, toast])
 
   // Memoized form components to prevent unnecessary re-renders
   const SeaFreightForm = useMemo(
@@ -113,6 +270,8 @@ export function RateCard({ customerId, isNewCustomer = false, initialData }: Rat
               type="number"
               value={seaFreight.communicationFee}
               onChange={(e) => handleSeaFreightChange("communicationFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
             />
           </div>
           <div className="space-y-2">
@@ -122,6 +281,8 @@ export function RateCard({ customerId, isNewCustomer = false, initialData }: Rat
               type="number"
               value={seaFreight.documentationFee}
               onChange={(e) => handleSeaFreightChange("documentationFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
             />
           </div>
           <div className="space-y-2">
@@ -132,6 +293,8 @@ export function RateCard({ customerId, isNewCustomer = false, initialData }: Rat
               step="0.1"
               value={seaFreight.agencyFee}
               onChange={(e) => handleSeaFreightChange("agencyFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
             />
           </div>
           <div className="space-y-2">
@@ -142,12 +305,14 @@ export function RateCard({ customerId, isNewCustomer = false, initialData }: Rat
               step="0.1"
               value={seaFreight.facilityFee}
               onChange={(e) => handleSeaFreightChange("facilityFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
             />
           </div>
         </div>
       </div>
     ),
-    [seaFreight, handleSeaFreightChange],
+    [seaFreight, handleSeaFreightChange, isEditable],
   )
 
   const AirFreightForm = useMemo(
@@ -161,6 +326,8 @@ export function RateCard({ customerId, isNewCustomer = false, initialData }: Rat
               type="number"
               value={airFreight.communicationFee}
               onChange={(e) => handleAirFreightChange("communicationFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
             />
           </div>
           <div className="space-y-2">
@@ -170,6 +337,8 @@ export function RateCard({ customerId, isNewCustomer = false, initialData }: Rat
               type="number"
               value={airFreight.documentationFee}
               onChange={(e) => handleAirFreightChange("documentationFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
             />
           </div>
           <div className="space-y-2">
@@ -180,6 +349,8 @@ export function RateCard({ customerId, isNewCustomer = false, initialData }: Rat
               step="0.1"
               value={airFreight.agencyFee}
               onChange={(e) => handleAirFreightChange("agencyFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
             />
           </div>
           <div className="space-y-2">
@@ -190,18 +361,47 @@ export function RateCard({ customerId, isNewCustomer = false, initialData }: Rat
               step="0.1"
               value={airFreight.facilityFee}
               onChange={(e) => handleAirFreightChange("facilityFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
             />
           </div>
         </div>
       </div>
     ),
-    [airFreight, handleAirFreightChange],
+    [airFreight, handleAirFreightChange, isEditable],
   )
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Customer Rate Card</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <Spinner />
+            <span className="ml-2">Loading rate card...</span>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Customer Rate Card</CardTitle>
+        {!tableExists && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mt-2">
+            <p className="text-sm text-yellow-800">
+              Rate card database table not found. Using default values. Run the database migration to enable rate card
+              storage.
+            </p>
+          </div>
+        )}
+        {!isEditable && (
+          <p className="text-sm text-gray-500">Rate card is read-only. Click "Edit Details" to make changes.</p>
+        )}
       </CardHeader>
       <CardContent>
         <Tabs value={activeFreightTab} onValueChange={setActiveFreightTab}>
@@ -216,11 +416,18 @@ export function RateCard({ customerId, isNewCustomer = false, initialData }: Rat
             {AirFreightForm}
           </TabsContent>
         </Tabs>
-        <div className="mt-6 flex justify-end">
-          <Button onClick={handleSave} disabled={loading}>
-            {loading ? "Saving..." : "Save Rate Card"}
-          </Button>
-        </div>
+        {isEditable && tableExists && (
+          <div className="mt-6 flex justify-end">
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save Rate Card"}
+            </Button>
+          </div>
+        )}
+        {isEditable && !tableExists && (
+          <div className="mt-6 flex justify-end">
+            <Button disabled>Save Rate Card (Table Missing)</Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

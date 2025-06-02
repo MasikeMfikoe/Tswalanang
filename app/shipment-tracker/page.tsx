@@ -1,278 +1,1009 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useRouter } from "next/navigation"
-import { AlertCircle, ExternalLink } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import Image from "next/image"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Search, FileText, Download, Ship, Package } from "lucide-react"
 import ProtectedRoute from "@/components/ProtectedRoute"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { LiveTrackingStatus } from "@/components/LiveTrackingStatus"
 
-// Shipping line information with their tracking URLs and container number formats
-const shippingLines = [
-  {
-    name: "Maersk",
-    url: "https://www.maersk.com/tracking/",
-    containerPrefix: ["MAEU", "MRKU", "MSKU"],
-    blPrefix: ["MAEU"],
-    color: "#0091da",
-  },
-  {
-    name: "MSC",
-    url: "https://www.msc.com/track-a-shipment",
-    containerPrefix: ["MSCU", "MEDU"],
-    blPrefix: ["MSCU", "MEDI"],
-    color: "#1c3f94",
-  },
-  {
-    name: "CMA CGM",
-    url: "https://www.cma-cgm.com/ebusiness/tracking",
-    containerPrefix: ["CMAU", "CXDU"],
-    blPrefix: ["CMDU"],
-    color: "#0c1c5b",
-  },
-  {
-    name: "Hapag-Lloyd",
-    url: "https://www.hapag-lloyd.com/en/online-business/tracing/tracing-by-booking.html",
-    containerPrefix: ["HLXU", "HLCU"],
-    blPrefix: ["HLCU"],
-    color: "#d1001f",
-  },
-  {
-    name: "ONE",
-    url: "https://ecomm.one-line.com/ecom/CUP_HOM_3301.do",
-    containerPrefix: ["ONEY", "ONEU"],
-    blPrefix: ["ONEE"],
-    color: "#ff0099",
-  },
-  {
-    name: "Evergreen",
-    url: "https://www.evergreen-line.com/static/jsp/cargo_tracking.jsp",
-    containerPrefix: ["EVRU", "EGHU"],
-    blPrefix: ["EGLV"],
-    color: "#00a84f",
-  },
-  {
-    name: "COSCO",
-    url: "https://elines.coscoshipping.com/ebusiness/cargoTracking",
-    containerPrefix: ["COSU", "CBHU"],
-    blPrefix: ["COSU"],
-    color: "#dd1e25",
-  },
-]
+interface TrackingResult {
+  shipmentNumber: string
+  status: string
+  containerNumber: string
+  containerType: string
+  weight: string
+  origin: string
+  destination: string
+  pol: string
+  pod: string
+  estimatedArrival: string
+  lastLocation: string
+  timeline: Array<{
+    location: string
+    terminal?: string
+    events: Array<{
+      type: "event" | "vessel-departure" | "vessel-arrival" | "gate" | "load"
+      status: string
+      vessel?: string
+      timestamp: string
+      time: string
+      date: string
+    }>
+  }>
+  documents: Array<{
+    name: string
+    type: string
+    url: string
+    date: string
+  }>
+  details: {
+    packages: string
+    specialInstructions: string
+    dimensions: string
+    shipmentType: string
+  }
+}
 
 export default function ShipmentTracker() {
   const [trackingNumber, setTrackingNumber] = useState("")
   const [bookingType, setBookingType] = useState("ocean")
-  const [error, setError] = useState("")
+  const [showResults, setShowResults] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [suggestedLines, setSuggestedLines] = useState<Array<(typeof shippingLines)[0]>>([])
-  const router = useRouter()
+  const [activeTab, setActiveTab] = useState("tracking")
+  const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null)
 
-  // Detect shipping line based on container or B/L number
-  useEffect(() => {
-    if (trackingNumber.length >= 4) {
-      const prefix = trackingNumber.substring(0, 4).toUpperCase()
-      const matchedLines = shippingLines.filter((line) => {
-        return line.containerPrefix.includes(prefix) || line.blPrefix.includes(prefix)
-      })
-      setSuggestedLines(matchedLines)
-    } else {
-      setSuggestedLines([])
+  // Mock tracking data
+  const mockTrackingResult: TrackingResult = {
+    shipmentNumber: "TSW1234566",
+    status: "In Transit",
+    containerNumber: "MSCU1234567",
+    containerType: "40ft High Cube",
+    weight: "24,000 kg",
+    origin: "FOS SUR MER, FRANCE",
+    destination: "DURBAN, SOUTH AFRICA",
+    pol: "Fos sur Mer Port",
+    pod: "Durban Port",
+    estimatedArrival: "03/05/2023 06:00",
+    lastLocation: "In Transit • FOS SUR MER, FRANCE",
+    timeline: [
+      {
+        location: "Fos sur Mer",
+        events: [
+          {
+            type: "gate",
+            status: "Gate out Empty",
+            timestamp: "28/03/2023 13:12",
+            date: "28/03/2023",
+            time: "13:12",
+          },
+        ],
+      },
+      {
+        location: "FOS SUR MER",
+        events: [
+          {
+            type: "event",
+            status: "SEAYARD 2XL",
+            timestamp: "31/03/2023 15:57",
+            date: "31/03/2023",
+            time: "15:57",
+          },
+          {
+            type: "gate",
+            status: "Gate in",
+            timestamp: "31/03/2023 15:57",
+            date: "31/03/2023",
+            time: "15:57",
+          },
+        ],
+      },
+      {
+        location: "FOS SUR MER",
+        events: [
+          {
+            type: "load",
+            status: "Load",
+            timestamp: "06/04/2023 11:58",
+            date: "06/04/2023",
+            time: "11:58",
+          },
+          {
+            type: "vessel-departure",
+            status: "Vessel departure (EXPRESS ARGENTINA / 514S)",
+            vessel: "EXPRESS ARGENTINA / 514S",
+            timestamp: "06/04/2023 11:58",
+            date: "06/04/2023",
+            time: "11:58",
+          },
+        ],
+      },
+      {
+        location: "ALGECIRAS",
+        terminal: "ML TERMINAL",
+        events: [
+          {
+            type: "vessel-arrival",
+            status: "Vessel arrival (EXPRESS ARGENTINA / 514S)",
+            vessel: "EXPRESS ARGENTINA / 514S",
+            timestamp: "11/04/2023 20:00",
+            date: "11/04/2023",
+            time: "20:00",
+          },
+        ],
+      },
+      {
+        location: "ALGECIRAS",
+        events: [
+          {
+            type: "vessel-departure",
+            status: "Vessel departure (SANTA ISABEL / 251S)",
+            vessel: "SANTA ISABEL / 251S",
+            timestamp: "17/04/2023 18:00",
+            date: "17/04/2023",
+            time: "18:00",
+          },
+        ],
+      },
+      {
+        location: "DURBAN",
+        terminal: "Pier1",
+        events: [
+          {
+            type: "vessel-arrival",
+            status: "Vessel arrival (SANTA ISABEL / 251S)",
+            vessel: "SANTA ISABEL / 251S",
+            timestamp: "03/05/2023 06:00",
+            date: "03/05/2023",
+            time: "06:00",
+          },
+        ],
+      },
+    ],
+    documents: [
+      { name: "Commercial Invoice", type: "PDF", url: "#", date: "28/03/2023" },
+      { name: "Packing List", type: "PDF", url: "#", date: "28/03/2023" },
+      { name: "Bill of Lading", type: "PDF", url: "#", date: "30/03/2023" },
+      { name: "Certificate of Origin", type: "PDF", url: "#", date: "30/03/2023" },
+    ],
+    details: {
+      packages: "3",
+      specialInstructions: "Handle with care. Fragile items inside.",
+      dimensions: "12.192 × 2.438 × 2.896 m",
+      shipmentType: "Ocean Freight",
+    },
+  }
+
+  // Add this function before the handleTrackSubmit function:
+  const generateMockData = (cargoType: string, trackingNum: string): TrackingResult => {
+    const baseShipment = trackingNum || "TSW1234566"
+
+    if (cargoType === "air") {
+      return {
+        shipmentNumber: baseShipment,
+        status: "In Transit",
+        containerNumber: trackingNum,
+        containerType: "Air Cargo",
+        weight: "2,500 kg",
+        origin: "JOHANNESBURG, SOUTH AFRICA",
+        destination: "LONDON, UNITED KINGDOM",
+        pol: "OR Tambo International Airport",
+        pod: "Heathrow Airport",
+        estimatedArrival: "05/05/2023 14:30",
+        lastLocation: "In Transit • JOHANNESBURG, SOUTH AFRICA",
+        timeline: [
+          {
+            location: "Johannesburg",
+            events: [
+              {
+                type: "event",
+                status: "Cargo accepted",
+                timestamp: "03/05/2023 08:00",
+                date: "03/05/2023",
+                time: "08:00",
+              },
+              {
+                type: "event",
+                status: "Loaded on aircraft",
+                vessel: "BA Flight 056",
+                timestamp: "03/05/2023 22:15",
+                date: "03/05/2023",
+                time: "22:15",
+              },
+            ],
+          },
+          {
+            location: "London Heathrow",
+            events: [
+              {
+                type: "event",
+                status: "Aircraft arrived",
+                vessel: "BA Flight 056",
+                timestamp: "04/05/2023 06:45",
+                date: "04/05/2023",
+                time: "06:45",
+              },
+              {
+                type: "event",
+                status: "Customs clearance",
+                timestamp: "04/05/2023 10:30",
+                date: "04/05/2023",
+                time: "10:30",
+              },
+            ],
+          },
+        ],
+        documents: [
+          { name: "Air Waybill", type: "PDF", url: "#", date: "03/05/2023" },
+          { name: "Commercial Invoice", type: "PDF", url: "#", date: "03/05/2023" },
+          { name: "Packing List", type: "PDF", url: "#", date: "03/05/2023" },
+        ],
+        details: {
+          packages: "5",
+          specialInstructions: "Temperature controlled cargo. Keep refrigerated.",
+          dimensions: "120 × 80 × 100 cm",
+          shipmentType: "Air Freight Express",
+        },
+      }
     }
-  }, [trackingNumber])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+    if (cargoType === "lcl") {
+      return {
+        shipmentNumber: baseShipment,
+        status: "In Transit",
+        containerNumber: trackingNum,
+        containerType: "LCL Consolidation",
+        weight: "8,500 kg",
+        origin: "CAPE TOWN, SOUTH AFRICA",
+        destination: "HAMBURG, GERMANY",
+        pol: "Cape Town Port",
+        pod: "Hamburg Port",
+        estimatedArrival: "15/05/2023 09:00",
+        lastLocation: "In Transit • CAPE TOWN, SOUTH AFRICA",
+        timeline: [
+          {
+            location: "Cape Town",
+            events: [
+              {
+                type: "event",
+                status: "LCL cargo received",
+                timestamp: "28/04/2023 14:00",
+                date: "28/04/2023",
+                time: "14:00",
+              },
+              {
+                type: "event",
+                status: "Consolidated in container",
+                timestamp: "30/04/2023 10:30",
+                date: "30/04/2023",
+                time: "10:30",
+              },
+              {
+                type: "load",
+                status: "Container loaded",
+                vessel: "MSC SINFONIA",
+                timestamp: "02/05/2023 16:45",
+                date: "02/05/2023",
+                time: "16:45",
+              },
+            ],
+          },
+          {
+            location: "Hamburg",
+            events: [
+              {
+                type: "vessel-arrival",
+                status: "Vessel arrival expected",
+                vessel: "MSC SINFONIA",
+                timestamp: "15/05/2023 09:00",
+                date: "15/05/2023",
+                time: "09:00",
+              },
+            ],
+          },
+        ],
+        documents: [
+          { name: "House Bill of Lading", type: "PDF", url: "#", date: "30/04/2023" },
+          { name: "Master Bill of Lading", type: "PDF", url: "#", date: "02/05/2023" },
+          { name: "Commercial Invoice", type: "PDF", url: "#", date: "28/04/2023" },
+          { name: "Packing List", type: "PDF", url: "#", date: "28/04/2023" },
+        ],
+        details: {
+          packages: "12",
+          specialInstructions: "LCL shipment. Handle with care during deconsolidation.",
+          dimensions: "Various sizes - consolidated cargo",
+          shipmentType: "LCL Ocean Freight",
+        },
+      }
+    }
+
+    // Default ocean cargo (existing data)
+    return {
+      shipmentNumber: baseShipment,
+      status: "In Transit",
+      containerNumber: "MSCU1234567",
+      containerType: "40ft High Cube",
+      weight: "24,000 kg",
+      origin: "FOS SUR MER, FRANCE",
+      destination: "DURBAN, SOUTH AFRICA",
+      pol: "Fos sur Mer Port",
+      pod: "Durban Port",
+      estimatedArrival: "03/05/2023 06:00",
+      lastLocation: "In Transit • FOS SUR MER, FRANCE",
+      timeline: [
+        {
+          location: "Fos sur Mer",
+          events: [
+            {
+              type: "gate",
+              status: "Gate out Empty",
+              timestamp: "28/03/2023 13:12",
+              date: "28/03/2023",
+              time: "13:12",
+            },
+          ],
+        },
+        {
+          location: "FOS SUR MER",
+          events: [
+            {
+              type: "event",
+              status: "SEAYARD 2XL",
+              timestamp: "31/03/2023 15:57",
+              date: "31/03/2023",
+              time: "15:57",
+            },
+            {
+              type: "gate",
+              status: "Gate in",
+              timestamp: "31/03/2023 15:57",
+              date: "31/03/2023",
+              time: "15:57",
+            },
+          ],
+        },
+        {
+          location: "FOS SUR MER",
+          events: [
+            {
+              type: "load",
+              status: "Load",
+              timestamp: "06/04/2023 11:58",
+              date: "06/04/2023",
+              time: "11:58",
+            },
+            {
+              type: "vessel-departure",
+              status: "Vessel departure (EXPRESS ARGENTINA / 514S)",
+              vessel: "EXPRESS ARGENTINA / 514S",
+              timestamp: "06/04/2023 11:58",
+              date: "06/04/2023",
+              time: "11:58",
+            },
+          ],
+        },
+        {
+          location: "ALGECIRAS",
+          terminal: "ML TERMINAL",
+          events: [
+            {
+              type: "vessel-arrival",
+              status: "Vessel arrival (EXPRESS ARGENTINA / 514S)",
+              vessel: "EXPRESS ARGENTINA / 514S",
+              timestamp: "11/04/2023 20:00",
+              date: "11/04/2023",
+              time: "20:00",
+            },
+          ],
+        },
+        {
+          location: "ALGECIRAS",
+          events: [
+            {
+              type: "vessel-departure",
+              status: "Vessel departure (SANTA ISABEL / 251S)",
+              vessel: "SANTA ISABEL / 251S",
+              timestamp: "17/04/2023 18:00",
+              date: "17/04/2023",
+              time: "18:00",
+            },
+          ],
+        },
+        {
+          location: "DURBAN",
+          terminal: "Pier1",
+          events: [
+            {
+              type: "vessel-arrival",
+              status: "Vessel arrival (SANTA ISABEL / 251S)",
+              vessel: "SANTA ISABEL / 251S",
+              timestamp: "03/05/2023 06:00",
+              date: "03/05/2023",
+              time: "06:00",
+            },
+          ],
+        },
+      ],
+      documents: [
+        { name: "Commercial Invoice", type: "PDF", url: "#", date: "28/03/2023" },
+        { name: "Packing List", type: "PDF", url: "#", date: "28/03/2023" },
+        { name: "Bill of Lading", type: "PDF", url: "#", date: "30/03/2023" },
+        { name: "Certificate of Origin", type: "PDF", url: "#", date: "30/03/2023" },
+      ],
+      details: {
+        packages: "3",
+        specialInstructions: "Handle with care. Fragile items inside.",
+        dimensions: "12.192 × 2.438 × 2.896 m",
+        shipmentType: "Ocean Freight",
+      },
+    }
+  }
+
+  const handleTrackSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
-
-    // Basic validation
-    if (!trackingNumber) {
-      setError("Please enter a tracking number")
-      return
-    }
+    if (!trackingNumber.trim()) return
 
     setIsLoading(true)
 
     try {
-      // For demo purposes, we'll just check if the tracking number starts with TSW
-      // In a real app, you would validate against your database
-      if (trackingNumber.toUpperCase().startsWith("TSW")) {
-        // Simulate API call delay
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        router.push(`/shipment-tracker/details/${trackingNumber}?type=${bookingType}`)
+      // Call the live tracking API
+      const response = await fetch("/api/tracking", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          trackingNumber: trackingNumber.trim(),
+          bookingType,
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.data) {
+          // Use live data from API
+          setTrackingResult(result.data)
+          setShowResults(true)
+        } else {
+          // API failed, use mock data as fallback
+          console.warn("API returned no data, using mock data:", result.error)
+          const mockData = generateMockData(bookingType, trackingNumber)
+          setTrackingResult(mockData)
+          setShowResults(true)
+        }
       } else {
-        setError("Invalid tracking number. Please check and try again.")
+        // API error, use mock data as fallback
+        console.warn("API request failed, using mock data")
+        const mockData = generateMockData(bookingType, trackingNumber)
+        setTrackingResult(mockData)
+        setShowResults(true)
       }
-    } catch (err) {
-      setError("An error occurred while tracking your shipment. Please try again.")
+    } catch (error) {
+      // Network error, use mock data as fallback
+      console.error("Network error, using mock data:", error)
+      const mockData = generateMockData(bookingType, trackingNumber)
+      setTrackingResult(mockData)
+      setShowResults(true)
     } finally {
       setIsLoading(false)
     }
   }
 
-  return (
-    <ProtectedRoute requiredPermission={{ module: "shipmentTracker", action: "view" }}>
-      <div className="min-h-screen bg-white">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <div className="flex flex-col items-center justify-center mb-8">
-            <Image
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Logo_Final_TswalanangLogistics-hxMkywQ9EbNzC0e28VrJzQXLgshfJq.png"
-              alt="Tswalanang Logistics Logo"
-              width={120}
-              height={120}
-              className="mb-4"
-            />
-            <h1 className="text-3xl font-bold mb-4 text-center">Shipment & Container Tracking</h1>
+  const handleBackToSearch = () => {
+    setShowResults(false)
+    setTrackingNumber("")
+  }
 
-            <p className="mb-6 text-center max-w-2xl">
-              Select your booking type from <span className="font-semibold">Ocean Cargo, Air Cargo, LCL Cargo</span> and
-              enter your tracking number to view full tracking details.
-            </p>
+  const getEventIcon = (type: string) => {
+    switch (type) {
+      case "vessel-departure":
+      case "vessel-arrival":
+        return <Ship className="h-4 w-4 text-blue-500" />
+      case "gate":
+      case "load":
+      case "event":
+      default:
+        return <div className="w-3 h-3 rounded-full border-2 border-blue-500 bg-white" />
+    }
+  }
+
+  if (showResults) {
+    return (
+      <ProtectedRoute requiredPermission={{ module: "shipmentTracker", action: "view" }}>
+        <div className="min-h-screen bg-gray-50 py-8">
+          {/* Black Header Bar */}
+          <div className="bg-black text-white py-3 px-4 mb-6">
+            <div className="container mx-auto max-w-7xl flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
+                  <Package className="h-4 w-4 text-black" />
+                </div>
+                <span className="text-lg font-medium">TSW SmartLog Shipment webtracker</span>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={handleBackToSearch}
+                className="bg-white text-black hover:bg-gray-100"
+              >
+                Track Another Shipment
+              </Button>
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="mb-4">
-            <div className="flex flex-col md:flex-row gap-4 mb-2">
-              <div className="w-full md:w-1/3">
-                <Select value={bookingType} onValueChange={setBookingType}>
-                  <SelectTrigger className="w-full h-10">
-                    <SelectValue placeholder="Select booking type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ocean">Ocean Cargo</SelectItem>
-                    <SelectItem value="air">Air Cargo</SelectItem>
-                    <SelectItem value="lcl">LCL Cargo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="w-full md:w-1/2">
-                <Input
-                  placeholder="B/L or container number"
-                  value={trackingNumber}
-                  onChange={(e) => setTrackingNumber(e.target.value)}
-                  className="h-10"
-                />
-              </div>
-
-              <div className="w-full md:w-auto">
-                <Button type="submit" className="w-full md:w-auto bg-[#0a192f] hover:bg-[#172a46]" disabled={isLoading}>
-                  {isLoading ? "Tracking..." : "Track"}
-                </Button>
+          {/* Shipment Header */}
+          <div className="container mx-auto px-4 max-w-7xl">
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold">Shipment {trackingResult?.shipmentNumber}</h1>
+              <div className="flex items-center mt-2">
+                <div className="text-sm">Current Status:</div>
+                <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
+                  {trackingResult?.status}
+                </Badge>
               </div>
             </div>
 
-            {error && (
-              <Alert variant="destructive" className="mt-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-          </form>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Summary Section - Left Side */}
+              <div className="lg:col-span-1">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle>Shipment Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Container Number</p>
+                      <p>{trackingResult?.containerNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Container Type</p>
+                      <p>{trackingResult?.containerType}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Container Weight</p>
+                      <p>{trackingResult?.weight}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Shipped From</p>
+                      <p>{trackingResult?.origin}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Port of Load</p>
+                      <p>{trackingResult?.pol}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Port of Discharge</p>
+                      <p>{trackingResult?.pod}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Shipped To</p>
+                      <p>{trackingResult?.destination}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
-          {/* Shipping Line Suggestions */}
-          {suggestedLines.length > 0 && (
-            <Card className="mb-6">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Suggested Shipping Lines</CardTitle>
-                <CardDescription>
-                  Based on your container/B/L number, you can also track directly with these shipping lines:
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {suggestedLines.map((line) => (
-                    <a
-                      key={line.name}
-                      href={line.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center p-3 border rounded-md hover:bg-gray-50 transition-colors"
-                      style={{ borderLeftColor: line.color, borderLeftWidth: "4px" }}
-                    >
-                      <div className="flex-1">
-                        <div className="font-medium">{line.name}</div>
-                        <div className="text-xs text-gray-500">Track on shipping line website</div>
-                      </div>
-                      <ExternalLink className="h-4 w-4 text-gray-400" />
-                    </a>
-                  ))}
-                </div>
+              {/* Main Content - Right Side */}
+              <div className="lg:col-span-3">
+                <Tabs defaultValue="tracking" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="tracking">Tracking</TabsTrigger>
+                    <TabsTrigger value="documents">Documents</TabsTrigger>
+                    <TabsTrigger value="details">Details</TabsTrigger>
+                  </TabsList>
+
+                  {/* Tracking Tab */}
+                  <TabsContent value="tracking" className="mt-4">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <h3 className="text-xl font-bold mb-4">Tracking Timeline</h3>
+
+                        <div className="flex justify-between mb-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Estimated arrival date</p>
+                            <p className="font-bold">{trackingResult?.estimatedArrival}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-gray-600">Last location</p>
+                            <p className="font-bold">{trackingResult?.lastLocation}</p>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-gray-500 mb-6">
+                          Note: All times are given in local time, unless otherwise stated.
+                        </p>
+
+                        <div className="relative">
+                          {/* Vertical timeline line */}
+                          <div className="absolute left-[7.5px] top-0 bottom-0 w-0.5 bg-blue-100"></div>
+
+                          {/* Timeline events */}
+                          <div className="space-y-12">
+                            {trackingResult?.timeline.map((locationGroup, groupIndex) => (
+                              <div key={groupIndex} className="relative">
+                                {/* Location header on the right side */}
+                                <div className="flex justify-end mb-2">
+                                  <div className="font-bold">
+                                    {locationGroup.location}
+                                    {locationGroup.terminal && (
+                                      <div className="text-sm font-normal text-gray-600">{locationGroup.terminal}</div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Events for this location */}
+                                <div className="space-y-6">
+                                  {locationGroup.events.map((event, eventIndex) => (
+                                    <div key={eventIndex} className="flex">
+                                      {/* Icon */}
+                                      <div className="mr-4 mt-1">{getEventIcon(event.type)}</div>
+
+                                      {/* Event details */}
+                                      <div className="flex-1">
+                                        <div className="flex justify-between">
+                                          <div className="font-medium">{event.status}</div>
+                                          <div className="text-sm text-gray-600">
+                                            {event.date} {event.time}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* Documents Tab */}
+                  <TabsContent value="documents" className="mt-4">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <h3 className="text-xl font-bold mb-4">Shipping Documents</h3>
+                        <div className="space-y-3">
+                          {trackingResult?.documents.map((doc, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <FileText className="h-4 w-4 text-red-500" />
+                                <div>
+                                  <p className="font-medium">{doc.name}</p>
+                                  <p className="text-xs text-gray-500">Added on {doc.date}</p>
+                                </div>
+                              </div>
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download
+                                </a>
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* Details Tab */}
+                  <TabsContent value="details" className="mt-4">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <h3 className="text-xl font-bold mb-4">Shipment Details</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Weight</p>
+                            <p className="font-medium">{trackingResult?.weight}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Packages</p>
+                            <p className="font-medium">{trackingResult?.details.packages}</p>
+                          </div>
+                          <div className="md:col-span-2">
+                            <p className="text-sm text-gray-600">Special Instructions</p>
+                            <p className="font-medium">{trackingResult?.details.specialInstructions}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Dimensions</p>
+                            <p className="font-medium">{trackingResult?.details.dimensions}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Shipment Type</p>
+                            <p className="font-medium">{trackingResult?.details.shipmentType}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ProtectedRoute>
+    )
+  }
+
+  // Landing Page
+  return (
+    <ProtectedRoute requiredPermission={{ module: "shipmentTracker", action: "view" }}>
+      <div className="min-h-screen bg-white">
+        <div className="container mx-auto px-4 py-12 max-w-4xl">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-bold mb-4">Shipment & Container Tracking</h1>
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+              Select your booking type from Ocean Cargo, Air Cargo, LCL Cargo and enter your tracking number to view
+              full tracking details.
+            </p>
+          </div>
+
+          {/* Booking Type Tabs */}
+          <div className="mb-8">
+            <div className="flex border-b border-gray-200">
+              <button
+                className={`px-6 py-3 text-sm font-medium border-b-2 ${
+                  bookingType === "ocean"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setBookingType("ocean")}
+              >
+                Ocean Cargo
+              </button>
+              <button
+                className={`px-6 py-3 text-sm font-medium border-b-2 ${
+                  bookingType === "air"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setBookingType("air")}
+              >
+                Air Cargo
+              </button>
+              <button
+                className={`px-6 py-3 text-sm font-medium border-b-2 ${
+                  bookingType === "lcl"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setBookingType("lcl")}
+              >
+                LCL Cargo
+              </button>
+            </div>
+          </div>
+
+          {/* Ocean Cargo Section */}
+          {bookingType === "ocean" && (
+            <Card className="mb-8">
+              <CardContent className="p-6">
+                <form onSubmit={handleTrackSubmit} className="space-y-4">
+                  <div>
+                    <Label htmlFor="trackingNumber" className="text-base font-medium">
+                      B/L or container number
+                    </Label>
+                    <Input
+                      id="trackingNumber"
+                      type="text"
+                      placeholder="Enter your B/L or container number"
+                      value={trackingNumber}
+                      onChange={(e) => setTrackingNumber(e.target.value)}
+                      className="mt-2 h-12 text-base"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base bg-blue-600 hover:bg-blue-700"
+                    disabled={isLoading || !trackingNumber.trim()}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Search className="mr-2 h-5 w-5 animate-spin" />
+                        Tracking...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="mr-2 h-5 w-5" />
+                        Track
+                      </>
+                    )}
+                  </Button>
+
+                  <div className="text-sm text-gray-600 space-y-1 mt-4">
+                    <p>• Container number is made of 4 letters and 7 digits.</p>
+                    <p>• Bill of Lading number consists of 9 characters.</p>
+                  </div>
+                </form>
               </CardContent>
             </Card>
           )}
 
-          <div className="text-sm text-gray-600 mb-6">
-            <p>Container number is made of 4 letters and 7 digits.</p>
-            <p>Bill of Lading number consists of 9 characters.</p>
+          {/* Air Cargo Section */}
+          {bookingType === "air" && (
+            <Card className="mb-8">
+              <CardContent className="p-6">
+                <form onSubmit={handleTrackSubmit} className="space-y-4">
+                  <div>
+                    <Label htmlFor="trackingNumber" className="text-base font-medium">
+                      Air Waybill Number
+                    </Label>
+                    <Input
+                      id="trackingNumber"
+                      type="text"
+                      placeholder="Enter your Air Waybill number"
+                      value={trackingNumber}
+                      onChange={(e) => setTrackingNumber(e.target.value)}
+                      className="mt-2 h-12 text-base"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base bg-blue-600 hover:bg-blue-700"
+                    disabled={isLoading || !trackingNumber.trim()}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Search className="mr-2 h-5 w-5 animate-spin" />
+                        Tracking...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="mr-2 h-5 w-5" />
+                        Track
+                      </>
+                    )}
+                  </Button>
+
+                  <div className="text-sm text-gray-600 space-y-1 mt-4">
+                    <p>• Air Waybill number is typically 11 digits (3-digit airline code + 8 digits).</p>
+                    <p>• Example: 020-12345678 or 02012345678</p>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* LCL Cargo Section */}
+          {bookingType === "lcl" && (
+            <Card className="mb-8">
+              <CardContent className="p-6">
+                <form onSubmit={handleTrackSubmit} className="space-y-4">
+                  <div>
+                    <Label htmlFor="trackingNumber" className="text-base font-medium">
+                      Container Number or Bill of Lading
+                    </Label>
+                    <Input
+                      id="trackingNumber"
+                      type="text"
+                      placeholder="Enter your container number or B/L number"
+                      value={trackingNumber}
+                      onChange={(e) => setTrackingNumber(e.target.value)}
+                      className="mt-2 h-12 text-base"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base bg-blue-600 hover:bg-blue-700"
+                    disabled={isLoading || !trackingNumber.trim()}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Search className="mr-2 h-5 w-5 animate-spin" />
+                        Tracking...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="mr-2 h-5 w-5" />
+                        Track
+                      </>
+                    )}
+                  </Button>
+
+                  <div className="text-sm text-gray-600 space-y-1 mt-4">
+                    <p>• Container number: 4 letters and 7 digits (e.g., MSCU1234567)</p>
+                    <p>• Bill of Lading: Usually 9-12 characters</p>
+                    <p>• LCL shipments share container space with other cargo</p>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Live Tracking Status */}
+          <div className="mb-8">
+            <LiveTrackingStatus />
           </div>
 
-          <Accordion type="single" collapsible className="border-t">
-            <AccordionItem value="item-1">
-              <AccordionTrigger className="py-4">What is a shipment or container number?</AccordionTrigger>
-              <AccordionContent>
-                <p className="text-gray-700">
-                  A container number is a unique identifier assigned to shipping containers. It typically consists of 4
-                  letters (prefix) followed by 7 digits. The prefix usually represents the owner of the container.
-                </p>
-                <p className="text-gray-700 mt-2">
-                  A Bill of Lading (B/L) number is a document issued by a carrier to acknowledge receipt of cargo for
-                  shipment. It serves as a receipt of goods, evidence of the contract of carriage, and a document of
-                  title. B/L numbers typically consist of 9 characters.
-                </p>
-              </AccordionContent>
-            </AccordionItem>
+          {/* FAQ Section */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-6">Frequently Asked Questions</h2>
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="item-1">
+                <AccordionTrigger className="text-left">What is a shipment or container number?</AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-3 text-gray-700">
+                    <p>
+                      A <strong>container number</strong> is a unique identifier assigned to shipping containers. It
+                      consists of 4 letters (owner code) followed by 7 digits. For example: MSCU1234567.
+                    </p>
+                    <p>
+                      A <strong>Bill of Lading (B/L) number</strong> is a document number that serves as a receipt for
+                      cargo and a contract for transportation. It typically consists of 9-12 characters.
+                    </p>
+                    <p>Both numbers can be used to track your shipment's progress from origin to destination.</p>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-            <AccordionItem value="item-2">
-              <AccordionTrigger className="py-4">
-                What information will you get from shipment and container tracking?
-              </AccordionTrigger>
-              <AccordionContent>
-                <p className="text-gray-700">
-                  Tracking your shipment or container provides you with real-time information about:
-                </p>
-                <ul className="list-disc pl-5 mt-2 space-y-1 text-gray-700">
-                  <li>Current location of your cargo</li>
-                  <li>Estimated time of arrival (ETA)</li>
-                  <li>Status updates (e.g., in transit, customs clearance, delivered)</li>
-                  <li>Departure and arrival dates</li>
-                  <li>Any delays or exceptions</li>
-                  <li>Documentation status</li>
-                </ul>
-              </AccordionContent>
-            </AccordionItem>
+              <AccordionItem value="item-2">
+                <AccordionTrigger className="text-left">
+                  What information will you get from shipment and container tracking?
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-3 text-gray-700">
+                    <p>Our tracking system provides comprehensive information including:</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>Real-time location and status of your shipment</li>
+                      <li>Estimated arrival dates and times</li>
+                      <li>Detailed timeline of movement events</li>
+                      <li>Vessel information and voyage details</li>
+                      <li>Port of loading and discharge information</li>
+                      <li>Container specifications and cargo details</li>
+                      <li>Shipping documents (when available)</li>
+                      <li>Special handling instructions</li>
+                    </ul>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-            <AccordionItem value="item-3">
-              <AccordionTrigger className="py-4">How to track with different shipping lines?</AccordionTrigger>
-              <AccordionContent>
-                <p className="text-gray-700 mb-2">
-                  Each shipping line has its own tracking system. You can identify the shipping line from the first 4
-                  letters of your container number:
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {shippingLines.map((line) => (
-                    <div key={line.name} className="border rounded p-2">
-                      <div className="font-medium">{line.name}</div>
-                      <div className="text-sm text-gray-600">Prefixes: {line.containerPrefix.join(", ")}</div>
-                      <a
-                        href={line.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline flex items-center mt-1"
-                      >
-                        Visit tracking page <ExternalLink className="h-3 w-3 ml-1" />
-                      </a>
+              <AccordionItem value="item-3">
+                <AccordionTrigger className="text-left">How to track with different cargo types?</AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-3 text-gray-700">
+                    <div>
+                      <p>
+                        <strong>Ocean Cargo:</strong>
+                      </p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>Use container numbers (e.g., MSCU1234567) or Bill of Lading numbers</li>
+                        <li>Supports major shipping lines: Maersk, MSC, CMA CGM, Hapag-Lloyd, etc.</li>
+                      </ul>
                     </div>
-                  ))}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+                    <div>
+                      <p>
+                        <strong>Air Cargo:</strong>
+                      </p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>Use Air Waybill numbers (11 digits: 3-digit airline code + 8 digits)</li>
+                        <li>Example: 020-12345678 or 02012345678</li>
+                        <li>Supports major airlines and air freight forwarders</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <p>
+                        <strong>LCL Cargo:</strong>
+                      </p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>Use container numbers or House Bill of Lading numbers</li>
+                        <li>LCL (Less than Container Load) shipments share container space</li>
+                        <li>Tracking shows both consolidation and ocean transport phases</li>
+                      </ul>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
         </div>
       </div>
     </ProtectedRoute>

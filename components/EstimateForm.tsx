@@ -14,7 +14,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/lib/toast"
 import { useQuery } from "@tanstack/react-query"
-import { estimatesApi } from "@/lib/api/estimatesApi"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Define the form schema
 const estimateFormSchema = z.object({
@@ -64,8 +64,10 @@ const formatCurrency = (value: number) => {
 export function EstimateForm({ initialData, isEditing = false, estimateId }: EstimateFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formSuccess, setFormSuccess] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
-  // Fetch customers from Supabase via API
+  // Fetch customers from API
   const {
     data: customersResponse,
     isLoading: isLoadingCustomers,
@@ -170,6 +172,7 @@ export function EstimateForm({ initialData, isEditing = false, estimateId }: Est
   const onSubmit = async (data: EstimateFormValues) => {
     try {
       setIsSubmitting(true)
+      setFormError(null)
 
       // Get the selected customer's name
       const selectedCustomer = customersData.find((c: any) => c.id === data.customerId)
@@ -200,30 +203,44 @@ export function EstimateForm({ initialData, isEditing = false, estimateId }: Est
 
       console.log("Submitting estimate data:", estimateData)
 
-      if (isEditing && estimateId) {
-        // Update existing estimate
-        await estimatesApi.updateEstimate(estimateId, estimateData)
-        toast({
-          title: "Estimate updated",
-          description: "Your estimate has been updated successfully.",
-        })
-      } else {
-        // Create new estimate
-        await estimatesApi.createEstimate(estimateData)
-        toast({
-          title: "Estimate created",
-          description: "Your estimate has been created successfully.",
-        })
+      // Direct API call instead of using the estimatesApi helper
+      const url = isEditing && estimateId ? `/api/estimates/${estimateId}` : "/api/estimates"
+      const method = isEditing ? "PUT" : "POST"
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(estimateData),
+      })
+
+      const result = await response.json()
+      console.log("API response:", result)
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || `HTTP error! status: ${response.status}`)
       }
 
-      // Navigate back to estimates list
+      // Show success message
+      toast({
+        title: isEditing ? "Estimate updated" : "Estimate created",
+        description: isEditing
+          ? "Your estimate has been updated successfully."
+          : "Your estimate has been created successfully.",
+      })
+
+      setFormSuccess(true)
+
+      // Navigate immediately instead of using setTimeout
       router.push("/estimates")
       router.refresh()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting form:", error)
+      setFormError(error.message || "There was a problem saving your estimate. Please try again.")
       toast({
         title: "Error",
-        description: "There was a problem saving your estimate. Please try again.",
+        description: error.message || "There was a problem saving your estimate. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -251,13 +268,31 @@ export function EstimateForm({ initialData, isEditing = false, estimateId }: Est
     )
   }
 
-  // Show debug info
-  console.log("Customers data:", customersData)
-  console.log("Number of customers:", customersData.length)
+  // If form was successfully submitted, show success message
+  if (formSuccess) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <Alert className="bg-green-50 border-green-200">
+          <AlertTitle className="text-green-800">Success!</AlertTitle>
+          <AlertDescription className="text-green-700">
+            Your estimate has been {isEditing ? "updated" : "created"} successfully. Redirecting to estimates list...
+          </AlertDescription>
+        </Alert>
+        <Spinner className="h-8 w-8" />
+      </div>
+    )
+  }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {formError && (
+          <Alert variant="destructive">
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{formError}</AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader className="flex flex-col space-y-4">
             <div className="flex items-center justify-between">

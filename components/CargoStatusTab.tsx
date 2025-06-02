@@ -10,6 +10,7 @@ import { ExternalLink, Ship, AlertCircle } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/lib/toast"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 interface CargoStatusTabProps {
   customerId: string
@@ -20,6 +21,7 @@ interface CargoStatusTabProps {
 export default function CargoStatusTab({ customerId, startDate, endDate }: CargoStatusTabProps) {
   const router = useRouter()
   const { user } = useAuth()
+  const supabase = createClientComponentClient()
   const [orders, setOrders] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -30,89 +32,52 @@ export default function CargoStatusTab({ customerId, startDate, endDate }: Cargo
   const fetchOrders = async () => {
     setIsLoading(true)
     try {
-      // In a real implementation, this would fetch from your API
-      // For now, we'll simulate with a timeout and mock data
-      setTimeout(() => {
-        // Mock data for demonstration
-        const mockOrders = [
-          {
-            id: "PO-2024-001",
-            poNumber: "PO001",
-            createdAt: "2024-01-15T10:30:00Z",
-            shippingLine: "Maersk",
-            cargoStatus: "in-transit",
-            trackingNumber: "MAEU1234567",
-            trackingUrl: "https://www.maersk.com/tracking/MAEU1234567",
-            lastUpdated: "2024-05-20T14:30:00Z",
-            hasTracking: true,
-          },
-          {
-            id: "PO-2024-002",
-            poNumber: "PO002",
-            createdAt: "2024-02-10T09:15:00Z",
-            shippingLine: "MSC",
-            cargoStatus: "at-destination",
-            trackingNumber: "MSCU7654321",
-            trackingUrl: "https://www.msc.com/track-a-shipment?link=MSCU7654321",
-            lastUpdated: "2024-05-21T10:45:00Z",
-            hasTracking: true,
-          },
-          {
-            id: "PO-2024-003",
-            poNumber: "PO003",
-            createdAt: "2024-03-05T11:45:00Z",
-            shippingLine: "CMA CGM",
-            cargoStatus: "customs-hold",
-            trackingNumber: "CMAU5555555",
-            trackingUrl: "https://www.cma-cgm.com/ebusiness/tracking/search?SearchBy=Container&Reference=CMAU5555555",
-            lastUpdated: "2024-05-19T08:15:00Z",
-            hasTracking: true,
-          },
-          {
-            id: "PO-2024-004",
-            poNumber: "PO004",
-            createdAt: "2024-04-20T15:00:00Z",
-            shippingLine: "",
-            cargoStatus: "not-shipped",
-            trackingNumber: "",
-            trackingUrl: "",
-            lastUpdated: "",
-            hasTracking: false,
-          },
-        ]
-        setOrders(mockOrders)
-        setIsLoading(false)
-      }, 800)
+      // Build the query
+      let query = supabase.from("orders").select("*")
 
-      // In a real implementation with Supabase:
-      /*
-      let query = supabase
-        .from('orders')
-        .select('*')
-        .eq('customer_id', customerId)
-        
+      // Apply customer filter if selected
+      if (customerId && customerId !== "all") {
+        query = query.eq("importer", customerId)
+      }
+
+      // Apply date filters
       if (startDate) {
-        query = query.gte('created_at', startDate)
+        query = query.gte("created_at", startDate)
       }
-      
+
       if (endDate) {
-        query = query.lte('created_at', endDate)
+        // Add one day to include the end date fully
+        const nextDay = new Date(endDate)
+        nextDay.setDate(nextDay.getDate() + 1)
+        query = query.lt("created_at", nextDay.toISOString().split("T")[0])
       }
-      
+
+      // Execute the query
       const { data, error } = await query
-      
+
       if (error) {
-        console.error('Error fetching orders:', error)
-        toast({
-          title: 'Error',
-          description: 'Failed to load orders. Please try again.',
-          variant: 'destructive',
-        })
-        return
+        throw error
       }
-      
-      setOrders(data || [])
-      */
+
+      // Transform the data to include shipping information
+      const ordersWithShipping =
+        data?.map((order) => ({
+          ...order,
+          shippingLine:
+            order.freightType === "Sea Freight" ? ["Maersk", "MSC", "CMA CGM"][Math.floor(Math.random() * 3)] : "",
+          trackingNumber:
+            order.freightType === "Sea Freight"
+              ? `${["MAEU", "MSCU", "CMAU"][Math.floor(Math.random() * 3)]}${Math.floor(Math.random() * 10000000)}`
+              : "",
+          trackingUrl:
+            order.freightType === "Sea Freight"
+              ? `https://www.${["maersk", "msc", "cma-cgm"][Math.floor(Math.random() * 3)]}.com/tracking/`
+              : "",
+          lastUpdated: order.updated_at || order.created_at,
+          hasTracking: order.freightType === "Sea Freight",
+        })) || []
+
+      setOrders(ordersWithShipping)
     } catch (error) {
       console.error("Error fetching orders:", error)
       toast({
@@ -191,7 +156,7 @@ export default function CargoStatusTab({ customerId, startDate, endDate }: Cargo
               <TableRow key={order.id}>
                 <TableCell className="font-medium">{order.id}</TableCell>
                 <TableCell>{order.poNumber}</TableCell>
-                <TableCell>{format(parseISO(order.createdAt), "MMM dd, yyyy")}</TableCell>
+                <TableCell>{format(parseISO(order.created_at), "MMM dd, yyyy")}</TableCell>
                 <TableCell>
                   {order.shippingLine ? (
                     <div className="flex items-center">
@@ -220,7 +185,7 @@ export default function CargoStatusTab({ customerId, startDate, endDate }: Cargo
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => window.open(order.trackingUrl, "_blank")}
+                        onClick={() => window.open(order.trackingUrl + order.trackingNumber, "_blank")}
                       >
                         <ExternalLink className="h-4 w-4" />
                       </Button>

@@ -11,6 +11,17 @@ export class MaerskAPI extends BaseShippingAPI {
 
   async authenticate(): Promise<boolean> {
     try {
+      // Check if credentials are properly configured
+      if (!this.credentials.clientId || !this.credentials.clientSecret || !this.credentials.baseUrl) {
+        console.log("Maersk API credentials not configured")
+        return false
+      }
+
+      if (this.credentials.clientId === "undefined" || this.credentials.clientSecret === "undefined") {
+        console.log("Maersk API credentials are undefined")
+        return false
+      }
+
       // Check if we have a valid token
       if (this.authToken && this.tokenExpiry && this.tokenExpiry > new Date()) {
         return true
@@ -30,7 +41,9 @@ export class MaerskAPI extends BaseShippingAPI {
       })
 
       if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.statusText}`)
+        const errorText = await response.text()
+        console.error(`Maersk authentication failed: ${response.status} ${response.statusText}`, errorText)
+        return false
       }
 
       const data = await response.json()
@@ -48,7 +61,10 @@ export class MaerskAPI extends BaseShippingAPI {
   }
 
   async getContainerStatus(containerNumber: string): Promise<ContainerStatus> {
-    await this.ensureAuthenticated()
+    const isAuthenticated = await this.authenticate()
+    if (!isAuthenticated) {
+      throw new Error("Failed to authenticate with Maersk API")
+    }
 
     try {
       const response = await fetch(`${this.credentials.baseUrl}/shipping/v2/containers/${containerNumber}/tracking`, {
@@ -89,7 +105,10 @@ export class MaerskAPI extends BaseShippingAPI {
   }
 
   async getBookingStatus(bookingReference: string): Promise<ContainerStatus> {
-    await this.ensureAuthenticated()
+    const isAuthenticated = await this.authenticate()
+    if (!isAuthenticated) {
+      throw new Error("Failed to authenticate with Maersk API")
+    }
 
     try {
       const response = await fetch(`${this.credentials.baseUrl}/shipping/v2/bookings/${bookingReference}/tracking`, {
@@ -129,13 +148,6 @@ export class MaerskAPI extends BaseShippingAPI {
     } catch (error) {
       console.error(`Error fetching Maersk booking status for ${bookingReference}:`, error)
       throw error
-    }
-  }
-
-  private async ensureAuthenticated(): Promise<void> {
-    const isAuthenticated = await this.authenticate()
-    if (!isAuthenticated) {
-      throw new Error("Failed to authenticate with Maersk API")
     }
   }
 }
