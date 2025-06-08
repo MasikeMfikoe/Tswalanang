@@ -58,6 +58,15 @@ export default function ShipmentTracker() {
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("tracking")
   const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null)
+  const [trackingError, setTrackingError] = useState<{
+    title: string
+    message: string
+    suggestion?: string
+    carrierInfo?: {
+      name: string
+      trackingUrl: string
+    }
+  } | null>(null)
 
   // Mock tracking data
   const mockTrackingResult: TrackingResult = {
@@ -466,30 +475,47 @@ export default function ShipmentTracker() {
 
       if (response.ok) {
         const result = await response.json()
-        if (result.success && result.data) {
+
+        if (result.success && result.data && result.isLiveData) {
           // Use live data from API
+          console.log("Using live tracking data from:", result.source)
           setTrackingResult(result.data)
           setShowResults(true)
+        } else if (result.carrierInfo) {
+          // Automatically redirect to carrier website
+          console.log(`Redirecting to ${result.carrierInfo.name} website`)
+          window.open(result.carrierInfo.trackingUrl, "_blank")
+
+          // Show a user-friendly message instead of alert
+          setTrackingError({
+            title: `${result.carrierInfo.name} Tracking`,
+            message: `We've opened ${result.carrierInfo.name}'s official tracking page in a new tab. You can track container ${trackingNumber.trim()} directly on their website.`,
+            carrierInfo: result.carrierInfo,
+          })
         } else {
-          // API failed, use mock data as fallback
-          console.warn("API returned no data, using mock data:", result.error)
-          const mockData = generateMockData(bookingType, trackingNumber)
-          setTrackingResult(mockData)
-          setShowResults(true)
+          // Show error in UI instead of alert
+          setTrackingError({
+            title: "Tracking Not Available",
+            message: result.error || "Unable to get live tracking data for this container number.",
+            suggestion: "Please verify the tracking number format or contact your shipping provider.",
+          })
         }
       } else {
-        // API error, use mock data as fallback
-        console.warn("API request failed, using mock data")
-        const mockData = generateMockData(bookingType, trackingNumber)
-        setTrackingResult(mockData)
-        setShowResults(true)
+        // API error - show in UI
+        setTrackingError({
+          title: "Service Unavailable",
+          message: "Tracking service is currently unavailable. Please try again later or contact support.",
+          suggestion: "You can also try tracking directly on the shipping line's website.",
+        })
       }
     } catch (error) {
-      // Network error, use mock data as fallback
-      console.error("Network error, using mock data:", error)
-      const mockData = generateMockData(bookingType, trackingNumber)
-      setTrackingResult(mockData)
-      setShowResults(true)
+      // Network error - show in UI
+      console.error("Network error:", error)
+      setTrackingError({
+        title: "Connection Error",
+        message: "Unable to connect to tracking service. Please check your internet connection and try again.",
+        suggestion: "If the problem persists, try tracking directly on the shipping line's website.",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -794,7 +820,10 @@ export default function ShipmentTracker() {
                       type="text"
                       placeholder="Enter your B/L or container number"
                       value={trackingNumber}
-                      onChange={(e) => setTrackingNumber(e.target.value)}
+                      onChange={(e) => {
+                        setTrackingNumber(e.target.value)
+                        if (trackingError) setTrackingError(null) // Clear error when user types
+                      }}
                       className="mt-2 h-12 text-base"
                     />
                   </div>
@@ -840,7 +869,10 @@ export default function ShipmentTracker() {
                       type="text"
                       placeholder="Enter your Air Waybill number"
                       value={trackingNumber}
-                      onChange={(e) => setTrackingNumber(e.target.value)}
+                      onChange={(e) => {
+                        setTrackingNumber(e.target.value)
+                        if (trackingError) setTrackingError(null) // Clear error when user types
+                      }}
                       className="mt-2 h-12 text-base"
                     />
                   </div>
@@ -886,7 +918,10 @@ export default function ShipmentTracker() {
                       type="text"
                       placeholder="Enter your container number or B/L number"
                       value={trackingNumber}
-                      onChange={(e) => setTrackingNumber(e.target.value)}
+                      onChange={(e) => {
+                        setTrackingNumber(e.target.value)
+                        if (trackingError) setTrackingError(null) // Clear error when user types
+                      }}
                       className="mt-2 h-12 text-base"
                     />
                   </div>
@@ -919,9 +954,68 @@ export default function ShipmentTracker() {
             </Card>
           )}
 
+          {/* Error Display */}
+          {trackingError && (
+            <Card className="mb-8 border-red-200 bg-red-50">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-red-600 text-sm font-bold">!</span>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-red-900 mb-2">{trackingError.title}</h3>
+                    <p className="text-red-800 mb-3">{trackingError.message}</p>
+                    {trackingError.suggestion && (
+                      <p className="text-red-700 text-sm mb-3">{trackingError.suggestion}</p>
+                    )}
+                    {trackingError.carrierInfo && (
+                      <div className="flex gap-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(trackingError.carrierInfo!.trackingUrl, "_blank")}
+                          className="border-red-300 text-red-700 hover:bg-red-100"
+                        >
+                          Open {trackingError.carrierInfo.name} Website
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setTrackingError(null)}
+                          className="text-red-600 hover:bg-red-100"
+                        >
+                          Try Another Number
+                        </Button>
+                      </div>
+                    )}
+                    {!trackingError.carrierInfo && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTrackingError(null)}
+                        className="text-red-600 hover:bg-red-100"
+                      >
+                        Try Again
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Live Tracking Status */}
           <div className="mb-8">
             <LiveTrackingStatus />
+          </div>
+
+          {/* TrackShip Integration Status */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span className="font-medium">Enhanced with TrackShip</span>
+              <span className="text-gray-600">• 1000+ carriers worldwide</span>
+            </div>
           </div>
 
           {/* FAQ Section */}
@@ -942,6 +1036,10 @@ export default function ShipmentTracker() {
                     </p>
                     <p>Both numbers can be used to track your shipment's progress from origin to destination.</p>
                   </div>
+                  <p className="mt-3 text-sm text-blue-600">
+                    <strong>Enhanced Coverage:</strong> Our system now includes TrackShip integration, providing access
+                    to 1000+ carriers worldwide for comprehensive tracking coverage.
+                  </p>
                 </AccordionContent>
               </AccordionItem>
 

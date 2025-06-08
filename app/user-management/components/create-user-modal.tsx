@@ -7,32 +7,23 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import type { User, UserGroup, UserRole } from "@/types/auth"
+import type { User, UserRole } from "@/types/auth"
 import { AlertCircle, Check, RefreshCw, Building2, UserIcon } from "lucide-react"
 
 interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
   onCreateUser: (user: Partial<User>) => void
-  userGroups: UserGroup[]
-  existingEmails: string[]
-  defaultRole?: UserRole
+  userType: "internal" | "client"
 }
 
-export default function CreateUserModal({
-  isOpen,
-  onClose,
-  onCreateUser,
-  userGroups,
-  existingEmails,
-  defaultRole = "employee",
-}: CreateUserModalProps) {
+export default function CreateUserModal({ isOpen, onClose, onCreateUser, userType }: CreateUserModalProps) {
   const [formData, setFormData] = useState<Partial<User>>({
     name: "",
     surname: "",
     email: "",
     password: "",
-    role: defaultRole,
+    role: userType === "client" ? "client" : "employee",
     department: "",
   })
 
@@ -41,7 +32,7 @@ export default function CreateUserModal({
   const [isEmailAvailable, setIsEmailAvailable] = useState<boolean | null>(null)
   const [isCheckingEmail, setIsCheckingEmail] = useState(false)
 
-  // Reset form when modal opens/closes or defaultRole changes
+  // Reset form when modal opens/closes or userType changes
   useEffect(() => {
     if (isOpen) {
       setFormData({
@@ -49,13 +40,13 @@ export default function CreateUserModal({
         surname: "",
         email: "",
         password: "",
-        role: defaultRole,
-        department: defaultRole === "client" ? "" : "",
+        role: userType === "client" ? "client" : "employee",
+        department: "",
       })
       setErrors({})
       setIsEmailAvailable(null)
     }
-  }, [isOpen, defaultRole])
+  }, [isOpen, userType])
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -72,7 +63,8 @@ export default function CreateUserModal({
 
     // Simulate API call with a timeout
     setTimeout(() => {
-      const isAvailable = !existingEmails.includes(email)
+      // In a real implementation, this would check against the database
+      const isAvailable = true // For now, assume all emails are available
       setIsEmailAvailable(isAvailable)
       setIsCheckingEmail(false)
 
@@ -140,8 +132,18 @@ export default function CreateUserModal({
     }
 
     // For client users, require company/department
-    if (formData.role === "client" && !formData.department?.trim()) {
+    if (userType === "client" && !formData.department?.trim()) {
       newErrors.department = "Company name is required for client users"
+    }
+
+    // For internal users, require role and department
+    if (userType === "internal") {
+      if (!formData.role) {
+        newErrors.role = "Role is required"
+      }
+      if (!formData.department?.trim()) {
+        newErrors.department = "Department is required"
+      }
     }
 
     setErrors(newErrors)
@@ -157,7 +159,7 @@ export default function CreateUserModal({
     }
   }
 
-  const isClientUser = formData.role === "client"
+  const isClientUser = userType === "client"
 
   return (
     <Dialog
@@ -238,28 +240,32 @@ export default function CreateUserModal({
             {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="role">User Type</Label>
-            <Select
-              value={formData.role || "employee"}
-              onValueChange={(value) => handleInputChange("role", value as UserRole)}
-            >
-              <SelectTrigger id="role">
-                <SelectValue placeholder="Select user type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="employee">Employee</SelectItem>
-                <SelectItem value="client">Client (External)</SelectItem>
-                <SelectItem value="guest">Guest</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {!isClientUser && (
+            <div className="space-y-2">
+              <Label htmlFor="role" className={errors.role ? "text-red-500" : ""}>
+                User Role *
+              </Label>
+              <Select
+                value={formData.role || "employee"}
+                onValueChange={(value) => handleInputChange("role", value as UserRole)}
+              >
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Select user role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="guest">Guest</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.role && <p className="text-xs text-red-500">{errors.role}</p>}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="department" className={errors.department ? "text-red-500" : ""}>
-              {isClientUser ? "Company Name *" : "Department"}
+              {isClientUser ? "Company Name *" : "Department *"}
             </Label>
             {isClientUser ? (
               <Input
@@ -271,19 +277,19 @@ export default function CreateUserModal({
               />
             ) : (
               <Select
-                value={formData.department || "unassigned"}
+                value={formData.department || ""}
                 onValueChange={(value) => handleInputChange("department", value)}
               >
                 <SelectTrigger id="department">
                   <SelectValue placeholder="Select a department" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {userGroups.map((group) => (
-                    <SelectItem key={group.id} value={group.name}>
-                      {group.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="IT">IT</SelectItem>
+                  <SelectItem value="Sales">Sales</SelectItem>
+                  <SelectItem value="HR">HR</SelectItem>
+                  <SelectItem value="Support">Support</SelectItem>
+                  <SelectItem value="Engineering">Engineering</SelectItem>
+                  <SelectItem value="Operations">Operations</SelectItem>
                 </SelectContent>
               </Select>
             )}

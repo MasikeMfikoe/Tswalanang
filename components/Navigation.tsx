@@ -12,7 +12,6 @@ import {
   Truck,
   User,
   Currency,
-  List,
   LogOut,
   Settings,
   LineChart,
@@ -125,12 +124,6 @@ export function Navigation() {
       module: "currencyConversion",
     },
     {
-      name: "Audit Trail",
-      href: "/audit-trail",
-      icon: List,
-      module: "auditTrail",
-    },
-    {
       name: "Rate Card",
       href: "/rate-card",
       icon: CreditCard,
@@ -142,12 +135,13 @@ export function Navigation() {
       icon: Settings,
       module: "admin",
       hasSubmenu: true,
-      current: pathname?.startsWith("/admin/"),
+      current: pathname?.startsWith("/admin/") || pathname === "/audit-trail",
       children: [
         { name: "Settings", href: "/admin/settings" },
         { name: "User Groups", href: "/admin/user-groups" },
         { name: "Users", href: "/admin/users" },
         { name: "Tracking Users", href: "/admin/tracking-users" },
+        { name: "Audit Trail", href: "/audit-trail" },
       ],
     },
     {

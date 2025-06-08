@@ -63,7 +63,7 @@ export async function trackContainerExternal(trackingNumber: string): Promise<Ex
     if (!ShippingAPIFactory.hasValidCredentials(shippingLineInfo.code as any)) {
       return {
         success: false,
-        error: `API credentials not configured for ${shippingLineInfo.name}`,
+        error: `API credentials not configured for ${shippingLineInfo.name}. Contact administrator to set up live tracking.`,
         source: "missing_credentials",
       }
     }
@@ -73,14 +73,17 @@ export async function trackContainerExternal(trackingNumber: string): Promise<Ex
     const apiClient = ShippingAPIFactory.getApiClient(shippingLineInfo.code as any, credentials)
 
     // Authenticate with the shipping line API
+    console.log(`Attempting authentication with ${shippingLineInfo.name}...`)
     const isAuthenticated = await apiClient.authenticate()
     if (!isAuthenticated) {
       return {
         success: false,
-        error: `Failed to authenticate with ${shippingLineInfo.name} API`,
+        error: `Failed to authenticate with ${shippingLineInfo.name} API. Please check API credentials.`,
         source: "authentication_failed",
       }
     }
+
+    console.log(`Authentication successful, fetching tracking data...`)
 
     // Determine if this is a container number or booking reference
     let trackingResult
@@ -95,6 +98,8 @@ export async function trackContainerExternal(trackingNumber: string): Promise<Ex
         source: "invalid_type",
       }
     }
+
+    console.log(`Live tracking data received from ${shippingLineInfo.name}`)
 
     // Transform the API response to our standard format
     const standardizedData = {
@@ -113,9 +118,9 @@ export async function trackContainerExternal(trackingNumber: string): Promise<Ex
         },
       ],
       cargoDetails: {
-        containerType: "40HC", // This would come from the API response
-        weight: "24,500 kg", // This would come from the API response
-        volume: "67.5 CBM", // This would come from the API response
+        containerType: trackingResult.raw?.containerType || "Unknown",
+        weight: trackingResult.raw?.weight || "Unknown",
+        volume: trackingResult.raw?.volume || "Unknown",
       },
     }
 

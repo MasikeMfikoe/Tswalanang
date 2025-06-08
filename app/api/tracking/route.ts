@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { trackContainerExternal } from "@/lib/services/external-tracking-service"
-import { detectContainerInfo, getShippingLineInfo } from "@/lib/services/container-detection-service"
+import { detectContainerInfo, trackContainerExternal } from "@/lib/utils"
+import { TrackShipService } from "@/lib/services/trackship-service"
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,180 +18,122 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanTrackingNumber = trackingNumber.trim().toUpperCase().replace(/[\s-]/g, "")
-    console.log(`Live tracking request for: ${cleanTrackingNumber} (${bookingType})`)
 
-    // Try live tracking first
-    const liveResult = await trackContainerExternal(cleanTrackingNumber)
+    // Try TrackShip first (if API key is configured)
+    const trackShipService = new TrackShipService()
+    const trackShipResult = await trackShipService.trackShipment(cleanTrackingNumber)
 
-    if (liveResult.success && liveResult.data) {
-      console.log(`Live tracking successful from ${liveResult.source}`)
+    if (trackShipResult.success && trackShipResult.data) {
+      console.log("✅ TrackShip tracking successful for:", cleanTrackingNumber)
       return NextResponse.json({
         success: true,
-        data: transformToTrackingResult(liveResult.data, cleanTrackingNumber, bookingType),
-        source: liveResult.source,
+        data: transformTrackShipToStandardFormat(trackShipResult.data),
+        source: "TrackShip",
         isLiveData: true,
       })
     }
 
-    // Live tracking failed, check if we can provide carrier info
-    const containerInfo = detectContainerInfo(cleanTrackingNumber)
-    const shippingLineInfo = getShippingLineInfo(containerInfo.prefix)
+    // Fallback to existing direct API tracking
+    console.log("⚠️ TrackShip failed, trying direct APIs for:", cleanTrackingNumber)
+    const directResult = await trackContainerExternal(cleanTrackingNumber)
 
-    if (shippingLineInfo) {
-      // Return carrier info with external link
+    if (directResult.success && directResult.data) {
+      console.log("✅ Direct API tracking successful for:", cleanTrackingNumber)
       return NextResponse.json({
-        success: false,
-        error: `Live tracking not available for ${shippingLineInfo.name}. Please use their website directly.`,
-        carrierInfo: {
-          name: shippingLineInfo.name,
-          trackingUrl: `${shippingLineInfo.trackingUrl}${cleanTrackingNumber}`,
-          apiSupported: shippingLineInfo.apiSupported,
-        },
-        fallbackToMock: true,
+        success: true,
+        data: directResult.data,
+        source: directResult.source,
+        isLiveData: true,
       })
     }
 
-    // Unknown carrier
+    // Final fallback - carrier website redirect
+    const containerInfo = detectContainerInfo(cleanTrackingNumber)
+    if (containerInfo.isValid && containerInfo.carrier) {
+      const carrierUrls: Record<string, string> = {
+        MSC: `https://www.msc.com/track-a-shipment?agencyPath=msc&trackingNumber=${cleanTrackingNumber}`,
+        MAERSK: `https://www.maersk.com/tracking/${cleanTrackingNumber}`,
+        CMA: `https://www.cma-cgm.com/ebusiness/tracking/search?number=${cleanTrackingNumber}`,
+        HAPAG: `https://www.hapag-lloyd.com/en/online-business/track/track-by-container-solution.html?container=${cleanTrackingNumber}`,
+      }
+
+      const trackingUrl =
+        carrierUrls[containerInfo.carrier] ||
+        `https://www.${containerInfo.carrier.toLowerCase()}.com/track?number=${cleanTrackingNumber}`
+
+      return NextResponse.json({
+        success: false,
+        error: "Live tracking not available. Redirecting to carrier website.",
+        carrierInfo: {
+          name: containerInfo.carrier,
+          trackingUrl,
+        },
+        source: "carrier-redirect",
+      })
+    }
+
     return NextResponse.json({
       success: false,
-      error: "Unable to identify shipping line for this tracking number",
-      fallbackToMock: true,
+      error: "Unable to track this shipment. Please verify the tracking number format.",
+      source: "error",
     })
   } catch (error) {
     console.error("Tracking API error:", error)
     return NextResponse.json(
       {
         success: false,
-        error: "Internal server error while processing tracking request",
-        fallbackToMock: true,
+        error: "Tracking service temporarily unavailable",
       },
       { status: 500 },
     )
   }
 }
 
-// Transform external API data to our internal format
-function transformToTrackingResult(externalData: any, trackingNumber: string, bookingType: string) {
+// Helper function to transform TrackShip data to your existing format
+function transformTrackShipToStandardFormat(trackShipData: any) {
   return {
-    shipmentNumber: trackingNumber,
-    status: externalData.status || "Unknown",
-    containerNumber: externalData.containerNumber || trackingNumber,
-    containerType: externalData.cargoDetails?.containerType || getContainerTypeByBooking(bookingType),
-    weight: externalData.cargoDetails?.weight || "Unknown",
-    origin: extractOrigin(externalData.events),
-    destination: extractDestination(externalData.events),
-    pol: extractOrigin(externalData.events),
-    pod: extractDestination(externalData.events),
-    estimatedArrival: externalData.eta || "Unknown",
-    lastLocation: `${externalData.status} • ${externalData.location}`,
-    timeline: transformEventsToTimeline(externalData.events),
-    documents: generateDocumentsForBookingType(bookingType),
+    shipmentNumber: trackShipData.tracking_number,
+    status: trackShipData.status,
+    containerNumber: trackShipData.tracking_number,
+    containerType: trackShipData.shipment_info?.service_type || "Container",
+    weight: trackShipData.shipment_info?.weight || "Unknown",
+    origin: trackShipData.shipment_info?.origin || "Unknown",
+    destination: trackShipData.shipment_info?.destination || "Unknown",
+    pol: trackShipData.shipment_info?.origin || "Unknown",
+    pod: trackShipData.shipment_info?.destination || "Unknown",
+    estimatedArrival: trackShipData.estimated_delivery || "Unknown",
+    lastLocation: trackShipData.location || "Unknown",
+    timeline: transformTrackShipEvents(trackShipData.events || []),
+    documents: [], // TrackShip doesn't provide documents
     details: {
-      packages: externalData.cargoDetails?.packages || "Unknown",
-      specialInstructions: "Live tracking data",
-      dimensions: externalData.cargoDetails?.volume || "Unknown",
-      shipmentType: getShipmentTypeByBooking(bookingType),
+      packages: "Unknown",
+      specialInstructions: trackShipData.status_detail || "",
+      dimensions: trackShipData.shipment_info?.dimensions || "Unknown",
+      shipmentType: trackShipData.shipment_info?.service_type || "Container Freight",
     },
   }
 }
 
-function getContainerTypeByBooking(bookingType: string): string {
-  switch (bookingType) {
-    case "air":
-      return "Air Cargo"
-    case "lcl":
-      return "LCL Consolidation"
-    default:
-      return "40ft High Cube"
-  }
-}
+function transformTrackShipEvents(events: any[]) {
+  const groupedEvents: Record<string, any> = {}
 
-function getShipmentTypeByBooking(bookingType: string): string {
-  switch (bookingType) {
-    case "air":
-      return "Air Freight Express"
-    case "lcl":
-      return "LCL Ocean Freight"
-    default:
-      return "Ocean Freight"
-  }
-}
-
-function extractOrigin(events: any[]): string {
-  if (!events || events.length === 0) return "Unknown"
-  return events[0]?.location || "Unknown"
-}
-
-function extractDestination(events: any[]): string {
-  if (!events || events.length === 0) return "Unknown"
-  return events[events.length - 1]?.location || "Unknown"
-}
-
-function transformEventsToTimeline(events: any[]) {
-  if (!events || events.length === 0) return []
-
-  const groupedByLocation = events.reduce((acc, event) => {
+  events.forEach((event) => {
     const location = event.location || "Unknown"
-    if (!acc[location]) {
-      acc[location] = []
+    if (!groupedEvents[location]) {
+      groupedEvents[location] = {
+        location,
+        events: [],
+      }
     }
-    acc[location].push({
-      type: determineEventType(event.status),
-      status: event.status,
-      vessel: event.description,
+
+    groupedEvents[location].events.push({
+      type: "event",
+      status: event.description || event.status,
       timestamp: event.timestamp,
-      time: new Date(event.timestamp).toLocaleTimeString(),
       date: new Date(event.timestamp).toLocaleDateString(),
+      time: new Date(event.timestamp).toLocaleTimeString(),
     })
-    return acc
-  }, {})
-
-  return Object.entries(groupedByLocation).map(([location, events]) => ({
-    location,
-    events: events as any[],
-  }))
-}
-
-function determineEventType(status: string): string {
-  const statusLower = status.toLowerCase()
-  if (statusLower.includes("departure") || statusLower.includes("sailed")) return "vessel-departure"
-  if (statusLower.includes("arrival") || statusLower.includes("arrived")) return "vessel-arrival"
-  if (statusLower.includes("gate")) return "gate"
-  if (statusLower.includes("load")) return "load"
-  return "event"
-}
-
-function generateDocumentsForBookingType(bookingType: string) {
-  const baseDate = new Date().toLocaleDateString()
-
-  switch (bookingType) {
-    case "air":
-      return [
-        { name: "Air Waybill", type: "PDF", url: "#", date: baseDate },
-        { name: "Commercial Invoice", type: "PDF", url: "#", date: baseDate },
-        { name: "Packing List", type: "PDF", url: "#", date: baseDate },
-      ]
-    case "lcl":
-      return [
-        { name: "House Bill of Lading", type: "PDF", url: "#", date: baseDate },
-        { name: "Master Bill of Lading", type: "PDF", url: "#", date: baseDate },
-        { name: "Commercial Invoice", type: "PDF", url: "#", date: baseDate },
-        { name: "Packing List", type: "PDF", url: "#", date: baseDate },
-      ]
-    default:
-      return [
-        { name: "Commercial Invoice", type: "PDF", url: "#", date: baseDate },
-        { name: "Packing List", type: "PDF", url: "#", date: baseDate },
-        { name: "Bill of Lading", type: "PDF", url: "#", date: baseDate },
-        { name: "Certificate of Origin", type: "PDF", url: "#", date: baseDate },
-      ]
-  }
-}
-
-export async function GET() {
-  return NextResponse.json({
-    message: "Live Tracking API is active",
-    timestamp: new Date().toISOString(),
-    mode: "live",
   })
+
+  return Object.values(groupedEvents)
 }
