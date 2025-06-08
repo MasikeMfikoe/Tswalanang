@@ -51,13 +51,37 @@ interface TrackingResult {
   }
 }
 
+// Default empty tracking result with empty arrays to prevent "map of undefined" errors
+const emptyTrackingResult: TrackingResult = {
+  shipmentNumber: "",
+  status: "",
+  containerNumber: "",
+  containerType: "",
+  weight: "",
+  origin: "",
+  destination: "",
+  pol: "",
+  pod: "",
+  estimatedArrival: "",
+  lastLocation: "",
+  timeline: [],
+  documents: [],
+  details: {
+    packages: "",
+    specialInstructions: "",
+    dimensions: "",
+    shipmentType: "",
+  },
+}
+
 export default function ShipmentTracker() {
   const [trackingNumber, setTrackingNumber] = useState("")
   const [bookingType, setBookingType] = useState("ocean")
   const [showResults, setShowResults] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("tracking")
-  const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null)
+  // Initialize with empty tracking result to prevent null/undefined errors
+  const [trackingResult, setTrackingResult] = useState<TrackingResult>(emptyTrackingResult)
   const [trackingError, setTrackingError] = useState<{
     title: string
     message: string
@@ -565,11 +589,11 @@ export default function ShipmentTracker() {
           {/* Shipment Header */}
           <div className="container mx-auto px-4 max-w-7xl">
             <div className="mb-6">
-              <h1 className="text-2xl font-bold">Shipment {trackingResult?.shipmentNumber}</h1>
+              <h1 className="text-2xl font-bold">Shipment {trackingResult?.shipmentNumber || "Unknown"}</h1>
               <div className="flex items-center mt-2">
                 <div className="text-sm">Current Status:</div>
                 <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
-                  {trackingResult?.status}
+                  {trackingResult?.status || "Unknown"}
                 </Badge>
               </div>
             </div>
@@ -584,31 +608,31 @@ export default function ShipmentTracker() {
                   <CardContent className="space-y-4">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Container Number</p>
-                      <p>{trackingResult?.containerNumber}</p>
+                      <p>{trackingResult?.containerNumber || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-600">Container Type</p>
-                      <p>{trackingResult?.containerType}</p>
+                      <p>{trackingResult?.containerType || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-600">Container Weight</p>
-                      <p>{trackingResult?.weight}</p>
+                      <p>{trackingResult?.weight || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-600">Shipped From</p>
-                      <p>{trackingResult?.origin}</p>
+                      <p>{trackingResult?.origin || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-600">Port of Load</p>
-                      <p>{trackingResult?.pol}</p>
+                      <p>{trackingResult?.pol || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-600">Port of Discharge</p>
-                      <p>{trackingResult?.pod}</p>
+                      <p>{trackingResult?.pod || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-600">Shipped To</p>
-                      <p>{trackingResult?.destination}</p>
+                      <p>{trackingResult?.destination || "N/A"}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -632,11 +656,11 @@ export default function ShipmentTracker() {
                         <div className="flex justify-between mb-4">
                           <div>
                             <p className="text-sm text-gray-600">Estimated arrival date</p>
-                            <p className="font-bold">{trackingResult?.estimatedArrival}</p>
+                            <p className="font-bold">{trackingResult?.estimatedArrival || "N/A"}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-sm text-gray-600">Last location</p>
-                            <p className="font-bold">{trackingResult?.lastLocation}</p>
+                            <p className="font-bold">{trackingResult?.lastLocation || "N/A"}</p>
                           </div>
                         </div>
 
@@ -644,47 +668,56 @@ export default function ShipmentTracker() {
                           Note: All times are given in local time, unless otherwise stated.
                         </p>
 
-                        <div className="relative">
-                          {/* Vertical timeline line */}
-                          <div className="absolute left-[7.5px] top-0 bottom-0 w-0.5 bg-blue-100"></div>
+                        {trackingResult?.timeline && trackingResult.timeline.length > 0 ? (
+                          <div className="relative">
+                            {/* Vertical timeline line */}
+                            <div className="absolute left-[7.5px] top-0 bottom-0 w-0.5 bg-blue-100"></div>
 
-                          {/* Timeline events */}
-                          <div className="space-y-12">
-                            {trackingResult?.timeline.map((locationGroup, groupIndex) => (
-                              <div key={groupIndex} className="relative">
-                                {/* Location header on the right side */}
-                                <div className="flex justify-end mb-2">
-                                  <div className="font-bold">
-                                    {locationGroup.location}
-                                    {locationGroup.terminal && (
-                                      <div className="text-sm font-normal text-gray-600">{locationGroup.terminal}</div>
-                                    )}
+                            {/* Timeline events */}
+                            <div className="space-y-12">
+                              {trackingResult.timeline.map((locationGroup, groupIndex) => (
+                                <div key={groupIndex} className="relative">
+                                  {/* Location header on the right side */}
+                                  <div className="flex justify-end mb-2">
+                                    <div className="font-bold">
+                                      {locationGroup.location}
+                                      {locationGroup.terminal && (
+                                        <div className="text-sm font-normal text-gray-600">
+                                          {locationGroup.terminal}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
 
-                                {/* Events for this location */}
-                                <div className="space-y-6">
-                                  {locationGroup.events.map((event, eventIndex) => (
-                                    <div key={eventIndex} className="flex">
-                                      {/* Icon */}
-                                      <div className="mr-4 mt-1">{getEventIcon(event.type)}</div>
+                                  {/* Events for this location */}
+                                  <div className="space-y-6">
+                                    {locationGroup.events &&
+                                      locationGroup.events.map((event, eventIndex) => (
+                                        <div key={eventIndex} className="flex">
+                                          {/* Icon */}
+                                          <div className="mr-4 mt-1">{getEventIcon(event.type)}</div>
 
-                                      {/* Event details */}
-                                      <div className="flex-1">
-                                        <div className="flex justify-between">
-                                          <div className="font-medium">{event.status}</div>
-                                          <div className="text-sm text-gray-600">
-                                            {event.date} {event.time}
+                                          {/* Event details */}
+                                          <div className="flex-1">
+                                            <div className="flex justify-between">
+                                              <div className="font-medium">{event.status}</div>
+                                              <div className="text-sm text-gray-600">
+                                                {event.date} {event.time}
+                                              </div>
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    </div>
-                                  ))}
+                                      ))}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            No timeline events available for this shipment.
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </TabsContent>
@@ -694,25 +727,31 @@ export default function ShipmentTracker() {
                     <Card>
                       <CardContent className="pt-6">
                         <h3 className="text-xl font-bold mb-4">Shipping Documents</h3>
-                        <div className="space-y-3">
-                          {trackingResult?.documents.map((doc, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <FileText className="h-4 w-4 text-red-500" />
-                                <div>
-                                  <p className="font-medium">{doc.name}</p>
-                                  <p className="text-xs text-gray-500">Added on {doc.date}</p>
+                        {trackingResult?.documents && trackingResult.documents.length > 0 ? (
+                          <div className="space-y-3">
+                            {trackingResult.documents.map((doc, index) => (
+                              <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <FileText className="h-4 w-4 text-red-500" />
+                                  <div>
+                                    <p className="font-medium">{doc.name}</p>
+                                    <p className="text-xs text-gray-500">Added on {doc.date}</p>
+                                  </div>
                                 </div>
+                                <Button variant="outline" size="sm" asChild>
+                                  <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Download
+                                  </a>
+                                </Button>
                               </div>
-                              <Button variant="outline" size="sm" asChild>
-                                <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                                  <Download className="h-4 w-4 mr-2" />
-                                  Download
-                                </a>
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            No documents available for this shipment.
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </TabsContent>
@@ -725,23 +764,23 @@ export default function ShipmentTracker() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <p className="text-sm text-gray-600">Weight</p>
-                            <p className="font-medium">{trackingResult?.weight}</p>
+                            <p className="font-medium">{trackingResult?.weight || "N/A"}</p>
                           </div>
                           <div>
                             <p className="text-sm text-gray-600">Packages</p>
-                            <p className="font-medium">{trackingResult?.details.packages}</p>
+                            <p className="font-medium">{trackingResult?.details?.packages || "N/A"}</p>
                           </div>
                           <div className="md:col-span-2">
                             <p className="text-sm text-gray-600">Special Instructions</p>
-                            <p className="font-medium">{trackingResult?.details.specialInstructions}</p>
+                            <p className="font-medium">{trackingResult?.details?.specialInstructions || "N/A"}</p>
                           </div>
                           <div>
                             <p className="text-sm text-gray-600">Dimensions</p>
-                            <p className="font-medium">{trackingResult?.details.dimensions}</p>
+                            <p className="font-medium">{trackingResult?.details?.dimensions || "N/A"}</p>
                           </div>
                           <div>
                             <p className="text-sm text-gray-600">Shipment Type</p>
-                            <p className="font-medium">{trackingResult?.details.shipmentType}</p>
+                            <p className="font-medium">{trackingResult?.details?.shipmentType || "N/A"}</p>
                           </div>
                         </div>
                       </CardContent>
