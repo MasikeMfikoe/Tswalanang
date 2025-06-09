@@ -27,6 +27,7 @@ export function CustomersList({ initialCustomers }: { initialCustomers: Customer
   )
 
   const handleAddNewCustomer = () => {
+    console.log("Navigating to new customer page from component...")
     router.push("/customers/new")
   }
 
@@ -61,7 +62,7 @@ export function CustomersList({ initialCustomers }: { initialCustomers: Customer
               <TableCell>{customer.importersCode || "Not provided"}</TableCell>
               <TableCell>{customer.totalOrders}</TableCell>
               <TableCell>
-                <Button variant="outline" size="sm" onClick={() => router.push(`/customers/${customer.id}`)}>
+                <Button variant="outline" size="sm" onClick={() => router.push(`/customers/details/${customer.id}`)}>
                   View Profile
                 </Button>
               </TableCell>

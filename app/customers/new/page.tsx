@@ -1,8 +1,7 @@
 "use client"
 
-import React from "react"
+import type React from "react"
 import { Suspense } from "react"
-
 import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -37,35 +36,11 @@ interface CustomerFormData {
   importersCode: string
 }
 
-// 1. Memoize the form sections to prevent unnecessary re-renders
-const CustomerInfoSection = React.memo(({ formData, handleChange }) => (
-  <Card>
-    <CardHeader>
-      <CardTitle>Customer Information</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Customer Name</Label>
-          <Input
-            id="name"
-            value={formData.name}
-            onChange={(e) => handleChange("main", "name", e.target.value)}
-            required
-          />
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-))
-
 export default function NewCustomer() {
   const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("details")
-  // 3. Add a loading state for the initial page load
-  const [pageLoading, setPageLoading] = useState(true)
 
   const [formData, setFormData] = useState<CustomerFormData>({
     name: "",
@@ -91,7 +66,21 @@ export default function NewCustomer() {
     importersCode: "",
   })
 
-  // 2. Replace the handleChange function with a memoized version
+  const [rateCardData, setRateCardData] = useState({
+    seaFreight: {
+      communicationFee: 350,
+      documentationFee: 350,
+      agencyFee: 3.5,
+      facilityFee: 2.5,
+    },
+    airFreight: {
+      communicationFee: 150,
+      documentationFee: 250,
+      agencyFee: 3.5,
+      facilityFee: 2.5,
+    },
+  })
+
   const handleChange = useMemo(() => {
     return (section: "main" | "primaryContact" | "secondaryContact" | "address", field: string, value: string) => {
       setFormData((prev) => {
@@ -109,35 +98,12 @@ export default function NewCustomer() {
     }
   }, [])
 
-  // 4. Add useEffect to simulate data loading and set pageLoading to false
-  React.useEffect(() => {
-    // Simulate any initial data loading
-    const timer = setTimeout(() => {
-      setPageLoading(false)
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [])
-
-  // 5. Add a simple loading indicator at the beginning of the return statement
-  if (pageLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-2">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Replace the handleSubmit function with this:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      // Prepare customer data for API
+      // First create the customer
       const customerData = {
         name: formData.name,
         contact_person: formData.primaryContact.name,
@@ -151,7 +117,6 @@ export default function NewCustomer() {
         importers_code: formData.importersCode,
       }
 
-      // Use API endpoint instead of direct Supabase call
       const response = await fetch("/api/customers", {
         method: "POST",
         headers: {
@@ -166,13 +131,33 @@ export default function NewCustomer() {
       }
 
       const result = await response.json()
+      const customerId = result.data.id
+
+      // Then save the rate card
+      try {
+        const rateCardResponse = await fetch("/api/customers/rate-card", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            customer_id: customerId,
+            ...rateCardData,
+          }),
+        })
+
+        if (!rateCardResponse.ok) {
+          console.warn("Failed to save rate card, but customer was created successfully")
+        }
+      } catch (rateCardError) {
+        console.warn("Rate card save failed:", rateCardError)
+      }
 
       toast({
         title: "Customer created successfully!",
         description: `${formData.name} has been added to your customer database.`,
       })
 
-      // Redirect to customers list
       router.push("/customers")
     } catch (error) {
       console.error("Error creating customer:", error)
@@ -190,7 +175,7 @@ export default function NewCustomer() {
     <div className="h-full overflow-y-auto">
       <div className="p-6 max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Add New Customer</h1>
+          <h1 className="text-2xl font-bold">Create New Customer</h1>
           <div className="flex space-x-2">
             <Button variant="outline" onClick={() => router.push("/customers")}>
               Return to Customers
@@ -411,7 +396,7 @@ export default function NewCustomer() {
             </TabsContent>
 
             <TabsContent value="ratecard" className="mt-6">
-              <RateCard isNewCustomer={true} />
+              <RateCard isNewCustomer={true} initialData={rateCardData} onChange={setRateCardData} />
             </TabsContent>
           </Tabs>
         </Suspense>

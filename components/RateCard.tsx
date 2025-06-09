@@ -14,6 +14,7 @@ interface RateCardProps {
   customerId?: string
   isNewCustomer?: boolean
   isEditable?: boolean
+  onChange?: (data: any) => void
   initialData?: {
     seaFreight?: {
       communicationFee: number
@@ -45,7 +46,13 @@ interface RateCardData {
   updated_at?: string
 }
 
-export function RateCard({ customerId, isNewCustomer = false, isEditable = true, initialData }: RateCardProps) {
+export function RateCard({
+  customerId,
+  isNewCustomer = false,
+  isEditable = true,
+  onChange,
+  initialData,
+}: RateCardProps) {
   const { toast } = useToast()
 
   // Default values for sea and air freight
@@ -370,6 +377,15 @@ export function RateCard({ customerId, isNewCustomer = false, isEditable = true,
     ),
     [airFreight, handleAirFreightChange, isEditable],
   )
+
+  useEffect(() => {
+    if (onChange && isNewCustomer) {
+      onChange({
+        seaFreight,
+        airFreight,
+      })
+    }
+  }, [seaFreight, airFreight, onChange, isNewCustomer])
 
   if (loading) {
     return (

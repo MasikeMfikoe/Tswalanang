@@ -58,15 +58,32 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch customer details
+  // Add this function before the fetchCustomer function
+  const isValidUUID = (str: string) => {
+    if (!str) return false
+    // More lenient UUID validation - just check basic format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    return uuidRegex.test(str)
+  }
+
+  // Update the fetchCustomer function to include validation
   const fetchCustomer = async () => {
     try {
       setLoading(true)
       setError(null)
 
+      console.log("Fetching customer with ID:", params.id)
+
+      // Validate UUID format
+      if (!isValidUUID(params.id)) {
+        console.log("Invalid UUID format:", params.id)
+        throw new Error(`Invalid customer ID format: ${params.id}`)
+      }
+
       const { data, error } = await supabase.from("customers").select("*").eq("id", params.id).single()
 
       if (error) {
+        console.error("Supabase error:", error)
         throw error
       }
 
@@ -74,6 +91,7 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
         throw new Error("Customer not found")
       }
 
+      console.log("Customer loaded successfully:", data.name)
       setCustomer(data)
       setEditedCustomer(data)
     } catch (error: any) {
@@ -142,9 +160,14 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
     }
   }
 
-  // Load data on component mount
+  // Load data on component mount - only for valid UUIDs
   useEffect(() => {
-    fetchCustomer()
+    if (isValidUUID(params.id)) {
+      fetchCustomer()
+    } else {
+      setLoading(false)
+      setError(`Invalid customer ID format: ${params.id}`)
+    }
   }, [params.id])
 
   // Fetch orders after customer is loaded
@@ -239,7 +262,16 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
         <div className="text-center">
           <h2 className="text-xl font-semibold mb-2">Customer Not Found</h2>
           <p className="text-gray-600 mb-4">{error || "The requested customer could not be found."}</p>
-          <Button onClick={() => router.push("/customers")}>Back to Customers</Button>
+          <div className="flex space-x-2 justify-center">
+            <Button onClick={() => router.push("/customers/new")}>Create New Customer</Button>
+            <Button variant="outline" onClick={() => router.push("/customers")}>
+              Back to Customers
+            </Button>
+          </div>
+          <div className="mt-4 text-sm text-gray-500">
+            <p>Current URL: /customers/details/{params.id}</p>
+            <p>Expected: Valid UUID format</p>
+          </div>
         </div>
       </div>
     )

@@ -74,6 +74,7 @@ export default function Customers() {
   )
 
   const handleCreateNewCustomer = () => {
+    console.log("Navigating to new customer page...")
     router.push("/customers/new")
   }
 
@@ -154,7 +155,7 @@ export default function Customers() {
                     </p>
                   </div>
                   <Button asChild variant="ghost">
-                    <Link href={`/customers/${customer.id}`}>View</Link>
+                    <Link href={`/customers/details/${customer.id}`}>View</Link>
                   </Button>
                 </div>
               ))
