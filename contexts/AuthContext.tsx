@@ -518,7 +518,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const username = `${userData.name.toLowerCase()}.${userData.surname.toLowerCase()}`
       const email = userData.email || `${username}@tswsmartlog.com`
 
-      // Create user object
+      // Create user object with temporary ID (will be replaced by auth user ID)
       const newUser: User = {
         id: crypto.randomUUID(),
         username,
@@ -531,67 +531,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           userData.pageAccess || (userData.role === "client" ? ["clientPortal", "shipmentTracker"] : ["dashboard"]),
       }
 
-      // ALWAYS save locally first (ensures persistence)
-      CREATED_USERS.push(newUser)
-      saveCreatedUsers()
-      console.log("✅ User saved locally:", newUser)
-
-      // Try to save to Supabase with DETAILED error logging
-      console.log("📝 Attempting to save to Supabase...")
-      console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL || "Not available")
-      console.log("Supabase Key present:", !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-
+      // Try to create via API route first
       try {
-        const profileData = {
-          id: newUser.id,
-          username: newUser.username,
-          name: newUser.name,
-          surname: newUser.surname,
-          email: newUser.email,
-          role: newUser.role,
-          department: newUser.department,
-          page_access: newUser.pageAccess,
-        }
+        console.log("📝 Attempting to create via API route...")
 
-        console.log("Sending to Supabase:", profileData)
+        const authResponse = await fetch("/api/create-auth-user", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: newUser.email,
+            password: userData.password || "TempPassword123!",
+            userData: {
+              username: newUser.username,
+              name: newUser.name,
+              surname: newUser.surname,
+              role: newUser.role,
+              department: newUser.department,
+              page_access: newUser.pageAccess,
+              email: newUser.email,
+            },
+          }),
+        })
 
-        const { data: profileResult, error: profileError } = await supabase
-          .from("user_profiles")
-          .insert(profileData)
-          .select()
+        if (authResponse.ok) {
+          const result = await authResponse.json()
+          console.log("✅ User created via API route:", result)
 
-        if (profileError) {
-          console.error("❌ Supabase insert error:", profileError)
-          console.error("Error details:", {
-            code: profileError.code,
-            message: profileError.message,
-            details: profileError.details,
-            hint: profileError.hint,
-          })
+          // Update the user object with the real auth user ID
+          newUser.id = result.user.id
 
-          // Try direct SQL as fallback (service role has more permissions)
-          console.log("Attempting direct SQL insert as fallback...")
-          const { data: sqlResult, error: sqlError } = await supabase.rpc("insert_user_profile", {
-            user_id: newUser.id,
-            user_username: newUser.username,
-            user_name: newUser.name,
-            user_surname: newUser.surname,
-            user_email: newUser.email,
-            user_role: newUser.role,
-            user_department: newUser.department,
-            user_page_access: newUser.pageAccess,
-          })
-
-          if (sqlError) {
-            console.error("❌ SQL fallback also failed:", sqlError)
-          } else {
-            console.log("✅ SQL fallback succeeded:", sqlResult)
-          }
+          // Save locally with the correct ID
+          CREATED_USERS.push(newUser)
+          saveCreatedUsers()
+          console.log("✅ User saved locally with auth ID:", newUser)
         } else {
-          console.log("✅ User saved to Supabase:", profileResult)
+          const error = await authResponse.text()
+          console.error("❌ API route error:", error)
+
+          // Fallback to local-only creation
+          console.log("📝 Falling back to local-only creation...")
+          CREATED_USERS.push(newUser)
+          saveCreatedUsers()
+          console.log("✅ User saved locally only:", newUser)
         }
-      } catch (supabaseError) {
-        console.error("❌ Supabase operation failed:", supabaseError)
+      } catch (apiError) {
+        console.error("❌ API call failed:", apiError)
+
+        // Fallback to local-only creation
+        console.log("📝 Falling back to local-only creation...")
+        CREATED_USERS.push(newUser)
+        saveCreatedUsers()
+        console.log("✅ User saved locally only:", newUser)
       }
 
       // Send welcome email if requested
