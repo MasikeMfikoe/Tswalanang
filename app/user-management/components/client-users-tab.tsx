@@ -10,14 +10,17 @@ import type { User } from "@/types/auth"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import CreateUserModal from "./create-user-modal"
+import EditUserModal from "./edit-user-modal"
 
 export function ClientUsersTab() {
-  const { getUsers, createUser, deleteUser } = useAuth()
+  const { getUsers, createUser, deleteUser, updateUser } = useAuth()
   const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
 
   useEffect(() => {
     fetchUsers()
@@ -115,6 +118,41 @@ export function ClientUsersTab() {
           variant: "destructive",
         })
       }
+    }
+  }
+
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user)
+    setIsEditModalOpen(true)
+  }
+
+  const handleUpdateUser = async (userData: Partial<User>) => {
+    if (!selectedUser) return
+
+    try {
+      const success = await updateUser(selectedUser.id, userData)
+      if (success) {
+        toast({
+          title: "Success",
+          description: `Client user ${userData.email} updated successfully!`,
+        })
+        setIsEditModalOpen(false)
+        setSelectedUser(null)
+        fetchUsers() // Refresh the list
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update client user. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error updating client user:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update client user. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -217,7 +255,7 @@ export function ClientUsersTab() {
                     <Button variant="outline" size="sm" title="View Client Portal">
                       <ExternalLink className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button
@@ -240,6 +278,18 @@ export function ClientUsersTab() {
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
           onCreateUser={handleCreateUser}
+          userType="client"
+        />
+
+        {/* Edit Client User Modal */}
+        <EditUserModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false)
+            setSelectedUser(null)
+          }}
+          onUpdateUser={handleUpdateUser}
+          user={selectedUser}
           userType="client"
         />
       </CardContent>

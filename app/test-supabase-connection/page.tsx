@@ -54,34 +54,33 @@ export default function TestSupabaseConnection() {
         message: `Successfully connected to user_profiles table with ${count} rows`,
       })
 
-      // Try a simple insert
-      const testUser = {
-        id: crypto.randomUUID(),
-        username: `test_${Date.now()}`,
-        name: "Test",
-        surname: "User",
-        email: `test_${Date.now()}@example.com`,
-        role: "guest",
-        department: "Test Department",
-        page_access: ["dashboard"],
+      // Remove the entire insert test section (lines with testUser creation and insert attempt)
+      // Replace with this safer test:
+
+      console.log("Testing read access...")
+      const { data: sampleData, error: readError } = await supabase
+        .from("user_profiles")
+        .select("id, username, name")
+        .limit(3)
+
+      if (readError) {
+        console.error("Read test failed:", readError)
+        setTestResult({
+          connectionTest: "Success",
+          readTest: "Failed",
+          readError: readError.message,
+          userCount: count,
+        })
+      } else {
+        console.log("Read test successful:", sampleData)
+        setTestResult({
+          connectionTest: "Success",
+          readTest: "Success",
+          sampleData: sampleData,
+          userCount: count,
+          message: `Successfully connected and read from user_profiles table with ${count} rows`,
+        })
       }
-
-      console.log("Testing insert with:", testUser)
-
-      const { data: insertData, error: insertError } = await supabase.from("user_profiles").insert(testUser).select()
-
-      if (insertError) {
-        console.error("Insert test failed:", insertError)
-        setErrorMessage(`Connection OK but insert failed: ${insertError.message}`)
-        return
-      }
-
-      console.log("Insert test successful:", insertData)
-      setTestResult({
-        connectionTest: "Success",
-        insertTest: "Success",
-        insertedUser: insertData,
-      })
     } catch (error) {
       console.error("Error testing connection:", error)
       setConnectionStatus("error")

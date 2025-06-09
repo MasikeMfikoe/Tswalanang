@@ -12,7 +12,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
   register: (userData: Partial<User>) => Promise<boolean>
-  updateUser: (userData: Partial<User>) => Promise<boolean>
+  updateUser: (userId: string, userData: Partial<User>) => Promise<boolean>
   hasPermission: (module: string, action: string) => boolean
   refreshUser: () => Promise<void>
   getUsers: () => Promise<User[]>
@@ -23,7 +23,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Create mock users for development - this will be the primary data source
+// Create mock users for development - this will be the fallback data source
 const MOCK_USERS: User[] = [
   {
     id: "mock-user-id",
@@ -199,106 +199,95 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Login function
+  // Login function - PRIORITIZE SUPABASE AUTH
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true)
       console.log(`Attempting login for user: ${username}`)
 
-      // DEVELOPMENT MODE: Always allow login with demo/demo or tracking/tracking
+      // First, try Supabase authentication with email
+      const mockUser = MOCK_USERS.find((u) => u.username === username)
+      if (mockUser) {
+        console.log("Found mock user, trying Supabase auth with email:", mockUser.email)
+
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: mockUser.email,
+            password: password,
+          })
+
+          if (!error && data.user) {
+            console.log("✅ Supabase authentication successful")
+
+            // Get user profile
+            const { data: profile, error: profileError } = await supabase
+              .from("user_profiles")
+              .select("*")
+              .eq("id", data.user.id)
+              .single()
+
+            if (!profileError && profile) {
+              // Set user with Supabase profile data
+              const userData = {
+                id: data.user.id,
+                username: profile.username,
+                name: profile.name,
+                surname: profile.surname,
+                role: profile.role as UserRole,
+                department: profile.department,
+                pageAccess: profile.page_access || [],
+                email: profile.email || data.user.email || mockUser.email,
+              }
+
+              console.log("Setting user from Supabase auth:", userData)
+              setUser(userData)
+
+              // Store in localStorage for persistence
+              try {
+                localStorage.setItem("user", JSON.stringify(userData))
+              } catch (e) {
+                console.log("Error saving to localStorage:", e)
+              }
+
+              return true
+            }
+          }
+        } catch (supabaseError) {
+          console.log("Supabase auth failed, falling back to mock:", supabaseError)
+        }
+      }
+
+      // FALLBACK: Mock authentication for development
       if (username === "demo" && password === "demo") {
         console.log("Using mock login for demo user")
-
-        // Set the mock user
         const mockUser = MOCK_USERS.find((u) => u.username === "demo")!
         setUser(mockUser)
 
-        // Store in localStorage for persistence
         try {
           localStorage.setItem("user", JSON.stringify(mockUser))
-          console.log("Saved mock user to localStorage")
         } catch (e) {
           console.log("Error saving to localStorage:", e)
         }
 
-        console.log("Mock login successful")
         return true
       }
 
-      // Special case for tracking user
       if (username === "tracking" && password === "tracking") {
         console.log("Using mock login for tracking user")
-
-        // Set the mock tracking user
         const mockTrackingUser = MOCK_USERS.find((u) => u.username === "tracking")!
         setUser(mockTrackingUser)
 
-        // Store in localStorage for persistence
         try {
           localStorage.setItem("user", JSON.stringify(mockTrackingUser))
-          console.log("Saved mock tracking user to localStorage")
-        } catch (e) {
-          console.log("Error saving to localStorage:", e)
-        }
-
-        console.log("Mock tracking login successful")
-        return true
-      }
-
-      // For real authentication with Supabase
-      console.log("Attempting Supabase authentication")
-
-      try {
-        // Try to sign in with email/password first
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: `${username}@example.com`, // In a real app, you'd use the actual email
-          password,
-        })
-
-        if (error) {
-          console.error("Supabase auth error:", error)
-          return false
-        }
-
-        // Get user profile
-        const { data: profile, error: profileGetError } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .eq("id", data.user.id)
-          .single()
-
-        if (profileGetError) {
-          console.error("Error getting user profile after login:", profileGetError)
-          return false
-        }
-
-        // Set user with profile data
-        const userData = {
-          id: data.user.id,
-          username: profile.username,
-          name: profile.name,
-          surname: profile.surname,
-          role: profile.role as UserRole,
-          department: profile.department,
-          pageAccess: profile.page_access || [],
-          email: profile.email || data.user.email || `${profile.username}@tswsmartlog.com`,
-        }
-
-        console.log("Setting user from Supabase login:", userData)
-        setUser(userData)
-
-        // Store in localStorage for persistence
-        try {
-          localStorage.setItem("user", JSON.stringify(userData))
         } catch (e) {
           console.log("Error saving to localStorage:", e)
         }
 
         return true
-      } catch (supabaseError) {
-        console.error("Supabase operation failed:", supabaseError)
-        return false
       }
+
+      console.log("❌ Authentication failed")
+      return false
     } catch (error) {
       console.error("Login error:", error)
       return false
@@ -370,43 +359,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Update user function
-  const updateUser = async (userData: Partial<User>): Promise<boolean> => {
+  // Update user function - HYBRID APPROACH: TRY SUPABASE + ALWAYS SAVE LOCALLY
+  const updateUser = async (userId: string, userData: Partial<User>): Promise<boolean> => {
     try {
       setIsLoading(true)
-      console.log("Updating user:", userData)
+      console.log("🔄 Updating user:", userId, userData)
 
-      if (!user) {
-        console.error("Cannot update: No user logged in")
-        return false
-      }
-
-      // For development, update mock user
-      const userIndex = MOCK_USERS.findIndex((u) => u.id === user.id)
+      // Update in local storage first
+      const userIndex = CREATED_USERS.findIndex((u) => u.id === userId)
       if (userIndex !== -1) {
-        MOCK_USERS[userIndex] = { ...MOCK_USERS[userIndex], ...userData }
+        CREATED_USERS[userIndex] = { ...CREATED_USERS[userIndex], ...userData }
+        saveCreatedUsers()
+        console.log("✅ User updated locally")
       }
 
-      // Update local user state
-      const updatedUser = {
-        ...user,
-        ...userData,
+      // Also update in mock users if it exists there
+      const mockUserIndex = MOCK_USERS.findIndex((u) => u.id === userId)
+      if (mockUserIndex !== -1) {
+        MOCK_USERS[mockUserIndex] = { ...MOCK_USERS[mockUserIndex], ...userData }
+        console.log("✅ Mock user updated")
       }
 
-      console.log("Setting updated user:", updatedUser)
-      setUser(updatedUser)
-
-      // Update localStorage
+      // Try to update via API route
       try {
-        localStorage.setItem("user", JSON.stringify(updatedUser))
-      } catch (e) {
-        console.log("Error saving to localStorage:", e)
+        console.log("📝 Attempting to update via API route...")
+
+        const updateResponse = await fetch("/api/update-auth-user", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: userId,
+            userData: userData,
+          }),
+        })
+
+        if (updateResponse.ok) {
+          const result = await updateResponse.json()
+          console.log("✅ User updated via API route:", result)
+        } else {
+          const error = await updateResponse.text()
+          console.error("❌ API route error:", error)
+        }
+      } catch (apiError) {
+        console.error("❌ API call failed:", apiError)
       }
 
-      console.log("User updated successfully")
+      // Update current user if it's the same user
+      if (user && user.id === userId) {
+        const updatedUser = { ...user, ...userData }
+        setUser(updatedUser)
+
+        try {
+          localStorage.setItem("user", JSON.stringify(updatedUser))
+        } catch (e) {
+          console.log("Error saving to localStorage:", e)
+        }
+      }
+
+      console.log("🎉 User updated successfully!")
       return true
     } catch (error) {
-      console.error("Update error:", error)
+      console.error("❌ Update user error:", error)
       return false
     } finally {
       setIsLoading(false)
@@ -451,22 +466,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Get all users - HYBRID APPROACH: SUPABASE + PERSISTENT MOCK DATA
+  // Get all users - PRIORITIZE SUPABASE DATA
   const getUsers = async (): Promise<User[]> => {
     try {
       console.log("🔍 Fetching all users...")
 
-      // Always return mock users + created users (persistent)
-      const allUsers = [...MOCK_USERS, ...CREATED_USERS]
-      console.log("📝 Returning hybrid data:", {
-        mockUsers: MOCK_USERS.length,
-        createdUsers: CREATED_USERS.length,
-        total: allUsers.length,
-      })
-
-      // Try to fetch from Supabase in background (optional)
+      // Try to fetch from Supabase first
       try {
-        console.log("🔗 Attempting background fetch from Supabase...")
+        console.log("🔗 Attempting to fetch from Supabase...")
 
         const { data, error } = await supabase
           .from("user_profiles")
@@ -485,21 +492,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: profile.email || `${profile.username}@tswsmartlog.com`,
           }))
 
-          console.log("✅ Background fetch successful:", supabaseUsers.length, "users from Supabase")
+          console.log("✅ Fetched from Supabase:", supabaseUsers.length, "users")
 
-          // Merge Supabase users with local data (avoid duplicates)
-          const mergedUsers = [...allUsers]
-          supabaseUsers.forEach((supabaseUser) => {
-            if (!mergedUsers.find((u) => u.email === supabaseUser.email)) {
-              mergedUsers.push(supabaseUser)
+          // Merge with created users (avoid duplicates)
+          const mergedUsers = [...supabaseUsers]
+          CREATED_USERS.forEach((createdUser) => {
+            if (!mergedUsers.find((u) => u.email === createdUser.email)) {
+              mergedUsers.push(createdUser)
             }
           })
 
           return mergedUsers
         }
       } catch (supabaseError) {
-        console.log("⚠️ Background Supabase fetch failed (continuing with local data):", supabaseError)
+        console.log("⚠️ Supabase fetch failed, using local data:", supabaseError)
       }
+
+      // Fallback to local data
+      const allUsers = [...MOCK_USERS, ...CREATED_USERS]
+      console.log("📝 Using local data:", {
+        mockUsers: MOCK_USERS.length,
+        createdUsers: CREATED_USERS.length,
+        total: allUsers.length,
+      })
 
       return allUsers
     } catch (error) {
