@@ -49,11 +49,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       label: "Orders",
       icon: Package,
       dropdown: [
-        { href: "/orders", label: "All Orders" },
-        { href: "/orders/new", label: "New Order" },
-        { href: "/estimates", label: "Estimates" },
+        { href: "/orders", label: "Shipment Orders" },
+        { href: "/courier-orders", label: "Courier Orders" },
       ],
     },
+    { href: "/estimates", label: "Estimates", icon: FileText },
     {
       label: "Documents",
       icon: FileText,
@@ -66,13 +66,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: "/customers", label: "Customers", icon: UserCheck },
     { href: "/customer-summary", label: "Customer Summary", icon: TrendingUp },
     { href: "/currency", label: "Currency Conversion", icon: DollarSign },
+    { href: "/rate-card", label: "Rate Card", icon: DollarSign },
+    { href: "/audit-trail", label: "Audit Trail", icon: FileText },
     {
       label: "Admin",
       icon: Settings,
       dropdown: [
-        { href: "/admin/users", label: "User Management" },
         { href: "/admin/settings", label: "Settings" },
-        { href: "/user-management", label: "User Management" },
+        { href: "/admin/user-groups", label: "User Groups" },
+        { href: "/admin/users", label: "Users" },
+        { href: "/admin/tracking-users", label: "Tracking Users" },
       ],
     },
     { href: "/user-management", label: "User Management", icon: User },
