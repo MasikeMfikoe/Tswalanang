@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Search, FileText, Download, Ship, Package } from "lucide-react"
+import { Search, FileText, Download, Ship, Package, ExternalLink, Globe } from "lucide-react"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LiveTrackingStatus } from "@/components/LiveTrackingStatus"
@@ -91,6 +91,82 @@ export default function ShipmentTracker() {
       trackingUrl: string
     }
   } | null>(null)
+  const [detectedCarrier, setDetectedCarrier] = useState<{
+    name: string
+    trackingUrl: string
+    prefix: string
+  } | null>(null)
+
+  // Function to detect shipping line from tracking number
+  const detectShippingLine = (trackingNumber: string) => {
+    const cleanNumber = trackingNumber.trim().toUpperCase().replace(/[\s-]/g, "")
+    const prefix = cleanNumber.substring(0, 4)
+
+    const shippingLines: Record<string, { name: string; baseUrl: string }> = {
+      MAEU: { name: "Maersk", baseUrl: "https://www.maersk.com/tracking/" },
+      MRKU: { name: "Maersk", baseUrl: "https://www.maersk.com/tracking/" },
+      MSKU: { name: "Maersk", baseUrl: "https://www.maersk.com/tracking/" },
+      MSCU: { name: "MSC", baseUrl: "https://www.msc.com/track-a-shipment?agencyPath=msc&trackingNumber=" },
+      MEDU: { name: "MSC", baseUrl: "https://www.msc.com/track-a-shipment?agencyPath=msc&trackingNumber=" },
+      CMAU: { name: "CMA CGM", baseUrl: "https://www.cma-cgm.com/ebusiness/tracking/search?number=" },
+      CXDU: { name: "CMA CGM", baseUrl: "https://www.cma-cgm.com/ebusiness/tracking/search?number=" },
+      HLXU: {
+        name: "Hapag-Lloyd",
+        baseUrl: "https://www.hapag-lloyd.com/en/online-business/track/track-by-container-solution.html?container=",
+      },
+      HLCU: {
+        name: "Hapag-Lloyd",
+        baseUrl: "https://www.hapag-lloyd.com/en/online-business/track/track-by-container-solution.html?container=",
+      },
+      COSU: {
+        name: "COSCO",
+        baseUrl: "https://elines.coscoshipping.com/ebusiness/cargoTracking?trackingType=CONTAINER&number=",
+      },
+      CBHU: {
+        name: "COSCO",
+        baseUrl: "https://elines.coscoshipping.com/ebusiness/cargoTracking?trackingType=CONTAINER&number=",
+      },
+      EVRU: {
+        name: "Evergreen",
+        baseUrl: "https://www.evergreen-line.com/emodal/stpb/stpb_show.do?lang=en&f_cmd=track&f_container_no=",
+      },
+      EGHU: {
+        name: "Evergreen",
+        baseUrl: "https://www.evergreen-line.com/emodal/stpb/stpb_show.do?lang=en&f_cmd=track&f_container_no=",
+      },
+      OOLU: {
+        name: "OOCL",
+        baseUrl: "https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx?ContainerNo=",
+      },
+      OOCU: {
+        name: "OOCL",
+        baseUrl: "https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx?ContainerNo=",
+      },
+      ONEY: { name: "ONE Line", baseUrl: "https://ecomm.one-line.com/ecom/CUP_HOM_3301.do?trackingNumber=" },
+      ONEU: { name: "ONE Line", baseUrl: "https://ecomm.one-line.com/ecom/CUP_HOM_3301.do?trackingNumber=" },
+      BMOU: { name: "Blue Star Maritime", baseUrl: "https://www.bluestarferries.com/en/cargo-tracking?container=" },
+      ZIMU: { name: "ZIM", baseUrl: "https://www.zim.com/tools/track-a-shipment?container=" },
+      YMLU: {
+        name: "Yang Ming",
+        baseUrl: "https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx?container=",
+      },
+      HMMU: {
+        name: "HMM",
+        baseUrl: "https://www.hmm21.com/cms/business/ebiz/trackTrace/trackTrace/index.jsp?container=",
+      },
+    }
+
+    const carrier = shippingLines[prefix]
+    if (carrier) {
+      return {
+        name: carrier.name,
+        trackingUrl: `${carrier.baseUrl}${cleanNumber}`,
+        prefix: prefix,
+      }
+    }
+
+    return null
+  }
 
   // Mock tracking data
   const mockTrackingResult: TrackingResult = {
@@ -483,6 +559,14 @@ export default function ShipmentTracker() {
     if (!trackingNumber.trim()) return
 
     setIsLoading(true)
+    setTrackingError(null)
+    setDetectedCarrier(null)
+
+    // Detect shipping line immediately when user submits
+    const carrier = detectShippingLine(trackingNumber.trim())
+    if (carrier) {
+      setDetectedCarrier(carrier)
+    }
 
     try {
       // Call the live tracking API
@@ -506,14 +590,10 @@ export default function ShipmentTracker() {
           setTrackingResult(result.data)
           setShowResults(true)
         } else if (result.carrierInfo) {
-          // Automatically redirect to carrier website
-          console.log(`Redirecting to ${result.carrierInfo.name} website`)
-          window.open(result.carrierInfo.trackingUrl, "_blank")
-
-          // Show a user-friendly message instead of alert
+          // Show carrier info with option to redirect
           setTrackingError({
-            title: `${result.carrierInfo.name} Tracking`,
-            message: `We've opened ${result.carrierInfo.name}'s official tracking page in a new tab. You can track container ${trackingNumber.trim()} directly on their website.`,
+            title: `${result.carrierInfo.name} Tracking Available`,
+            message: `We've detected this is a ${result.carrierInfo.name} container. You can track it directly on their official website for the most up-to-date information.`,
             carrierInfo: result.carrierInfo,
           })
         } else {
@@ -548,6 +628,8 @@ export default function ShipmentTracker() {
   const handleBackToSearch = () => {
     setShowResults(false)
     setTrackingNumber("")
+    setDetectedCarrier(null)
+    setTrackingError(null)
   }
 
   const getEventIcon = (type: string) => {
@@ -576,25 +658,53 @@ export default function ShipmentTracker() {
                 </div>
                 <span className="text-lg font-medium">TSW SmartLog Shipment webtracker</span>
               </div>
-              <Button
-                variant="secondary"
-                onClick={handleBackToSearch}
-                className="bg-white text-black hover:bg-gray-100"
-              >
-                Track Another Shipment
-              </Button>
+              <div className="flex items-center gap-3">
+                {detectedCarrier && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => window.open(detectedCarrier.trackingUrl, "_blank")}
+                    className="bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Track on {detectedCarrier.name}
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  onClick={handleBackToSearch}
+                  className="bg-white text-black hover:bg-gray-100"
+                >
+                  Track Another Shipment
+                </Button>
+              </div>
             </div>
           </div>
 
           {/* Shipment Header */}
           <div className="container mx-auto px-4 max-w-7xl">
             <div className="mb-6">
-              <h1 className="text-2xl font-bold">Shipment {trackingResult?.shipmentNumber || "Unknown"}</h1>
-              <div className="flex items-center mt-2">
-                <div className="text-sm">Current Status:</div>
-                <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
-                  {trackingResult?.status || "Unknown"}
-                </Badge>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold">Shipment {trackingResult?.shipmentNumber || "Unknown"}</h1>
+                  <div className="flex items-center mt-2">
+                    <div className="text-sm">Current Status:</div>
+                    <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
+                      {trackingResult?.status || "Unknown"}
+                    </Badge>
+                  </div>
+                </div>
+                {detectedCarrier && (
+                  <Card className="p-4">
+                    <div className="flex items-center gap-3">
+                      <Ship className="h-5 w-5 text-blue-600" />
+                      <div>
+                        <p className="font-medium text-sm">Detected Carrier</p>
+                        <p className="text-lg font-bold text-blue-600">{detectedCarrier.name}</p>
+                        <p className="text-xs text-gray-500">Prefix: {detectedCarrier.prefix}</p>
+                      </div>
+                    </div>
+                  </Card>
+                )}
               </div>
             </div>
 
@@ -634,6 +744,19 @@ export default function ShipmentTracker() {
                       <p className="text-sm font-medium text-gray-600">Shipped To</p>
                       <p>{trackingResult?.destination || "N/A"}</p>
                     </div>
+                    {detectedCarrier && (
+                      <div className="pt-3 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(detectedCarrier.trackingUrl, "_blank")}
+                          className="w-full"
+                        >
+                          <Globe className="h-4 w-4 mr-2" />
+                          Track on {detectedCarrier.name}
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -809,6 +932,31 @@ export default function ShipmentTracker() {
             </p>
           </div>
 
+          {/* Detected Carrier Display */}
+          {detectedCarrier && !isLoading && (
+            <Card className="mb-6 border-blue-200 bg-blue-50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Ship className="h-6 w-6 text-blue-600" />
+                    <div>
+                      <p className="font-medium text-blue-900">Shipping Line Detected</p>
+                      <p className="text-lg font-bold text-blue-700">{detectedCarrier.name}</p>
+                      <p className="text-sm text-blue-600">Container prefix: {detectedCarrier.prefix}</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => window.open(detectedCarrier.trackingUrl, "_blank")}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Track on {detectedCarrier.name}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Booking Type Tabs */}
           <div className="mb-8">
             <div className="flex border-b border-gray-200">
@@ -860,8 +1008,17 @@ export default function ShipmentTracker() {
                       placeholder="Enter your B/L or container number"
                       value={trackingNumber}
                       onChange={(e) => {
-                        setTrackingNumber(e.target.value)
+                        const value = e.target.value
+                        setTrackingNumber(value)
                         if (trackingError) setTrackingError(null) // Clear error when user types
+
+                        // Detect carrier as user types
+                        if (value.length >= 4) {
+                          const carrier = detectShippingLine(value)
+                          setDetectedCarrier(carrier)
+                        } else {
+                          setDetectedCarrier(null)
+                        }
                       }}
                       className="mt-2 h-12 text-base"
                     />
@@ -888,6 +1045,9 @@ export default function ShipmentTracker() {
                   <div className="text-sm text-gray-600 space-y-1 mt-4">
                     <p>• Container number is made of 4 letters and 7 digits.</p>
                     <p>• Bill of Lading number consists of 9 characters.</p>
+                    <p>
+                      • Supported carriers: Maersk, MSC, CMA CGM, Hapag-Lloyd, COSCO, Evergreen, OOCL, ONE, and more.
+                    </p>
                   </div>
                 </form>
               </CardContent>
@@ -958,8 +1118,17 @@ export default function ShipmentTracker() {
                       placeholder="Enter your container number or B/L number"
                       value={trackingNumber}
                       onChange={(e) => {
-                        setTrackingNumber(e.target.value)
+                        const value = e.target.value
+                        setTrackingNumber(value)
                         if (trackingError) setTrackingError(null) // Clear error when user types
+
+                        // Detect carrier as user types for LCL too
+                        if (value.length >= 4) {
+                          const carrier = detectShippingLine(value)
+                          setDetectedCarrier(carrier)
+                        } else {
+                          setDetectedCarrier(null)
+                        }
                       }}
                       className="mt-2 h-12 text-base"
                     />
@@ -1015,6 +1184,7 @@ export default function ShipmentTracker() {
                           onClick={() => window.open(trackingError.carrierInfo!.trackingUrl, "_blank")}
                           className="border-red-300 text-red-700 hover:bg-red-100"
                         >
+                          <ExternalLink className="h-4 w-4 mr-2" />
                           Open {trackingError.carrierInfo.name} Website
                         </Button>
                         <Button
@@ -1104,6 +1274,45 @@ export default function ShipmentTracker() {
               </AccordionItem>
 
               <AccordionItem value="item-3">
+                <AccordionTrigger className="text-left">How does automatic carrier detection work?</AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-3 text-gray-700">
+                    <p>Our system automatically detects the shipping line based on the container prefix:</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>
+                        <strong>MAEU, MRKU, MSKU:</strong> Maersk containers
+                      </li>
+                      <li>
+                        <strong>MSCU, MEDU:</strong> MSC containers
+                      </li>
+                      <li>
+                        <strong>CMAU, CXDU:</strong> CMA CGM containers
+                      </li>
+                      <li>
+                        <strong>HLXU, HLCU:</strong> Hapag-Lloyd containers
+                      </li>
+                      <li>
+                        <strong>COSU, CBHU:</strong> COSCO containers
+                      </li>
+                      <li>
+                        <strong>EVRU, EGHU:</strong> Evergreen containers
+                      </li>
+                      <li>
+                        <strong>OOLU, OOCU:</strong> OOCL containers
+                      </li>
+                      <li>
+                        <strong>ONEY, ONEU:</strong> ONE Line containers
+                      </li>
+                    </ul>
+                    <p>
+                      When a carrier is detected, you'll see options to track directly on their official website for the
+                      most up-to-date information.
+                    </p>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-4">
                 <AccordionTrigger className="text-left">How to track with different cargo types?</AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-3 text-gray-700">
@@ -1114,6 +1323,7 @@ export default function ShipmentTracker() {
                       <ul className="list-disc pl-5 space-y-1">
                         <li>Use container numbers (e.g., MSCU1234567) or Bill of Lading numbers</li>
                         <li>Supports major shipping lines: Maersk, MSC, CMA CGM, Hapag-Lloyd, etc.</li>
+                        <li>Automatic carrier detection and direct website links</li>
                       </ul>
                     </div>
                     <div>
