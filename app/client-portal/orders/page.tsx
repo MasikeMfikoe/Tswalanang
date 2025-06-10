@@ -293,15 +293,38 @@ export default function ClientPortalOrdersPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Track Shipments
+                <DollarSign className="h-5 w-5" />
+                Total Order Value
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 mb-4">Track your shipments in real-time</p>
-              <Link href="/shipment-tracker">
-                <Button className="w-full">Go to Tracker</Button>
-              </Link>
+              <div className="space-y-4">
+                <div className="text-3xl font-bold text-green-600">
+                  R {orders.reduce((total, order) => total + order.totalValue, 0).toLocaleString()}
+                </div>
+                <div className="space-y-2 text-sm text-gray-600">
+                  <div className="flex justify-between">
+                    <span>Active Orders:</span>
+                    <span className="font-medium">
+                      R{" "}
+                      {orders
+                        .filter((o) => o.status !== "Completed")
+                        .reduce((total, order) => total + order.totalValue, 0)
+                        .toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Completed Orders:</span>
+                    <span className="font-medium">
+                      R{" "}
+                      {orders
+                        .filter((o) => o.status === "Completed")
+                        .reduce((total, order) => total + order.totalValue, 0)
+                        .toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
