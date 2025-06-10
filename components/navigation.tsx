@@ -16,6 +16,7 @@ import {
   Home,
   Settings,
   Calculator,
+  Users,
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useState } from "react"
@@ -33,6 +34,11 @@ export default function Navigation() {
       [module]: !prev[module],
     }))
   }
+
+  // Debug output
+  console.log("Current user:", user)
+  const isAdmin = user?.role === "admin"
+  console.log("Is admin:", isAdmin)
 
   return (
     <nav className="w-64 bg-white shadow-md flex flex-col h-screen">
@@ -161,6 +167,19 @@ export default function Navigation() {
                   >
                     <Settings className="mr-2 h-4 w-4" />
                     Admin
+                  </Button>
+                </Link>
+              )}
+
+              {/* HARDCODED CLIENT PORTAL LINK FOR ADMIN */}
+              {isAdmin && (
+                <Link href="/client-portal">
+                  <Button
+                    variant={pathname.startsWith("/client-portal") ? "secondary" : "ghost"}
+                    className="w-full justify-start bg-blue-50 hover:bg-blue-100 border border-blue-200"
+                  >
+                    <Users className="mr-2 h-4 w-4 text-blue-600" />
+                    <span className="text-blue-700">Client Portal View</span>
                   </Button>
                 </Link>
               )}

@@ -1,10 +1,9 @@
 import type React from "react"
-import ProtectedRoute from "@/components/ProtectedRoute"
 
 export default function ClientPortalLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <ProtectedRoute requiredPermission={{ module: "clientPortal", action: "view" }}>{children}</ProtectedRoute>
+  return <div className="min-h-screen bg-gray-50">{children}</div>
 }

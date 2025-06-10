@@ -22,6 +22,7 @@ const defaultPermissions: Permissions = {
   admin: { view: false, create: false, edit: false, delete: false },
   courierOrders: { view: false, create: false, edit: false, delete: false },
   shipmentTracker: { view: false, create: false, edit: false, delete: false },
+  clientPortal: { view: false, create: false, edit: false, delete: false },
 }
 
 export const rolePermissions: Record<UserRole, Permissions> = {
@@ -38,6 +39,7 @@ export const rolePermissions: Record<UserRole, Permissions> = {
     admin: { view: true, create: true, edit: true, delete: true },
     courierOrders: { view: true, create: true, edit: true, delete: true },
     shipmentTracker: { view: true, create: true, edit: true, delete: true },
+    clientPortal: { view: true, create: true, edit: true, delete: true },
   },
   manager: {
     dashboard: { view: true, create: false, edit: false, delete: false },
@@ -52,6 +54,7 @@ export const rolePermissions: Record<UserRole, Permissions> = {
     admin: { view: false, create: false, edit: false, delete: false },
     courierOrders: { view: true, create: true, edit: true, delete: false },
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
+    clientPortal: { view: false, create: false, edit: false, delete: false },
   },
   employee: {
     dashboard: { view: true, create: false, edit: false, delete: false },
@@ -66,6 +69,7 @@ export const rolePermissions: Record<UserRole, Permissions> = {
     admin: { view: false, create: false, edit: false, delete: false },
     courierOrders: { view: true, create: true, edit: false, delete: false },
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
+    clientPortal: { view: false, create: false, edit: false, delete: false },
   },
   guest: defaultPermissions,
   tracking: {
@@ -81,6 +85,7 @@ export const rolePermissions: Record<UserRole, Permissions> = {
     admin: { view: false, create: false, edit: false, delete: false },
     courierOrders: { view: false, create: false, edit: false, delete: false },
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
+    clientPortal: { view: false, create: false, edit: false, delete: false },
   },
   client: {
     dashboard: { view: false, create: false, edit: false, delete: false },
@@ -95,6 +100,7 @@ export const rolePermissions: Record<UserRole, Permissions> = {
     admin: { view: false, create: false, edit: false, delete: false },
     courierOrders: { view: false, create: false, edit: false, delete: false },
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
+    clientPortal: { view: true, create: false, edit: false, delete: false },
   },
 }
 

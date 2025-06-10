@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { useAuth } from "@/contexts/AuthContext"
 import { Loader2, AlertCircle } from "lucide-react"
-import { loginSchema, validateForm } from "@/lib/validation"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function LoginPage() {
@@ -35,6 +34,8 @@ export default function LoginPage() {
           (user.role === "guest" && user.pageAccess.length === 1 && user.pageAccess.includes("shipmentTracker")))
       ) {
         router.push("/shipment-tracker")
+      } else if (user && user.role === "client") {
+        router.push("/client-portal")
       } else {
         router.push("/dashboard")
       }
@@ -49,69 +50,6 @@ export default function LoginPage() {
     setErrors({})
     setFormError(null)
 
-    // For demo purposes, always allow "demo" user
-    if (username === "demo") {
-      console.log("Demo login - bypassing validation")
-      setIsLoggingIn(true)
-
-      try {
-        console.log("Calling login function with demo credentials")
-        const success = await login("demo", "demo")
-        console.log("Login result:", success)
-
-        if (success) {
-          console.log("Login successful, redirecting to dashboard")
-          router.push("/dashboard")
-        } else {
-          console.error("Login failed for demo user")
-          setFormError("Login failed. Please try again.")
-        }
-      } catch (error) {
-        console.error("Login error:", error)
-        setFormError("An unexpected error occurred. Please try again.")
-      } finally {
-        setIsLoggingIn(false)
-      }
-
-      return
-    }
-
-    // Special case for tracking user
-    if (username === "tracking") {
-      console.log("Tracking login - bypassing validation")
-      setIsLoggingIn(true)
-
-      try {
-        console.log("Calling login function with tracking credentials")
-        const success = await login("tracking", "tracking")
-        console.log("Login result:", success)
-
-        if (success) {
-          console.log("Login successful, redirecting to shipment tracker")
-          router.push("/shipment-tracker")
-        } else {
-          console.error("Login failed for tracking user")
-          setFormError("Login failed. Please try again.")
-        }
-      } catch (error) {
-        console.error("Login error:", error)
-        setFormError("An unexpected error occurred. Please try again.")
-      } finally {
-        setIsLoggingIn(false)
-      }
-
-      return
-    }
-
-    // Validate form for non-demo users
-    const validation = validateForm(loginSchema, { username, password })
-
-    if (!validation.success) {
-      console.log("Validation failed:", validation.errors)
-      setErrors(validation.errors || {})
-      return
-    }
-
     setIsLoggingIn(true)
 
     try {
@@ -121,19 +59,7 @@ export default function LoginPage() {
 
       if (success) {
         console.log("Login successful")
-
-        // Check if user is a tracking user using the user from AuthContext
-        if (
-          user &&
-          (user.role === "tracking" ||
-            (user.role === "guest" && user.pageAccess.length === 1 && user.pageAccess.includes("shipmentTracker")))
-        ) {
-          console.log("Redirecting tracking user to tracking-welcome")
-          router.push("/tracking-welcome")
-        } else {
-          console.log("Redirecting to dashboard")
-          router.push("/dashboard")
-        }
+        // Redirect will be handled by useEffect above
       } else {
         console.log("Login failed")
         setFormError("Invalid username or password")
@@ -221,6 +147,10 @@ export default function LoginPage() {
           <div className="text-sm text-center text-muted-foreground">
             <span>Demo credentials: </span>
             <code className="bg-muted px-1 py-0.5 rounded">username: demo, password: demo</code>
+          </div>
+          <div className="text-sm text-center text-muted-foreground">
+            <span>Client users: </span>
+            <code className="bg-muted px-1 py-0.5 rounded">client1/client1, client2/client2</code>
           </div>
           <div className="text-sm text-center text-muted-foreground">
             <span>Tracking user: </span>

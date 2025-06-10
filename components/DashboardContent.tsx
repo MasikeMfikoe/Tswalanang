@@ -15,7 +15,6 @@ import { PerformanceCharts } from "@/components/dashboard/PerformanceCharts"
 import { ErrorDisplay } from "@/components/ErrorDisplay"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { toast } from "@/lib/toast"
-import { orders as sampleOrders, customers as sampleCustomers } from "@/lib/sample-data"
 
 type DateRange = {
   startDate: Date | null
@@ -41,16 +40,16 @@ export default function DashboardContent() {
   const [startDate, setStartDate] = useState<string>("")
   const [endDate, setEndDate] = useState<string>("")
   const [showCustomDateRange, setShowCustomDateRange] = useState(false)
-  const [filteredOrders, setFilteredOrders] = useState(sampleOrders)
-  const [allOrders, setAllOrders] = useState(sampleOrders)
-  const [customers, setCustomers] = useState(sampleCustomers)
+  const [filteredOrders, setFilteredOrders] = useState<any[]>([])
+  const [allOrders, setAllOrders] = useState<any[]>([])
+  const [customers, setCustomers] = useState<any[]>([])
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null])
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [showNotifications, setShowNotifications] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
-  const [dataSource, setDataSource] = useState<"supabase" | "sample">("sample")
+  const [noDataMessage, setNoDataMessage] = useState("")
 
   // Fetch data from Supabase
   useEffect(() => {
@@ -64,13 +63,17 @@ export default function DashboardContent() {
           console.error("Error fetching orders:", ordersError)
           toast({
             title: "Error fetching orders",
-            description: "Using sample data instead",
+            description: "Could not retrieve orders from database",
             variant: "destructive",
           })
-          setDataSource("sample")
+          setNoDataMessage("Could not retrieve orders from database. Please check your connection.")
+          setAllOrders([])
         } else if (ordersData && ordersData.length > 0) {
           setAllOrders(ordersData)
-          setDataSource("supabase")
+          setNoDataMessage("")
+        } else {
+          setAllOrders([])
+          setNoDataMessage("No orders found in the database. Please create some orders first.")
         }
 
         // Fetch customers from Supabase
@@ -78,26 +81,25 @@ export default function DashboardContent() {
 
         if (customersError) {
           console.error("Error fetching customers:", customersError)
-          if (dataSource !== "sample") {
-            toast({
-              title: "Error fetching customers",
-              description: "Using sample data instead",
-              variant: "destructive",
-            })
-            setDataSource("sample")
-          }
+          toast({
+            title: "Error fetching customers",
+            description: "Could not retrieve customers from database",
+            variant: "destructive",
+          })
+          setCustomers([])
         } else if (customersData && customersData.length > 0) {
           setCustomers(customersData)
-          setDataSource("supabase")
+        } else {
+          setCustomers([])
         }
       } catch (error) {
         console.error("Error in data fetching:", error)
         toast({
           title: "Error connecting to database",
-          description: "Using sample data instead",
+          description: "Please check your connection and try again",
           variant: "destructive",
         })
-        setDataSource("sample")
+        setNoDataMessage("Could not connect to the database. Please check your connection.")
       } finally {
         setIsLoading(false)
       }
@@ -105,14 +107,6 @@ export default function DashboardContent() {
 
     fetchData()
   }, [supabase])
-
-  // Simulate loading state
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (isLoading) setIsLoading(false)
-    }, 3000) // Fallback timeout in case the data fetch hangs
-    return () => clearTimeout(timer)
-  }, [isLoading])
 
   // Predefined period options
   const periodOptions: PeriodOption[] = useMemo(
@@ -227,7 +221,7 @@ export default function DashboardContent() {
 
   // Filter orders when date range changes
   useEffect(() => {
-    if (startDate && endDate) {
+    if (startDate && endDate && allOrders.length > 0) {
       setIsLoading(true)
       setTimeout(() => {
         const filtered = allOrders.filter((order) => {
@@ -237,6 +231,8 @@ export default function DashboardContent() {
         setFilteredOrders(filtered)
         setIsLoading(false)
       }, 500)
+    } else {
+      setFilteredOrders(allOrders)
     }
   }, [startDate, endDate, allOrders])
 
@@ -265,7 +261,8 @@ export default function DashboardContent() {
     { name: "Pending", value: pendingOrders.length, color: "#f59e0b" },
   ]
 
-  // Monthly order trend data
+  // Monthly order trend data - this should ideally come from Supabase too
+  // For now we'll keep this as is since it requires more complex aggregation
   const monthlyOrderTrendData = [
     { name: "Jan", value: 42 },
     { name: "Feb", value: 55 },
@@ -429,21 +426,6 @@ export default function DashboardContent() {
   return (
     <div className={`min-h-screen h-full overflow-y-auto ${isDarkMode ? "bg-zinc-950" : "bg-gray-50"}`}>
       <div className="p-6">
-        {/* Data source indicator */}
-        <div
-          className={`mb-4 p-2 rounded-md text-sm ${
-            dataSource === "supabase"
-              ? "bg-green-100 text-green-800 border border-green-300"
-              : "bg-yellow-100 text-yellow-800 border border-yellow-300"
-          }`}
-        >
-          <span className="font-medium">
-            {dataSource === "supabase"
-              ? "✓ Connected to Supabase database"
-              : "⚠ Using sample data (not connected to Supabase)"}
-          </span>
-        </div>
-
         {/* Header with improved controls */}
         <DashboardHeader
           isDarkMode={isDarkMode}
@@ -465,6 +447,22 @@ export default function DashboardContent() {
           toggleTheme={toggleTheme}
           dateError={dateError}
         />
+
+        {/* No data message */}
+        {!isLoading && noDataMessage && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md mb-6">
+            <p className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              {noDataMessage}
+            </p>
+          </div>
+        )}
 
         {/* Dashboard Tabs */}
         <DashboardTabs
@@ -489,7 +487,7 @@ export default function DashboardContent() {
             ) : (
               <>
                 <RecentOrdersList isDarkMode={isDarkMode} recentOrders={recentOrders} />
-                <OrderStatistics isDarkMode={isDarkMode} isDarkMode={isDarkMode} />
+                <OrderStatistics isDarkMode={isDarkMode} />
               </>
             )}
           </TabsContent>

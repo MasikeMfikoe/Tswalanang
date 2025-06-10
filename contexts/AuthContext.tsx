@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import type { User, UserRole } from "@/types/auth"
+import { rolePermissions } from "@/types/auth"
 
 interface AuthContextType {
   user: User | null
@@ -32,7 +33,16 @@ const MOCK_USERS: User[] = [
     surname: "User",
     role: "admin",
     department: "IT",
-    pageAccess: ["dashboard", "orders", "customers", "documents", "deliveries", "courierOrders", "shipmentTracker"],
+    pageAccess: [
+      "dashboard",
+      "orders",
+      "customers",
+      "documents",
+      "deliveries",
+      "courierOrders",
+      "shipmentTracker",
+      "clientPortal",
+    ],
     email: "demo@tswsmartlog.com",
   },
   {
@@ -286,6 +296,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true
       }
 
+      if (username === "client1" && password === "client1") {
+        console.log("Using mock login for client1 user")
+        const mockClient1User = MOCK_USERS.find((u) => u.username === "client1")!
+        setUser(mockClient1User)
+
+        try {
+          localStorage.setItem("user", JSON.stringify(mockClient1User))
+        } catch (e) {
+          console.log("Error saving to localStorage:", e)
+        }
+
+        return true
+      }
+
+      if (username === "client2" && password === "client2") {
+        console.log("Using mock login for client2 user")
+        const mockClient2User = MOCK_USERS.find((u) => u.username === "client2")!
+        setUser(mockClient2User)
+
+        try {
+          localStorage.setItem("user", JSON.stringify(mockClient2User))
+        } catch (e) {
+          console.log("Error saving to localStorage:", e)
+        }
+
+        return true
+      }
+
       console.log("❌ Authentication failed")
       return false
     } catch (error) {
@@ -428,27 +466,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Check if user has permission
+  // Check if user has permission - UPDATED TO USE ROLE-BASED PERMISSIONS
   const hasPermission = (module: string, action: string): boolean => {
-    if (!user) return false
-
-    // Admin has all permissions
-    if (user.role === "admin") return true
-
-    // Check if user has access to the module
-    if (!user.pageAccess.includes(module)) return false
-
-    // Check role-based permissions
-    switch (user.role) {
-      case "manager":
-        // Managers can view and edit but not delete
-        return action !== "delete"
-      case "employee":
-        // Employees can only view
-        return action === "view"
-      default:
-        return false
+    if (!user) {
+      console.log("❌ No user found for permission check")
+      return false
     }
+
+    console.log(`🔍 Checking permission: ${user.role} -> ${module}.${action}`)
+
+    // Get role permissions
+    const userRolePermissions = rolePermissions[user.role]
+    if (!userRolePermissions) {
+      console.log(`❌ No permissions found for role: ${user.role}`)
+      return false
+    }
+
+    // Check module permissions
+    const modulePermissions = userRolePermissions[module]
+    if (!modulePermissions) {
+      console.log(`❌ No permissions found for module: ${module}`)
+      return false
+    }
+
+    // Check specific action
+    const hasAccess = modulePermissions[action as keyof typeof modulePermissions]
+    console.log(`✅ Permission result: ${user.role} -> ${module}.${action} = ${hasAccess}`)
+
+    return hasAccess
   }
 
   // Refresh user data
