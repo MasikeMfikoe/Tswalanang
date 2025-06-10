@@ -31,14 +31,20 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
       if (!user) {
         console.log("No user, redirecting to /login")
         router.push("/login")
-      } else if (user.role === "client") {
-        // Client users should only access client portal and shipment tracker
+        return
+      }
+
+      // CLIENT USERS: Only allow access to client portal and shipment tracker
+      if (user.role === "client") {
         if (requiredPermission.module !== "clientPortal" && requiredPermission.module !== "shipmentTracker") {
-          console.log("Client user trying to access non-client page, redirecting to /client-portal")
+          console.log("Client user trying to access unauthorized page, redirecting to /client-portal")
           router.push("/client-portal")
+          return
         }
-      } else if (
-        // Special case for tracking users - they can only access shipment tracker
+      }
+
+      // TRACKING USERS: Only allow access to shipment tracker
+      if (
         user.role === "guest" &&
         user.pageAccess.length === 1 &&
         user.pageAccess.includes("shipmentTracker") &&
@@ -46,9 +52,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
       ) {
         console.log("Tracking user trying to access non-tracking page, redirecting to /shipment-tracker")
         router.push("/shipment-tracker")
-      } else if (!hasPermission(requiredPermission.module, requiredPermission.action)) {
+        return
+      }
+
+      // GENERAL PERMISSION CHECK for other users
+      if (!hasPermission(requiredPermission.module, requiredPermission.action)) {
         console.log("No permission, redirecting to /unauthorized")
         router.push("/unauthorized")
+        return
       }
     }
   }, [mounted, user, isLoading, hasPermission, router, requiredPermission])
@@ -73,10 +84,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
   }
 
   // For client users, only allow access to client portal and shipment tracker
-  if (user.role === "client") {
-    if (requiredPermission.module !== "clientPortal" && requiredPermission.module !== "shipmentTracker") {
-      return null // Will redirect
-    }
+  if (
+    user.role === "client" &&
+    requiredPermission.module !== "clientPortal" &&
+    requiredPermission.module !== "shipmentTracker"
+  ) {
+    return null // Will redirect
   }
 
   // For tracking users, only allow access to shipment tracker
@@ -89,7 +102,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
     return null // Will redirect
   }
 
-  // Check general permissions (admins have access to everything including client portal)
+  // Check general permissions
   if (!hasPermission(requiredPermission.module, requiredPermission.action)) {
     return null // Will redirect
   }

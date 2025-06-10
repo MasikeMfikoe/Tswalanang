@@ -41,6 +41,82 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const isAdmin = user.role === "admin"
+  const isClient = user.role === "client"
+
+  // CLIENT USERS: Minimal top navigation bar
+  if (isClient) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Client Top Navigation */}
+        <div className="bg-white shadow-sm border-b px-4 py-3">
+          <div className="flex items-center justify-between">
+            {/* Logo and Navigation */}
+            <div className="flex items-center space-x-6">
+              <Link href="/client-portal" className="flex items-center space-x-3">
+                <img
+                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Logo_Final_TswalanangLogistics-hxMkywQ9EbNzC0e28VrJzQXLgshfJq.png"
+                  alt="TSW SmartLog"
+                  className="h-8 w-8 object-contain"
+                />
+                <span className="text-lg font-bold text-gray-900">TSW SmartLog</span>
+              </Link>
+
+              {/* Client Navigation Links */}
+              <nav className="flex items-center space-x-4">
+                <Link
+                  href="/client-portal"
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    pathname === "/client-portal" || pathname.startsWith("/client-portal")
+                      ? "text-blue-600 bg-blue-50"
+                      : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                  }`}
+                >
+                  Client Portal
+                </Link>
+                <Link
+                  href="/shipment-tracker"
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    pathname === "/shipment-tracker"
+                      ? "text-blue-600 bg-blue-50"
+                      : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                  }`}
+                >
+                  Track Shipments
+                </Link>
+              </nav>
+            </div>
+
+            {/* User Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center space-x-2">
+                  <div className="h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
+                    <User className="h-4 w-4 text-gray-600" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-sm font-medium text-gray-900">
+                      {user.name} {user.surname}
+                    </div>
+                    <div className="text-xs text-gray-500">{user.department}</div>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => logout()}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <main className="flex-1">{children}</main>
+      </div>
+    )
+  }
 
   const navigationItems = [
     { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
@@ -83,7 +159,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Left Sidebar Navigation */}
+      {/* Left Sidebar Navigation - Hidden for Client Users */}
       <div
         className={`bg-white shadow-lg border-r flex flex-col transition-all duration-300 ${
           isSidebarCollapsed ? "w-16" : "w-64"
@@ -235,14 +311,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-screen">
-        {/* Mobile Header */}
-        <div className="lg:hidden bg-white shadow-sm border-b px-4 py-3 flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-            <Menu className="h-5 w-5" />
-          </Button>
-          <span className="text-lg font-bold text-gray-900">TSW SmartLog</span>
-          <div className="w-8" /> {/* Spacer for centering */}
-        </div>
+        {/* Mobile Header - Hidden for Client Users */}
+        {!isClient && (
+          <div className="lg:hidden bg-white shadow-sm border-b px-4 py-3 flex items-center justify-between">
+            <Button variant="ghost" size="sm" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+              <Menu className="h-5 w-5" />
+            </Button>
+            <span className="text-lg font-bold text-gray-900">TSW SmartLog</span>
+            <div className="w-8" /> {/* Spacer for centering */}
+          </div>
+        )}
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto">{children}</main>

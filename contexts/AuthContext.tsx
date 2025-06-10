@@ -259,6 +259,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 console.log("Error saving to localStorage:", e)
               }
 
+              // Redirect client users to client portal immediately
+              if (userData.role === "client") {
+                router.push("/client-portal")
+              }
+
               return true
             }
           }
@@ -307,6 +312,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log("Error saving to localStorage:", e)
         }
 
+        // Redirect client to client portal
+        router.push("/client-portal")
         return true
       }
 
@@ -321,6 +328,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log("Error saving to localStorage:", e)
         }
 
+        // Redirect client to client portal
+        router.push("/client-portal")
         return true
       }
 
@@ -588,7 +597,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: userData.role,
         department: userData.department,
         pageAccess:
-          userData.pageAccess || (userData.role === "client" ? ["clientPortal", "shipmentTracker"] : ["dashboard"]),
+          userData.role === "client" ? ["clientPortal", "shipmentTracker"] : userData.pageAccess || ["dashboard"],
       }
 
       // Try to create via API route first
