@@ -8,8 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Search, Package, Calendar, DollarSign, Eye, Filter } from "lucide-react"
-import Link from "next/link"
+import { ArrowLeft, Search, Package, Calendar, DollarSign, Filter } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 // Mock orders data - in real app, this would come from API filtered by client
@@ -25,6 +24,8 @@ const mockClientOrders = [
     estimatedDelivery: "2024-02-15",
     supplier: "Global Electronics Ltd",
     destination: "Cape Town, South Africa",
+    vesselName: "MSC Pamela",
+    etaAtPort: "2024-02-10",
   },
   {
     id: "ORD-2024-002",
@@ -37,6 +38,8 @@ const mockClientOrders = [
     estimatedDelivery: "2024-01-25",
     supplier: "Tech Components Inc",
     destination: "Johannesburg, South Africa",
+    vesselName: "N/A",
+    etaAtPort: "2024-01-20",
   },
   {
     id: "ORD-2024-003",
@@ -49,6 +52,8 @@ const mockClientOrders = [
     estimatedDelivery: "2024-03-01",
     supplier: "Industrial Supplies Co",
     destination: "Durban, South Africa",
+    vesselName: "Maersk Seletar",
+    etaAtPort: "2024-02-25",
   },
 ]
 
@@ -150,30 +155,33 @@ export default function ClientPortalOrdersPage() {
         </div>
       )}
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-6 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push("/client-portal")}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Portal
-              </Button>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">My Orders</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {isAdmin ? "Admin View - Client Portal Orders" : `${user?.department || "Company"} Orders`}
+            </h1>
             <p className="text-gray-600 mt-1">
-              {isAdmin ? "Admin viewing client orders" : `Welcome ${user?.name}, here are your orders`}
+              {isAdmin ? "Admin viewing client orders" : `Welcome ${user?.department || "Company"}`}
+            </p>
+            <p className="text-gray-600 text-sm mt-1">
+              {new Date().toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
             </p>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-blue-600">{filteredOrders.length}</div>
-            <div className="text-sm text-gray-600">Total Orders</div>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/client-portal")}
+            className="text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Portal
+          </Button>
         </div>
 
         {/* Filters */}
@@ -223,111 +231,8 @@ export default function ClientPortalOrdersPage() {
           </CardContent>
         </Card>
 
-        {/* Orders Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Orders List</CardTitle>
-            <CardDescription>
-              {filteredOrders.length} of {orders.length} orders shown
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {filteredOrders.length === 0 ? (
-              <div className="text-center py-12">
-                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
-                <p className="text-gray-600">Try adjusting your search or filter criteria.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>PO Number</TableHead>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Cargo Status</TableHead>
-                      <TableHead>Freight Type</TableHead>
-                      <TableHead>Value</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Est. Delivery</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredOrders.map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell className="font-medium">{order.poNumber}</TableCell>
-                        <TableCell>{order.supplier}</TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getCargoStatusColor(order.cargoStatus)}>
-                            {formatCargoStatus(order.cargoStatus)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{order.freightType}</TableCell>
-                        <TableCell>R {order.totalValue.toLocaleString()}</TableCell>
-                        <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
-                        <TableCell>{new Date(order.estimatedDelivery).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <Link href={`/client-portal/orders/${order.id}`}>
-                            <Button variant="outline" size="sm">
-                              <Eye className="h-4 w-4 mr-2" />
-                              View
-                            </Button>
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Quick Actions */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
-                Total Order Value
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="text-3xl font-bold text-green-600">
-                  R {orders.reduce((total, order) => total + order.totalValue, 0).toLocaleString()}
-                </div>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <div className="flex justify-between">
-                    <span>Active Orders:</span>
-                    <span className="font-medium">
-                      R{" "}
-                      {orders
-                        .filter((o) => o.status !== "Completed")
-                        .reduce((total, order) => total + order.totalValue, 0)
-                        .toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Completed Orders:</span>
-                    <span className="font-medium">
-                      R{" "}
-                      {orders
-                        .filter((o) => o.status === "Completed")
-                        .reduce((total, order) => total + order.totalValue, 0)
-                        .toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
+        {/* Quick Actions - Moved Above */}
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -377,6 +282,64 @@ export default function ClientPortalOrdersPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Orders Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Orders List</CardTitle>
+            <CardDescription>
+              {filteredOrders.length} of {orders.length} orders shown
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {filteredOrders.length === 0 ? (
+              <div className="text-center py-12">
+                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
+                <p className="text-gray-600">Try adjusting your search or filter criteria.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>PO Number</TableHead>
+                      <TableHead>Supplier</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Freight Type</TableHead>
+                      <TableHead>Vessel Name</TableHead>
+                      <TableHead>Cargo Status</TableHead>
+                      <TableHead>ETA at Port</TableHead>
+                      <TableHead>Est. Delivery</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredOrders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell className="font-medium">{order.poNumber}</TableCell>
+                        <TableCell>{order.supplier}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
+                        </TableCell>
+                        <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{order.freightType}</TableCell>
+                        <TableCell>{order.vesselName}</TableCell>
+                        <TableCell>
+                          <Badge className={getCargoStatusColor(order.cargoStatus)}>
+                            {formatCargoStatus(order.cargoStatus)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{new Date(order.etaAtPort).toLocaleDateString()}</TableCell>
+                        <TableCell>{new Date(order.estimatedDelivery).toLocaleDateString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

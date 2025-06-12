@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Search, FileText, Download, Eye, Filter, Upload, Calendar } from "lucide-react"
+import { ArrowLeft, Search, FileText, Download, Eye, Filter, Calendar } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -96,6 +96,7 @@ export default function ClientPortalDocumentsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([])
 
   // Filter documents based on search and filters
   useEffect(() => {
@@ -124,6 +125,28 @@ export default function ClientPortalDocumentsPage() {
     setFilteredDocuments(filtered)
   }, [searchTerm, typeFilter, statusFilter, documents])
 
+  const handleDocumentSelect = (documentId: string) => {
+    setSelectedDocuments((prev) =>
+      prev.includes(documentId) ? prev.filter((id) => id !== documentId) : [...prev, documentId],
+    )
+  }
+
+  const handleSelectAll = () => {
+    if (selectedDocuments.length === filteredDocuments.length) {
+      setSelectedDocuments([])
+    } else {
+      setSelectedDocuments(filteredDocuments.map((doc) => doc.id))
+    }
+  }
+
+  const handleDownloadSelected = () => {
+    if (selectedDocuments.length === 0) return
+
+    // In a real app, this would trigger actual downloads
+    alert(`Downloading ${selectedDocuments.length} selected documents`)
+    console.log("Selected documents for download:", selectedDocuments)
+  }
+
   const isAdmin = user?.role === "admin"
 
   const documentTypes = [...new Set(documents.map((doc) => doc.type))]
@@ -151,30 +174,40 @@ export default function ClientPortalDocumentsPage() {
         </div>
       )}
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-6 py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push("/client-portal")}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Portal
-              </Button>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">My Documents</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {isAdmin ? "Admin View - Client Portal Documents" : `${user?.department || "Company"} Documents`}
+            </h1>
             <p className="text-gray-600 mt-1">
-              {isAdmin ? "Admin viewing client documents" : `Welcome ${user?.name}, here are your documents`}
+              {isAdmin ? "Admin viewing client documents" : `Welcome ${user?.department || "Company"}`}
+            </p>
+            <p className="text-gray-600 text-sm mt-1">
+              {new Date().toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
             </p>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-blue-600">{filteredDocuments.length}</div>
-            <div className="text-sm text-gray-600">Total Documents</div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/client-portal")}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Portal
+            </Button>
           </div>
+        </div>
+
+        {/* Additional Message for Documents Page */}
+        <div className="mb-6">
+          <p className="text-gray-600 text-sm">All these documents are linked to your current orders.</p>
         </div>
 
         {/* Quick Stats */}
@@ -285,6 +318,26 @@ export default function ClientPortalDocumentsPage() {
           </CardContent>
         </Card>
 
+        {/* Document Types - Moved above Documents List */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Document Types
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {documentTypes.slice(0, 4).map((type) => (
+                <div key={type} className="flex justify-between text-sm">
+                  <span>{type}</span>
+                  <span className="text-gray-500">{documents.filter((d) => d.type === type).length}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Documents Table */}
         <Card>
           <CardHeader>
@@ -305,18 +358,49 @@ export default function ClientPortalDocumentsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">
+                        <input
+                          type="checkbox"
+                          checked={
+                            selectedDocuments.length === filteredDocuments.length && filteredDocuments.length > 0
+                          }
+                          onChange={handleSelectAll}
+                          className="rounded border-gray-300"
+                        />
+                      </TableHead>
                       <TableHead>Document Name</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>PO Number</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Size</TableHead>
                       <TableHead>Uploaded</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>
+                        <div className="flex items-center justify-between">
+                          <span>Actions</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDownloadSelected}
+                            disabled={selectedDocuments.length === 0}
+                            className="ml-2"
+                          >
+                            Download Selected ({selectedDocuments.length})
+                          </Button>
+                        </div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredDocuments.map((document) => (
                       <TableRow key={document.id}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedDocuments.includes(document.id)}
+                            onChange={() => handleDocumentSelect(document.id)}
+                            className="rounded border-gray-300"
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {getDocumentTypeIcon(document.type)}
@@ -357,66 +441,6 @@ export default function ClientPortalDocumentsPage() {
             )}
           </CardContent>
         </Card>
-
-        {/* Quick Actions */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Upload Documents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">Upload additional documents for your orders</p>
-              <Button className="w-full" disabled>
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Document
-              </Button>
-              <p className="text-xs text-gray-500 mt-2">Contact support to upload documents</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Document Types
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {documentTypes.slice(0, 4).map((type) => (
-                  <div key={type} className="flex justify-between text-sm">
-                    <span>{type}</span>
-                    <span className="text-gray-500">{documents.filter((d) => d.type === type).length}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Download className="h-5 w-5" />
-                Bulk Actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">Download multiple documents at once</p>
-              <div className="space-y-2">
-                <Button variant="outline" className="w-full" size="sm" disabled>
-                  Download All Approved
-                </Button>
-                <Button variant="outline" className="w-full" size="sm" disabled>
-                  Download by Order
-                </Button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">Contact support for bulk downloads</p>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
   )
