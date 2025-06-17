@@ -15,6 +15,43 @@ interface ClientStats {
   totalDocuments: number
 }
 
+const getStatusColor = (status: string) => {
+  switch (status.toLowerCase()) {
+    case "completed":
+      return "bg-green-100 text-green-800"
+    case "in progress":
+      return "bg-blue-100 text-blue-800"
+    case "pending":
+      return "bg-yellow-100 text-yellow-800"
+    case "cancelled":
+      return "bg-red-100 text-red-800"
+    default:
+      return "bg-gray-100 text-gray-800"
+  }
+}
+
+const getCargoStatusColor = (status: string) => {
+  switch (status) {
+    case "delivered":
+      return "bg-green-100 text-green-800"
+    case "in-transit":
+      return "bg-blue-100 text-blue-800"
+    case "at-origin":
+      return "bg-orange-100 text-orange-800"
+    case "at-destination":
+      return "bg-purple-100 text-purple-800"
+    default:
+      return "bg-gray-100 text-gray-800"
+  }
+}
+
+const formatCargoStatus = (status: string) => {
+  return status
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
 export default function ClientPortalPage() {
   const { user, logout } = useAuth()
   const router = useRouter()
@@ -59,7 +96,52 @@ export default function ClientPortalPage() {
       } else {
         console.warn("Failed to fetch orders, using fallback data")
         // Fallback to mock data if API fails
-        setStats((prev) => ({ ...prev, totalOrders: 3, activeOrders: 2, completedOrders: 1, totalValue: 75000 }))
+        setStats((prev) => ({
+          ...prev,
+          totalOrders: 12,
+          activeOrders: 5,
+          completedOrders: 7,
+          totalValue: 185000,
+        }))
+
+        setRecentOrders([
+          {
+            id: "1",
+            poNumber: "PO-2024-001",
+            supplier: "Global Electronics Ltd",
+            status: "Completed",
+            createdAt: "2024-01-15",
+            freightType: "Sea Freight",
+            vesselName: "MSC Pamela",
+            cargoStatus: "delivered",
+            etaAtPort: "2024-01-20",
+            estimatedDelivery: "2024-01-25",
+          },
+          {
+            id: "2",
+            poNumber: "PO-2024-002",
+            supplier: "Tech Components Inc",
+            status: "In Progress",
+            createdAt: "2024-01-20",
+            freightType: "Air Freight",
+            vesselName: "N/A",
+            cargoStatus: "in-transit",
+            etaAtPort: "2024-02-05",
+            estimatedDelivery: "2024-02-10",
+          },
+          {
+            id: "3",
+            poNumber: "PO-2024-003",
+            supplier: "Industrial Supplies Co",
+            status: "Pending",
+            createdAt: "2024-01-25",
+            freightType: "Sea Freight",
+            vesselName: "Maersk Seletar",
+            cargoStatus: "at-origin",
+            etaAtPort: "2024-02-15",
+            estimatedDelivery: "2024-02-20",
+          },
+        ])
       }
 
       // Fetch documents statistics
@@ -80,26 +162,49 @@ export default function ClientPortalPage() {
       console.error("Error fetching client data:", error)
       // Fallback to mock data on error
       setStats({
-        totalOrders: 3,
-        totalValue: 75000,
-        activeOrders: 2,
-        completedOrders: 1,
-        totalDocuments: 8,
+        totalOrders: 12,
+        totalValue: 185000,
+        activeOrders: 5,
+        completedOrders: 7,
+        totalDocuments: 24,
       })
+
       setRecentOrders([
         {
           id: "1",
-          po_number: "PO-2023-001",
-          created_at: "2023-06-15",
+          poNumber: "PO-2024-001",
+          supplier: "Global Electronics Ltd",
           status: "Completed",
-          total_value: 25000,
+          createdAt: "2024-01-15",
+          freightType: "Sea Freight",
+          vesselName: "MSC Pamela",
+          cargoStatus: "delivered",
+          etaAtPort: "2024-01-20",
+          estimatedDelivery: "2024-01-25",
         },
         {
           id: "2",
-          po_number: "PO-2023-002",
-          created_at: "2023-06-20",
+          poNumber: "PO-2024-002",
+          supplier: "Tech Components Inc",
           status: "In Progress",
-          total_value: 30000,
+          createdAt: "2024-01-20",
+          freightType: "Air Freight",
+          vesselName: "N/A",
+          cargoStatus: "in-transit",
+          etaAtPort: "2024-02-05",
+          estimatedDelivery: "2024-02-10",
+        },
+        {
+          id: "3",
+          poNumber: "PO-2024-003",
+          supplier: "Industrial Supplies Co",
+          status: "Pending",
+          createdAt: "2024-01-25",
+          freightType: "Sea Freight",
+          vesselName: "Maersk Seletar",
+          cargoStatus: "at-origin",
+          etaAtPort: "2024-02-15",
+          estimatedDelivery: "2024-02-20",
         },
       ])
     } finally {
@@ -176,7 +281,6 @@ export default function ClientPortalPage() {
           <CardContent>
             <p className="text-2xl font-bold">{loading ? "..." : stats.activeOrders}</p>
             <p className="text-sm text-gray-500">In transit</p>
-            <p className="text-sm text-green-600 mt-1">R {stats.totalValue.toLocaleString()}</p>
           </CardContent>
           <CardFooter>
             <Button variant="outline" className="w-full" onClick={() => router.push("/shipment-tracker")}>
@@ -213,58 +317,74 @@ export default function ClientPortalPage() {
             <p className="mt-2 text-gray-500">Loading orders...</p>
           </div>
         ) : recentOrders.length > 0 ? (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  PO Number
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {recentOrders.map((order) => (
-                <tr key={order.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {order.po_number} {isAdmin && <span className="text-xs text-blue-600 ml-2">(Admin View)</span>}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(order.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        order.status === "Completed"
-                          ? "bg-green-100 text-green-800"
-                          : order.status === "In Progress"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-yellow-100 text-yellow-800"
-                      }`}
-                    >
-                      {order.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    R {(order.total_value || 0).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <Button variant="ghost" size="sm" onClick={() => router.push(`/client-portal/orders/${order.id}`)}>
-                      View
-                    </Button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    PO Number
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Supplier
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Created
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Freight Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Vessel Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Cargo Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ETA at Port
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Est. Delivery
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {recentOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.poNumber}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.supplier}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}
+                      >
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(order.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.freightType}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.vesselName}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getCargoStatusColor(order.cargoStatus)}`}
+                      >
+                        {formatCargoStatus(order.cargoStatus)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(order.etaAtPort).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(order.estimatedDelivery).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className="p-8 text-center">
             <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
