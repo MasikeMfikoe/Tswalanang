@@ -60,12 +60,14 @@ export default function ShipmentTrackingResults({
         })
 
         let data: TrackingResult | null = null
+
         try {
-          // Attempt to parse JSON – might throw if server returned HTML/text
-          data = (await response.json()) as TrackingResult
+          // Try to parse JSON from a *clone* so we don't lose the body
+          data = (await response.clone().json()) as TrackingResult
         } catch {
+          // If JSON parsing fails, fall back to reading the original response as text
           const text = await response.text()
-          throw new Error(`Unexpected response format (${response.status}). Body: ${text.slice(0, 120)}…`)
+          throw new Error(`Unexpected response format (${response.status}). Body preview: ${text.slice(0, 120)}…`)
         }
 
         if (response.ok && data?.success) {
