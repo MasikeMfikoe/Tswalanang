@@ -1,5 +1,5 @@
-import ClientPortalOrdersWrapper from "./client-wrapper"
+import ClientPortalOrdersPageWrapper from "./client-wrapper"
 
 export default function ClientPortalOrdersPage() {
-  return <ClientPortalOrdersWrapper />
+  return <ClientPortalOrdersPageWrapper />
 }

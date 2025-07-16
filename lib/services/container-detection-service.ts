@@ -144,6 +144,15 @@ const carriers: Record<string, CarrierDetails> = {
     type: "ocean",
     color: "#e60023",
   },
+  WANH: {
+    name: "Wan Hai Lines",
+    code: "WAN_HAI_LINES",
+    trackingUrl: "https://www.wanhai.com/en/track-trace/",
+    apiSupported: false,
+    prefixes: ["WANH"],
+    type: "ocean",
+    color: "#000000",
+  },
   // Air Cargo Carriers (AWB) - IATA prefix (3 digits)
   "071": {
     name: "Ethiopian Airlines",
@@ -199,6 +208,15 @@ const carriers: Record<string, CarrierDetails> = {
     type: "air",
     color: "#002060",
   },
+  "618": {
+    name: "DHL Aviation",
+    code: "DHL_AVIATION",
+    trackingUrl: "https://www.dhl.com/en/express/tracking.html?AWB=",
+    apiSupported: false,
+    prefixes: ["618"],
+    type: "air",
+    color: "#000000",
+  },
 }
 
 // Function to get a carrier by any of its prefixes
@@ -218,12 +236,13 @@ const SEA_PREFIX_MAP: Record<string, string> = {
   MAEU: "Maersk",
   CMAU: "CMA-CGM",
   HDMU: "HMM",
+  WANH: "Wan Hai Lines",
   // add more as required
 }
 
 //  IATA airline prefixes (subset – extend as needed)
 const AIR_PREFIX_MAP: Record<string, string> = {
-  "618": "Qatar Airways",
+  "618": "DHL Aviation",
   "016": "United Airlines",
   "176": "Singapore Airlines",
   // add more as required
@@ -296,7 +315,7 @@ const CARRIER_PREFIXES: Record<string, { name: string; mode: Mode }> = {
   MAEU: { name: "Maersk", mode: "sea" },
   CMAU: { name: "CMA-CGM", mode: "sea" },
   ONEU: { name: "Ocean Network Express", mode: "sea" },
-  "618": { name: "Cathay Pacific Cargo", mode: "air" }, // IATA prefix example
+  "618": { name: "DHL Aviation", mode: "air" }, // IATA prefix example
 }
 
 // Define known shipping line prefixes and their full names
@@ -311,6 +330,7 @@ const SHIPPING_LINE_PREFIXES: Record<string, CarrierInfo> = {
   PONU: { name: "PIL", type: "sea" },
   SUDU: { name: "Hamburg Süd", type: "sea" },
   TLLU: { name: "T.S. Lines", type: "sea" },
+  WANH: { name: "Wan Hai Lines", type: "sea" },
   // Add more as needed
 }
 
@@ -328,75 +348,102 @@ const AIRLINE_PREFIXES: Record<string, CarrierInfo> = {
   "160": { name: "SAS", type: "air" },
   "180": { name: "Korean Air", type: "air" },
   "235": { name: "Cathay Pacific", type: "air" },
-  "618": { name: "Emirates", type: "air" },
+  "618": { name: "DHL Aviation", type: "air" },
   // Add more as needed
 }
 
-export function detectShipmentTrackingInfo(trackingNumber: string): {
-  type: "sea" | "air" | "unknown"
-  carrier: string | undefined
-  trackingNumber: string
-  mode: "container" | "awb" | "unknown"
-} {
+export function detectShipmentTrackingInfo(trackingNumber: string) {
   trackingNumber = trackingNumber.trim().toUpperCase()
 
-  // Check for container numbers (4 letters followed by 7 digits)
+  // Sea Freight (Container Numbers)
+  // Format: 4 letters + 6 digits + 1 check digit (e.g., MSCU1234567)
   const containerRegex = /^[A-Z]{4}\d{7}$/
   if (containerRegex.test(trackingNumber)) {
-    const prefix = trackingNumber.substring(0, 4)
-    const carrier = SHIPPING_LINE_PREFIXES[prefix]
-    if (carrier) {
-      return {
-        type: "sea",
-        carrier: carrier.name,
-        trackingNumber: trackingNumber,
-        mode: "container",
-      }
+    const shippingLinePrefix = trackingNumber.substring(0, 4)
+    const shippingLine = getShippingLineInfo(shippingLinePrefix)
+    return {
+      type: "ocean",
+      mode: "FCL", // Full Container Load by default
+      carrier: shippingLine?.name || "Unknown Carrier",
+      carrierCode: shippingLinePrefix,
+      trackingNumber: trackingNumber,
     }
-    return { type: "sea", trackingNumber: trackingNumber, mode: "container" }
   }
 
-  // Check for Air Waybill (AWB) numbers (3 digits - 8 digits)
+  // Air Freight (AWB - Air Waybill)
+  // Format: 3-digit airline prefix + 8-digit serial number (e.g., 001-12345678)
   const awbRegex = /^\d{3}-?\d{8}$/
   if (awbRegex.test(trackingNumber)) {
-    const prefix = trackingNumber.substring(0, 3)
-    const carrier = AIRLINE_PREFIXES[prefix]
-    if (carrier) {
-      return {
-        type: "air",
-        carrier: carrier.name,
-        trackingNumber: trackingNumber,
-        mode: "awb",
-      }
+    const airlinePrefix = trackingNumber.substring(0, 3)
+    const airline = getShippingLineInfo(airlinePrefix) // Re-using for airline lookup
+    return {
+      type: "air",
+      mode: "AWB",
+      carrier: airline?.name || "Unknown Airline",
+      carrierCode: airlinePrefix,
+      trackingNumber: trackingNumber.replace(/-/g, ""), // Remove hyphen for consistent tracking
     }
-    return { type: "air", trackingNumber: trackingNumber, mode: "awb" }
   }
 
-  // Check for Bill of Lading (B/L) numbers (often alphanumeric, variable length)
-  // This is a more generic check, as B/L formats vary widely
+  // Bill of Lading (B/L) - often alphanumeric, can be complex
+  // This is a very generic check, might need more specific regex for different carriers
+  // For simplicity, if it's not container or AWB, assume it might be a B/L
   if (trackingNumber.length >= 8 && trackingNumber.length <= 20) {
-    // Could add more sophisticated B/L detection if specific patterns are known
-    return { type: "sea", trackingNumber: trackingNumber, mode: "bl" }
-  }
-
-  // Default to unknown or a generic type if no specific format is matched
-  return { type: "unknown", trackingNumber: trackingNumber, mode: "unknown" }
-}
-
-export function getShippingLineInfo(identifier: string): CarrierInfo | undefined {
-  const upperIdentifier = identifier.toUpperCase()
-  // Check by prefix first
-  if (SHIPPING_LINE_PREFIXES[upperIdentifier]) {
-    return SHIPPING_LINE_PREFIXES[upperIdentifier]
-  }
-  // Then check by name (case-insensitive)
-  for (const key in SHIPPING_LINE_PREFIXES) {
-    if (SHIPPING_LINE_PREFIXES[key].name.toUpperCase() === upperIdentifier) {
-      return SHIPPING_LINE_PREFIXES[key]
+    return {
+      type: "ocean", // Most common for B/L
+      mode: "LCL", // Less than Container Load by default for B/L
+      carrier: "Unknown Carrier", // Cannot easily determine carrier from B/L alone
+      trackingNumber: trackingNumber,
     }
   }
-  return undefined
+
+  return {
+    type: "unknown",
+    mode: "unknown",
+    carrier: "Unknown",
+    trackingNumber: trackingNumber,
+  }
 }
+
+export function getShippingLineInfo(prefix: string) {
+  const normalizedPrefix = prefix.toUpperCase()
+  const carriers = [
+    { prefix: "MSCU", name: "MSC" },
+    { prefix: "MAEU", name: "Maersk" },
+    { prefix: "CMAU", name: "CMA CGM" },
+    { prefix: "HLXU", name: "Hapag-Lloyd" },
+    { prefix: "ONEU", name: "Ocean Network Express (ONE)" },
+    { prefix: "APLU", name: "APL" },
+    { prefix: "COSCO", name: "COSCO Shipping" },
+    { prefix: "PILU", name: "Pacific International Lines (PIL)" },
+    { prefix: "ZIMU", name: "ZIM Integrated Shipping Services" },
+    { prefix: "NYKU", name: "NYK Line" },
+    { prefix: "EVER", name: "Evergreen Line" },
+    { prefix: "YMLU", name: "Yang Ming Marine Transport Corporation" },
+    { prefix: "KLINE", name: "K Line" },
+    { prefix: "HMMU", name: "HMM" },
+    { prefix: "WANH", name: "Wan Hai Lines" },
+    { prefix: "OOCL", name: "Orient Overseas Container Line (OOCL)" },
+    // Airlines (IATA codes)
+    { prefix: "001", name: "American Airlines" },
+    { prefix: "002", name: "Air China" },
+    { prefix: "003", name: "Air France" },
+    { prefix: "004", name: "Lufthansa" },
+    { prefix: "005", name: "British Airways" },
+    { prefix: "006", name: "Delta Air Lines" },
+    { prefix: "007", name: "United Airlines" },
+    { prefix: "008", name: "Emirates" },
+    { prefix: "009", name: "Qatar Airways" },
+    { prefix: "010", name: "Singapore Airlines" },
+    { prefix: "618", name: "DHL Aviation" }, // Common for DHL Express
+  ]
+
+  return carriers.find(
+    (carrier) => carrier.prefix === normalizedPrefix || carrier.name.toUpperCase() === normalizedPrefix,
+  )
+}
+
+// Re-export with the expected alias;
 
 export function getAllCarrierNames(): string[] {
   const names = new Set<string>()

@@ -1,17 +1,12 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { Spinner } from "@/components/ui/spinner"
 
+// Dynamically import ClientPortalOrdersPage with ssr: false
 const ClientPortalOrdersPage = dynamic(() => import("./ClientPortalOrdersPage"), {
   ssr: false,
-  loading: () => (
-    <div className="flex h-full items-center justify-center">
-      <Spinner />
-    </div>
-  ),
 })
 
-export default function ClientPortalOrdersWrapper() {
+export default function ClientPortalOrdersPageWrapper() {
   return <ClientPortalOrdersPage />
 }
