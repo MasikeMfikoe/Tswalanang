@@ -29,6 +29,11 @@ export interface ShippingLineInfo {
   mode?: "sea" | "air"
 }
 
+export interface CarrierInfo {
+  name: string
+  type: "sea" | "air"
+}
+
 const carriers: Record<string, CarrierDetails> = {
   // Ocean Carriers (Container/BL)
   BMOU: {
@@ -294,9 +299,103 @@ const CARRIER_PREFIXES: Record<string, { name: string; mode: Mode }> = {
   "618": { name: "Cathay Pacific Cargo", mode: "air" }, // IATA prefix example
 }
 
-export function getShippingLineInfo(prefix: string | undefined) {
-  if (!prefix) return undefined
-  return CARRIER_PREFIXES[prefix.toUpperCase()]
+// Define known shipping line prefixes and their full names
+const SHIPPING_LINE_PREFIXES: Record<string, CarrierInfo> = {
+  MSCU: { name: "MSC", type: "sea" },
+  MAEU: { name: "Maersk", type: "sea" },
+  HLXU: { name: "Hapag-Lloyd", type: "sea" },
+  APLU: { name: "APL", type: "sea" },
+  CMDU: { name: "CMA CGM", type: "sea" },
+  NYKU: { name: "NYK Line", type: "sea" },
+  OOLU: { name: "OOCL", type: "sea" },
+  PONU: { name: "PIL", type: "sea" },
+  SUDU: { name: "Hamburg Süd", type: "sea" },
+  TLLU: { name: "T.S. Lines", type: "sea" },
+  // Add more as needed
+}
+
+// Define known airline prefixes (IATA codes)
+const AIRLINE_PREFIXES: Record<string, CarrierInfo> = {
+  "001": { name: "American Airlines", type: "air" },
+  "005": { name: "United Airlines", type: "air" },
+  "014": { name: "Air Canada", type: "air" },
+  "020": { name: "Lufthansa", type: "air" },
+  "023": { name: "Delta Air Lines", type: "air" },
+  "074": { name: "KLM", type: "air" },
+  "083": { name: "British Airways", type: "air" },
+  "105": { name: "Finnair", type: "air" },
+  "117": { name: "Air France", type: "air" },
+  "160": { name: "SAS", type: "air" },
+  "180": { name: "Korean Air", type: "air" },
+  "235": { name: "Cathay Pacific", type: "air" },
+  "618": { name: "Emirates", type: "air" },
+  // Add more as needed
+}
+
+export function detectShipmentTrackingInfo(trackingNumber: string): {
+  type: "sea" | "air" | "unknown"
+  carrier: string | undefined
+  trackingNumber: string
+  mode: "container" | "awb" | "unknown"
+} {
+  trackingNumber = trackingNumber.trim().toUpperCase()
+
+  // Check for container numbers (4 letters followed by 7 digits)
+  const containerRegex = /^[A-Z]{4}\d{7}$/
+  if (containerRegex.test(trackingNumber)) {
+    const prefix = trackingNumber.substring(0, 4)
+    const carrier = SHIPPING_LINE_PREFIXES[prefix]
+    if (carrier) {
+      return {
+        type: "sea",
+        carrier: carrier.name,
+        trackingNumber: trackingNumber,
+        mode: "container",
+      }
+    }
+    return { type: "sea", trackingNumber: trackingNumber, mode: "container" }
+  }
+
+  // Check for Air Waybill (AWB) numbers (3 digits - 8 digits)
+  const awbRegex = /^\d{3}-?\d{8}$/
+  if (awbRegex.test(trackingNumber)) {
+    const prefix = trackingNumber.substring(0, 3)
+    const carrier = AIRLINE_PREFIXES[prefix]
+    if (carrier) {
+      return {
+        type: "air",
+        carrier: carrier.name,
+        trackingNumber: trackingNumber,
+        mode: "awb",
+      }
+    }
+    return { type: "air", trackingNumber: trackingNumber, mode: "awb" }
+  }
+
+  // Check for Bill of Lading (B/L) numbers (often alphanumeric, variable length)
+  // This is a more generic check, as B/L formats vary widely
+  if (trackingNumber.length >= 8 && trackingNumber.length <= 20) {
+    // Could add more sophisticated B/L detection if specific patterns are known
+    return { type: "sea", trackingNumber: trackingNumber, mode: "bl" }
+  }
+
+  // Default to unknown or a generic type if no specific format is matched
+  return { type: "unknown", trackingNumber: trackingNumber, mode: "unknown" }
+}
+
+export function getShippingLineInfo(identifier: string): CarrierInfo | undefined {
+  const upperIdentifier = identifier.toUpperCase()
+  // Check by prefix first
+  if (SHIPPING_LINE_PREFIXES[upperIdentifier]) {
+    return SHIPPING_LINE_PREFIXES[upperIdentifier]
+  }
+  // Then check by name (case-insensitive)
+  for (const key in SHIPPING_LINE_PREFIXES) {
+    if (SHIPPING_LINE_PREFIXES[key].name.toUpperCase() === upperIdentifier) {
+      return SHIPPING_LINE_PREFIXES[key]
+    }
+  }
+  return undefined
 }
 
 export function getAllCarrierNames(): string[] {
@@ -319,12 +418,6 @@ export function getCarrierInfoByName(name: string): CarrierDetails | null {
 /* ------------------------------------------------------------------ */
 /*  Backward-compatibility aliases                                     */
 /* ------------------------------------------------------------------ */
-export const detectShipmentTrackingInfo = detectContainerInfo
-
-/**
- * Alias for backwards-compatibility.
- * Returns the same object as detectContainerInfo.
- */
 export const detectAirCargoInfo = detectContainerInfo
 
 /**

@@ -1,75 +1,103 @@
 "use client"
 
-import type React from "react"
 import { useState, useEffect } from "react"
-
-interface VesselPosition {
-  latitude: number
-  longitude: number
-  speed: number
-  heading: number
-  timestamp: string
-}
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Spinner } from "@/components/ui/spinner"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Terminal } from "lucide-react"
+import type { VesselPosition } from "@/types/tracking"
 
 interface ShipmentUpdatesProps {
-  imo: string
+  imoNumber?: string
 }
 
-const ShipmentUpdates: React.FC<ShipmentUpdatesProps> = ({ imo }) => {
+export function ShipmentUpdates({ imoNumber }: ShipmentUpdatesProps) {
   const [vesselPosition, setVesselPosition] = useState<VesselPosition | null>(null)
-  const [loading, setLoading] = useState<boolean>(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchVesselPosition = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch(`/api/vessel-position?imo=${imo}`)
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`)
-        }
-        const { data } = await res.json()
-
-        if (data && data.latitude && data.longitude) {
+    if (imoNumber) {
+      const fetchVesselPosition = async () => {
+        setLoading(true)
+        setError(null)
+        try {
+          const response = await fetch(`/api/vessel-position?imo=${imoNumber}`)
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.details || "Failed to fetch vessel data")
+          }
+          const data: VesselPosition = await response.json()
           setVesselPosition(data)
-        } else {
-          setError("No vessel position data found.")
+        } catch (err: any) {
+          setError(err.message)
+          setVesselPosition(null)
+        } finally {
+          setLoading(false)
         }
-      } catch (e: any) {
-        setError(e.message || "Failed to fetch vessel position.")
-      } finally {
-        setLoading(false)
       }
-    }
-
-    if (imo) {
       fetchVesselPosition()
     }
-  }, [imo])
+  }, [imoNumber])
 
-  if (loading) {
-    return <div>Loading vessel position...</div>
-  }
-
-  if (error) {
-    return <div>Error: {error}</div>
-  }
-
-  if (!vesselPosition) {
-    return <div>No vessel position available.</div>
+  if (!imoNumber) {
+    return null
   }
 
   return (
-    <div>
-      <h3>Vessel Position</h3>
-      <p>Latitude: {vesselPosition.latitude}</p>
-      <p>Longitude: {vesselPosition.longitude}</p>
-      <p>Speed: {vesselPosition.speed} knots</p>
-      <p>Heading: {vesselPosition.heading} degrees</p>
-      <p>Timestamp: {new Date(vesselPosition.timestamp).toLocaleString()}</p>
-    </div>
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Vessel Position Updates</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading && (
+          <div className="flex justify-center items-center h-24">
+            <Spinner />
+          </div>
+        )}
+        {error && (
+          <Alert variant="destructive">
+            <Terminal className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {vesselPosition && !loading && !error && (
+          <div className="space-y-2">
+            <p>
+              <strong>Vessel Name:</strong> {vesselPosition.vesselName}
+            </p>
+            <p>
+              <strong>Latitude:</strong> {vesselPosition.latitude}
+            </p>
+            <p>
+              <strong>Longitude:</strong> {vesselPosition.longitude}
+            </p>
+            <p>
+              <strong>Speed:</strong> {vesselPosition.speed} knots
+            </p>
+            <p>
+              <strong>Status:</strong> {vesselPosition.status}
+            </p>
+            <p>
+              <strong>Last Updated:</strong> {new Date(vesselPosition.lastUpdated).toLocaleString()}
+            </p>
+            {vesselPosition.destination && (
+              <p>
+                <strong>Destination:</strong> {vesselPosition.destination}
+              </p>
+            )}
+            {vesselPosition.eta && (
+              <p>
+                <strong>ETA:</strong> {new Date(vesselPosition.eta).toLocaleString()}
+              </p>
+            )}
+          </div>
+        )}
+        {!vesselPosition && !loading && !error && (
+          <p className="text-center text-muted-foreground">No vessel position data available for this IMO number.</p>
+        )}
+      </CardContent>
+    </Card>
   )
 }
-
-export default ShipmentUpdates

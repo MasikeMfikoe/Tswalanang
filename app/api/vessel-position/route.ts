@@ -1,23 +1,23 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
+import { getVesselPosition } from "@/lib/services/marinetraffic-service"
 
-export async function GET(req: NextRequest) {
-  const imo = req.nextUrl.searchParams.get("imo")
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const imo = searchParams.get("imo")
+
   if (!imo) {
-    return NextResponse.json({ error: "Missing IMO" }, { status: 400 })
+    return NextResponse.json({ error: "IMO number is required" }, { status: 400 })
   }
 
   try {
-    const res = await fetch(
-      `https://services.marinetraffic.com/api/exportvessel/v:8/${process.env.MARINE_TRAFFIC_API_KEY}/imo:${imo}`,
-    )
-
-    if (!res.ok) {
-      return NextResponse.json({ error: "MarineTraffic error", status: res.status }, { status: res.status })
+    const position = await getVesselPosition(imo)
+    if (position) {
+      return NextResponse.json(position)
+    } else {
+      return NextResponse.json({ message: "Vessel position not found" }, { status: 404 })
     }
-
-    const data = await res.text() // MarineTraffic often returns CSV / text
-    return NextResponse.json({ data })
-  } catch (err: any) {
-    return NextResponse.json({ error: "Server error", message: err.message }, { status: 500 })
+  } catch (error: any) {
+    console.error("Error fetching vessel position:", error)
+    return NextResponse.json({ error: "Failed to fetch vessel position", details: error.message }, { status: 500 })
   }
 }

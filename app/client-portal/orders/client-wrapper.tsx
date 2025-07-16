@@ -1,12 +1,16 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { Spinner } from "@/components/ui/spinner"
 
-/**
- * Dynamically import the heavy client page **without** server-side rendering.
- * Adjust the path if your original component lives elsewhere.
- */
-const ClientPortalOrdersPage = dynamic(() => import("./ClientPortalOrdersPage"), { ssr: false })
+const ClientPortalOrdersPage = dynamic(() => import("./ClientPortalOrdersPage"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center">
+      <Spinner />
+    </div>
+  ),
+})
 
 export default function ClientPortalOrdersWrapper() {
   return <ClientPortalOrdersPage />
