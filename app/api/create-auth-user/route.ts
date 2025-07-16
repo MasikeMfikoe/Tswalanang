@@ -17,15 +17,11 @@ export async function POST(request: NextRequest) {
   try {
     const { email, password, userData } = await request.json()
 
-    console.log("🔐 Creating auth user with service role key...")
-    console.log("Email:", email)
-    console.log("User data:", userData)
-
-    // Create the auth user first
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: email,
-      password: password,
-      email_confirm: true, // Auto-confirm email
+    // 1️⃣ try to create auth user
+    let { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
       user_metadata: {
         name: userData.name,
         surname: userData.surname,
@@ -33,16 +29,21 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    if (authError) {
-      console.error("❌ Auth user creation failed:", authError)
+    // 2️⃣ if the email already exists, fetch the existing user
+    if (authError?.code === "email_exists") {
+      const { data: existing, error: fetchError } = await supabaseAdmin.auth.admin.getUserByEmail(email)
+      if (fetchError || !existing?.user) {
+        return NextResponse.json({ error: "Email already exists and could not be fetched" }, { status: 422 })
+      }
+      authUser = { user: existing.user }
+      authError = null
+    } else if (authError) {
       return NextResponse.json({ error: "Failed to create auth user", details: authError }, { status: 400 })
     }
 
-    console.log("✅ Auth user created:", authUser.user.id)
-
-    // Now create the user profile with the auth user's ID
-    const profileData = {
-      id: authUser.user.id, // Use the actual auth user ID
+    // 3️⃣ ensure profile row exists
+    const profilePayload = {
+      id: authUser!.user.id,
       username: userData.username,
       name: userData.name,
       surname: userData.surname,
@@ -52,33 +53,18 @@ export async function POST(request: NextRequest) {
       page_access: userData.page_access,
     }
 
-    const { data: profile, error: profileError } = await supabaseAdmin
+    // Try insert; on conflict just return existing row
+    const { data: profile } = await supabaseAdmin
       .from("user_profiles")
-      .insert(profileData)
+      .upsert(profilePayload, { onConflict: "id", ignoreDuplicates: true })
       .select()
       .single()
 
-    if (profileError) {
-      console.error("❌ Profile creation failed:", profileError)
-
-      // Clean up: delete the auth user if profile creation failed
-      await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
-
-      return NextResponse.json({ error: "Failed to create user profile", details: profileError }, { status: 400 })
-    }
-
-    console.log("✅ User profile created:", profile)
-
     return NextResponse.json({
       success: true,
-      user: {
-        id: authUser.user.id,
-        email: authUser.user.email,
-        profile: profile,
-      },
+      user: { id: authUser!.user.id, email: authUser!.user.email, profile },
     })
   } catch (error) {
-    console.error("❌ API route error:", error)
     return NextResponse.json({ error: "Internal server error", details: error }, { status: 500 })
   }
 }

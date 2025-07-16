@@ -45,7 +45,10 @@ const getCargoStatusColor = (status: string) => {
   }
 }
 
-const formatCargoStatus = (status: string) => {
+const formatCargoStatus = (status?: string) => {
+  if (!status) {
+    return "Unknown"
+  }
   return status
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -369,7 +372,7 @@ export default function ClientPortalPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.vesselName}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getCargoStatusColor(order.cargoStatus)}`}
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getCargoStatusColor(order.cargoStatus || "")}`}
                       >
                         {formatCargoStatus(order.cargoStatus)}
                       </span>

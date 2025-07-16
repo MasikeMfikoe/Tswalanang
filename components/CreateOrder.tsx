@@ -20,6 +20,10 @@ export default function CreateOrder() {
   const router = useRouter()
   const { toast } = useToast()
 
+  // State for freight types
+  const [freightTypes, setFreightTypes] = useState<Array<{ id: string; name: string; code: string }>>([])
+  const [isLoadingFreightTypes, setIsLoadingFreightTypes] = useState(true)
+
   // State for order form
   const [order, setOrder] = useState<Partial<Order>>({
     poNumber: "",
@@ -59,6 +63,7 @@ export default function CreateOrder() {
   // Fetch customers on component mount
   React.useEffect(() => {
     fetchCustomers()
+    fetchFreightTypes()
   }, [])
 
   // Fetch customers directly from Supabase
@@ -138,6 +143,41 @@ export default function CreateOrder() {
       ])
     } finally {
       setIsLoadingCustomers(false)
+    }
+  }
+
+  const fetchFreightTypes = async () => {
+    setIsLoadingFreightTypes(true)
+    try {
+      const { data, error } = await supabase
+        .from("freight_types")
+        .select("id, name, code")
+        .eq("active", true)
+        .order("name")
+
+      if (error) {
+        console.error("Error fetching freight types:", error)
+        // Fallback to hardcoded options
+        setFreightTypes([
+          { id: "1", name: "Sea Freight", code: "SEA" },
+          { id: "2", name: "Air Freight", code: "AIR" },
+          { id: "3", name: "EXW", code: "EXW" },
+          { id: "4", name: "FOB", code: "FOB" },
+        ])
+      } else {
+        setFreightTypes(data || [])
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      // Use fallback data
+      setFreightTypes([
+        { id: "1", name: "Sea Freight", code: "SEA" },
+        { id: "2", name: "Air Freight", code: "AIR" },
+        { id: "3", name: "EXW", code: "EXW" },
+        { id: "4", name: "FOB", code: "FOB" },
+      ])
+    } finally {
+      setIsLoadingFreightTypes(false)
     }
   }
 
@@ -421,15 +461,27 @@ export default function CreateOrder() {
                         <Select
                           value={order.freightType || "Sea Freight"}
                           onValueChange={(value) => handleChange("freightType", value as FreightType)}
+                          disabled={isLoadingFreightTypes}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select freight type" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Sea Freight">Sea Freight</SelectItem>
-                            <SelectItem value="Air Freight">Air Freight</SelectItem>
-                            <SelectItem value="EXW">EXW</SelectItem>
-                            <SelectItem value="FOB">FOB</SelectItem>
+                            {isLoadingFreightTypes ? (
+                              <SelectItem value="loading" disabled>
+                                Loading freight types...
+                              </SelectItem>
+                            ) : freightTypes.length > 0 ? (
+                              freightTypes.map((freightType) => (
+                                <SelectItem key={freightType.id} value={freightType.name}>
+                                  {freightType.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="no-types" disabled>
+                                No freight types available
+                              </SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>

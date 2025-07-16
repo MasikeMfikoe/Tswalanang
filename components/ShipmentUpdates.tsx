@@ -1,12 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, Ship, Package, MapPin, Calendar } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 import type { ShipmentUpdate } from "@/types/shipping"
+import { MarineTrafficService } from "@/lib/services/marinetraffic-service"
+
+const useMarineTraffic = true // Enable/disable MarineTraffic integration
 
 interface ShipmentUpdatesProps {
   orderId: string
@@ -14,6 +17,7 @@ interface ShipmentUpdatesProps {
 
 export default function ShipmentUpdates({ orderId }: ShipmentUpdatesProps) {
   const [shipment, setShipment] = useState<any>(null)
+  const [vesselPosition, setVesselPosition] = useState<any>(null)
   const [updates, setUpdates] = useState<ShipmentUpdate[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -23,6 +27,7 @@ export default function ShipmentUpdates({ orderId }: ShipmentUpdatesProps) {
   }, [orderId])
 
   const fetchShipmentData = async () => {
+    console.log("Fetching shipment data")
     try {
       setLoading(true)
 
@@ -36,6 +41,10 @@ export default function ShipmentUpdates({ orderId }: ShipmentUpdatesProps) {
       if (shipmentError) {
         console.error("Error fetching shipment:", shipmentError)
         setLoading(false)
+        return
+      }
+      if (!shipments) {
+        console.warn("No shipment found for order ID:", orderId)
         return
       }
 
@@ -53,12 +62,34 @@ export default function ShipmentUpdates({ orderId }: ShipmentUpdatesProps) {
       } else {
         setUpdates(updateData || [])
       }
+
+      if (useMarineTraffic && shipments.imo_number) {
+        console.log("Fetching vessel position from MarineTraffic for IMO:", shipments.imo_number)
+        await fetchVesselPosition(shipments.imo_number)
+      }
     } catch (error) {
       console.error("Error in fetchShipmentData:", error)
     } finally {
       setLoading(false)
     }
   }
+
+  const fetchVesselPosition = useCallback(async (imo: string) => {
+    const marineTrafficService = new MarineTrafficService(process.env.NEXT_PUBLIC_MARINE_TRAFFIC_API_KEY || "")
+    const positionResult = await marineTrafficService.getVesselPosition(imo)
+
+    if (positionResult.success) {
+      setVesselPosition(positionResult.data)
+    } else {
+      console.error("Error fetching vessel position from MarineTraffic:", positionResult.error)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (shipment?.imo_number && useMarineTraffic) {
+      fetchVesselPosition(shipment.imo_number)
+    }
+  }, [shipment, fetchVesselPosition])
 
   const handleRefresh = async () => {
     try {
@@ -192,6 +223,15 @@ export default function ShipmentUpdates({ orderId }: ShipmentUpdatesProps) {
                     {new Date(shipment.eta).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
+              </div>
+            )}
+            {vesselPosition && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-500">Realtime Position</h3>
+                <p className="font-medium">
+                  Lat: {vesselPosition.latitude}, Lon: {vesselPosition.longitude}
+                  <br /> Speed: {vesselPosition.speed / 10} knots
+                </p>
               </div>
             )}
           </div>

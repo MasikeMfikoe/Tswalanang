@@ -150,7 +150,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       dropdown: [
         { href: "/admin/settings", label: "Settings" },
         { href: "/admin/user-groups", label: "User Groups" },
-        { href: "/admin/users", label: "Users" },
+        { href: "/user-management", label: "Users" },
         { href: "/admin/tracking-users", label: "Tracking Users" },
       ],
     },

@@ -1,13 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { detectContainerInfo, trackContainerExternal } from "@/lib/utils"
-import { TrackShipService } from "@/lib/services/trackship-service"
+import { MultiProviderTrackingService } from "@/lib/services/multi-provider-tracking-service"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { trackingNumber, bookingType } = body
+    const { trackingNumber, bookingType, preferScraping = false, carrierHint } = body
+
+    console.log(
+      `[API/Tracking] Received request for trackingNumber: ${trackingNumber}, bookingType: ${bookingType}, preferScraping: ${preferScraping}, carrierHint: ${carrierHint}`,
+    )
 
     if (!trackingNumber) {
+      console.warn("[API/Tracking] Missing tracking number in request.")
       return NextResponse.json(
         {
           success: false,
@@ -17,123 +21,107 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const cleanTrackingNumber = trackingNumber.trim().toUpperCase().replace(/[\s-]/g, "")
+    const multiProviderTrackingService = new MultiProviderTrackingService()
+    console.log("[API/Tracking] MultiProviderTrackingService initialized.")
 
-    // Try TrackShip first (if API key is configured)
-    const trackShipService = new TrackShipService()
-    const trackShipResult = await trackShipService.trackShipment(cleanTrackingNumber)
+    const result = await multiProviderTrackingService.trackShipment(trackingNumber, {
+      preferredProvider: bookingType === "ocean" || bookingType === "lcl" ? "TrackShip" : undefined, // Prefer TrackShip for ocean/lcl
+      carrierHint,
+      shipmentType: bookingType,
+      preferScraping, // Pass preferScraping option to the service
+    })
 
-    if (trackShipResult.success && trackShipResult.data) {
-      console.log("✅ TrackShip tracking successful for:", cleanTrackingNumber)
+    if (result.success) {
+      console.log(`[API/Tracking] Tracking successful for ${trackingNumber}. Source: ${result.source}`)
       return NextResponse.json({
         success: true,
-        data: transformTrackShipToStandardFormat(trackShipResult.data),
-        source: "TrackShip",
-        isLiveData: true,
+        data: result.data,
+        source: result.source,
+        isLiveData: result.isLiveData,
+        scrapedAt: result.scrapedAt,
       })
-    }
-
-    // Fallback to existing direct API tracking
-    console.log("⚠️ TrackShip failed, trying direct APIs for:", cleanTrackingNumber)
-    const directResult = await trackContainerExternal(cleanTrackingNumber)
-
-    if (directResult.success && directResult.data) {
-      console.log("✅ Direct API tracking successful for:", cleanTrackingNumber)
-      return NextResponse.json({
-        success: true,
-        data: directResult.data,
-        source: directResult.source,
-        isLiveData: true,
-      })
-    }
-
-    // Final fallback - carrier website redirect
-    const containerInfo = detectContainerInfo(cleanTrackingNumber)
-    if (containerInfo.isValid && containerInfo.carrier) {
-      const carrierUrls: Record<string, string> = {
-        MSC: `https://www.msc.com/track-a-shipment?agencyPath=msc&trackingNumber=${cleanTrackingNumber}`,
-        MAERSK: `https://www.maersk.com/tracking/${cleanTrackingNumber}`,
-        CMA: `https://www.cma-cgm.com/ebusiness/tracking/search?number=${cleanTrackingNumber}`,
-        HAPAG: `https://www.hapag-lloyd.com/en/online-business/track/track-by-container-solution.html?container=${cleanTrackingNumber}`,
-      }
-
-      const trackingUrl =
-        carrierUrls[containerInfo.carrier] ||
-        `https://www.${containerInfo.carrier.toLowerCase()}.com/track?number=${cleanTrackingNumber}`
-
+    } else {
+      console.log(
+        `[API/Tracking] Tracking failed for ${trackingNumber}. Error: ${result.error}, Source: ${result.source}`,
+      )
       return NextResponse.json({
         success: false,
-        error: "Live tracking not available. Redirecting to carrier website.",
-        carrierInfo: {
-          name: containerInfo.carrier,
-          trackingUrl,
-        },
-        source: "carrier-redirect",
+        error: result.error,
+        source: result.source,
+        fallbackOptions: result.fallbackOptions,
       })
     }
-
-    return NextResponse.json({
-      success: false,
-      error: "Unable to track this shipment. Please verify the tracking number format.",
-      source: "error",
-    })
   } catch (error) {
-    console.error("Tracking API error:", error)
+    console.error("[API/Tracking] Uncaught API error:", error)
+    // Log the full error object for debugging
+    if (error instanceof Error) {
+      console.error("[API/Tracking] Error name:", error.name)
+      console.error("[API/Tracking] Error message:", error.message)
+      console.error("[API/Tracking] Error stack:", error.stack)
+    } else {
+      console.error("[API/Tracking] Unknown error type:", typeof error, error)
+    }
+
     return NextResponse.json(
       {
         success: false,
         error: "Tracking service temporarily unavailable",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },
     )
   }
 }
 
-// Helper function to transform TrackShip data to your existing format
-function transformTrackShipToStandardFormat(trackShipData: any) {
-  return {
-    shipmentNumber: trackShipData.tracking_number,
-    status: trackShipData.status,
-    containerNumber: trackShipData.tracking_number,
-    containerType: trackShipData.shipment_info?.service_type || "Container",
-    weight: trackShipData.shipment_info?.weight || "Unknown",
-    origin: trackShipData.shipment_info?.origin || "Unknown",
-    destination: trackShipData.shipment_info?.destination || "Unknown",
-    pol: trackShipData.shipment_info?.origin || "Unknown",
-    pod: trackShipData.shipment_info?.destination || "Unknown",
-    estimatedArrival: trackShipData.estimated_delivery || "Unknown",
-    lastLocation: trackShipData.location || "Unknown",
-    timeline: transformTrackShipEvents(trackShipData.events || []),
-    documents: [], // TrackShip doesn't provide documents
-    details: {
-      packages: "Unknown",
-      specialInstructions: trackShipData.status_detail || "",
-      dimensions: trackShipData.shipment_info?.dimensions || "Unknown",
-      shipmentType: trackShipData.shipment_info?.service_type || "Container Freight",
-    },
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const containerNumber = searchParams.get("container")
+  const preferScraping = searchParams.get("scraping") === "true"
+  const carrierHint = searchParams.get("carrier")
+  const bookingType = searchParams.get("bookingType") || "ocean" // Added bookingType for GET requests
+
+  console.log(
+    `[API/Tracking] Received GET request for container: ${containerNumber}, scraping: ${preferScraping}, carrier: ${carrierHint}, bookingType: ${bookingType}`,
+  )
+
+  if (!containerNumber) {
+    console.warn("[API/Tracking] Missing container number in GET request.")
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Container number is required",
+      },
+      { status: 400 },
+    )
   }
-}
 
-function transformTrackShipEvents(events: any[]) {
-  const groupedEvents: Record<string, any> = {}
-
-  events.forEach((event) => {
-    const location = event.location || "Unknown"
-    if (!groupedEvents[location]) {
-      groupedEvents[location] = {
-        location,
-        events: [],
-      }
-    }
-
-    groupedEvents[location].events.push({
-      type: "event",
-      status: event.description || event.status,
-      timestamp: event.timestamp,
-      date: new Date(event.timestamp).toLocaleDateString(),
-      time: new Date(event.timestamp).toLocaleTimeString(),
+  try {
+    const multiProviderTrackingService = new MultiProviderTrackingService()
+    const result = await multiProviderTrackingService.trackShipment(containerNumber, {
+      preferScraping,
+      carrierHint: carrierHint || undefined,
+      shipmentType: bookingType as "ocean" | "air" | "lcl", // Cast to valid type
     })
-  })
 
-  return Object.values(groupedEvents)
+    console.log(
+      `[API/Tracking] GET request result for ${containerNumber}: Success: ${result.success}, Source: ${result.source}`,
+    )
+    return NextResponse.json(result)
+  } catch (error) {
+    console.error("[API/Tracking] Uncaught API GET error:", error)
+    if (error instanceof Error) {
+      console.error("[API/Tracking] GET Error name:", error.name)
+      console.error("[API/Tracking] GET Error message:", error.message)
+      console.error("[API/Tracking] GET Error stack:", error.stack)
+    } else {
+      console.error("[API/Tracking] GET Unknown error type:", typeof error, error)
+    }
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Enhanced tracking service temporarily unavailable",
+      },
+      { status: 500 },
+    )
+  }
 }

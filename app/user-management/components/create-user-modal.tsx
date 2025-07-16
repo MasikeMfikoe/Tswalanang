@@ -301,7 +301,13 @@ export default function CreateUserModal({ isOpen, onClose, onCreateUser, userTyp
               <Label htmlFor="password" className={errors.password ? "text-red-500" : ""}>
                 Temporary Password *
               </Label>
-              <Button type="button" variant="outline" size="sm" onClick={generateRandomPassword} className="text-xs">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={generateRandomPassword}
+                className="text-xs bg-transparent"
+              >
                 Generate Random Password
               </Button>
             </div>
