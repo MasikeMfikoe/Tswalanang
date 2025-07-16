@@ -517,3 +517,17 @@ export class MarineTrafficService {
     return result
   }
 }
+
+/**
+ * Convenience helper used by server actions / API routes.
+ * It instantiates an internal MarineTrafficService with the
+ * server-side `MARINE_TRAFFIC_API_KEY` and forwards the call.
+ *
+ * @param imo  – IMO number of the vessel
+ * @returns    – Vessel‐position response from Marine Traffic
+ */
+export async function getVesselPosition(imo: string) {
+  const apiKey = process.env.MARINE_TRAFFIC_API_KEY ?? ""
+  const service = new MarineTrafficService(apiKey)
+  return service.getVesselPosition(imo)
+}
