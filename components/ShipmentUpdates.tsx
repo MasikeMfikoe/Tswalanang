@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { RefreshCw, Ship, Package, MapPin, Calendar } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 import type { ShipmentUpdate } from "@/types/shipping"
-import { MarineTrafficService } from "@/lib/services/marinetraffic-service"
 
 const useMarineTraffic = true // Enable/disable MarineTraffic integration
 
@@ -75,13 +74,16 @@ export default function ShipmentUpdates({ orderId }: ShipmentUpdatesProps) {
   }
 
   const fetchVesselPosition = useCallback(async (imo: string) => {
-    const marineTrafficService = new MarineTrafficService(process.env.NEXT_PUBLIC_MARINE_TRAFFIC_API_KEY || "")
-    const positionResult = await marineTrafficService.getVesselPosition(imo)
-
-    if (positionResult.success) {
-      setVesselPosition(positionResult.data)
-    } else {
-      console.error("Error fetching vessel position from MarineTraffic:", positionResult.error)
+    try {
+      const res = await fetch(`/api/vessel-position?imo=${imo}`)
+      const json = await res.json()
+      if (json.success) {
+        setVesselPosition(json.data)
+      } else {
+        console.error("Error fetching vessel position:", json.error)
+      }
+    } catch (err) {
+      console.error("Error fetching vessel position:", err)
     }
   }, [])
 

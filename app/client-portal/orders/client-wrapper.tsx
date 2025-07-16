@@ -1,13 +1,13 @@
 "use client"
 
+/**
+ * Hosts the dynamic import of the heavy client-only page so
+ * the server component stays 100 % compliant.
+ */
 import dynamic from "next/dynamic"
 
-/**
- * Client component that dynamically imports the heavy ClientPortalOrdersPage
- * with `ssr:false`, keeping the parent server component clean.
- */
 const ClientPortalOrdersPage = dynamic(() => import("./ClientPortalOrdersPage"), { ssr: false })
 
-export default function ClientPortalOrdersWrapper() {
+export default function OrdersClientWrapper() {
   return <ClientPortalOrdersPage />
 }

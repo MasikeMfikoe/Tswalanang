@@ -235,49 +235,55 @@ const AIR_PREFIX_MAP: Record<string, string> = {
 const SEA_CONTAINER_REGEX = /^[A-Z]{4}\d{7}$/ // e.g. MSCU1234567
 const AIR_AWB_REGEX = /^\d{3}-\d{8}$/ // e.g. 618-12345678
 
-export function detectContainerInfo(number: string): DetectedInfo {
-  const trimmed = number.trim().toUpperCase()
+type Mode = "sea" | "air" | "unknown"
 
-  // Sea container (4 letters + 7 digits)
-  if (SEA_CONTAINER_REGEX.test(trimmed)) {
-    const prefix = trimmed.slice(0, 4)
-    return {
-      mode: "sea",
-      carrierCode: prefix,
-      carrierName: SEA_PREFIX_MAP[prefix],
-    }
-  }
-
-  // Air-freight AWB (3 digits – 8 digits)
-  if (AIR_AWB_REGEX.test(trimmed)) {
-    const prefix = trimmed.split("-")[0]
-    return {
-      mode: "air",
-      carrierCode: prefix,
-      carrierName: AIR_PREFIX_MAP[prefix],
-    }
-  }
-
-  // Unknown pattern
-  return { mode: null }
+interface DetectionResult {
+  mode: Mode
+  carrierPrefix?: string
 }
 
 /**
- * Get human-readable carrier information given a prefix or code.
- * Returns `null` if the prefix is unrecognised.
+ * Detect transport mode (sea container vs air waybill) and extract the prefix.
+ *  • Sea containers: 4-letter prefix + 7 digits (e.g. MSCU1234567)
+ *  • Air waybills : 3-digit IATA prefix + 8 digits (e.g. 618-12345678)
  */
-export function getShippingLineInfo(prefix: string): ShippingLineInfo {
-  const upper = prefix.toUpperCase()
+export function detectContainerInfo(number: string): DetectionResult {
+  const cleaned = number.trim().toUpperCase()
 
-  if (SEA_PREFIX_MAP[upper]) {
-    return { carrierName: SEA_PREFIX_MAP[upper], mode: "sea" }
+  // ISO 6346 container
+  const seaMatch = cleaned.match(/^([A-Z]{4})\d{7}$/)
+  if (seaMatch) {
+    return { mode: "sea", carrierPrefix: seaMatch[1] }
   }
 
-  if (AIR_PREFIX_MAP[upper]) {
-    return { carrierName: AIR_PREFIX_MAP[upper], mode: "air" }
+  // IATA airway-bill
+  const airMatch = cleaned.match(/^(\d{3})[-\s]?\d{8}$/)
+  if (airMatch) {
+    return { mode: "air", carrierPrefix: airMatch[1] }
   }
 
-  return {}
+  return { mode: "unknown" }
+}
+
+/**
+ * Look up a readable carrier name from a known prefix.
+ * Extend these tables as required.
+ */
+const SEA_PREFIX_TABLE: Record<string, string> = {
+  MSCU: "Mediterranean Shipping Co (MSC)",
+  MAEU: "Maersk",
+  CMAU: "CMA CGM",
+}
+
+const AIR_PREFIX_TABLE: Record<string, string> = {
+  "618": "Emirates SkyCargo",
+  "176": "Air France",
+}
+
+export function getShippingLineInfo(prefix: string) {
+  const name = SEA_PREFIX_TABLE[prefix] ?? AIR_PREFIX_TABLE[prefix] ?? null
+
+  return name ? { prefix, name } : null
 }
 
 export function getAllCarrierNames(): string[] {
