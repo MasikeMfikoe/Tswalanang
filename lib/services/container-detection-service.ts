@@ -19,9 +19,14 @@ export interface DetectedTrackingInfo {
 export type TransportMode = "sea" | "air" | "unknown"
 
 export interface DetectedInfo {
-  transportMode: TransportMode
+  mode: "sea" | "air" | null
   carrierCode?: string
-  raw: string
+  carrierName?: string
+}
+
+export interface ShippingLineInfo {
+  carrierName?: string
+  mode?: "sea" | "air"
 }
 
 const carriers: Record<string, CarrierDetails> = {
@@ -204,18 +209,19 @@ function getCarrierByPrefix(prefix: string): CarrierDetails | undefined {
 
 //  Shipping-line container codes (subset – extend as needed)
 const SEA_PREFIX_MAP: Record<string, string> = {
-  MSCU: "Mediterranean Shipping Company (MSC)",
-  MAEU: "Maersk Line",
-  SUDU: "Hamburg Süd",
+  MSCU: "MSC",
+  MAEU: "Maersk",
   CMAU: "CMA-CGM",
-  ONEU: "Ocean Network Express",
+  HDMU: "HMM",
+  // add more as required
 }
 
 //  IATA airline prefixes (subset – extend as needed)
 const AIR_PREFIX_MAP: Record<string, string> = {
-  "618": "Emirates",
-  "176": "Qatar Airways",
-  "014": "American Airlines",
+  "618": "Qatar Airways",
+  "016": "United Airlines",
+  "176": "Singapore Airlines",
+  // add more as required
 }
 
 /* ------------------------------------------------------------------ */
@@ -226,46 +232,52 @@ const AIR_PREFIX_MAP: Record<string, string> = {
  * Best-effort detection of transport mode and carrier information.
  * Exposed under two names to satisfy different call-sites.
  */
-export function detectShipmentTrackingInfo(number: string): DetectedInfo {
+const SEA_CONTAINER_REGEX = /^[A-Z]{4}\d{7}$/ // e.g. MSCU1234567
+const AIR_AWB_REGEX = /^\d{3}-\d{8}$/ // e.g. 618-12345678
+
+export function detectContainerInfo(number: string): DetectedInfo {
   const trimmed = number.trim().toUpperCase()
 
-  // --- Sea container number 4-letter owner code + 'U' + 7 digits (11 chars)
-  if (/^[A-Z]{4}U\d{7}$/.test(trimmed)) {
-    const prefix = trimmed.slice(0, 4) + "U"
+  // Sea container (4 letters + 7 digits)
+  if (SEA_CONTAINER_REGEX.test(trimmed)) {
+    const prefix = trimmed.slice(0, 4)
     return {
-      transportMode: "sea",
+      mode: "sea",
       carrierCode: prefix,
-      raw: number,
+      carrierName: SEA_PREFIX_MAP[prefix],
     }
   }
 
-  // --- AWB format 3-digit prefix-8-digit serial (may include a dash)
-  if (/^\d{3}-?\d{8}$/.test(trimmed)) {
-    const prefix = trimmed.slice(0, 3)
+  // Air-freight AWB (3 digits – 8 digits)
+  if (AIR_AWB_REGEX.test(trimmed)) {
+    const prefix = trimmed.split("-")[0]
     return {
-      transportMode: "air",
+      mode: "air",
       carrierCode: prefix,
-      raw: number,
+      carrierName: AIR_PREFIX_MAP[prefix],
     }
   }
 
-  // Fallback
-  return { transportMode: "unknown", raw: number }
+  // Unknown pattern
+  return { mode: null }
 }
 
 /**
  * Get human-readable carrier information given a prefix or code.
  * Returns `null` if the prefix is unrecognised.
  */
-export function getShippingLineInfo(code: string): { name: string; code: string } | null {
-  const upper = code.toUpperCase()
+export function getShippingLineInfo(prefix: string): ShippingLineInfo {
+  const upper = prefix.toUpperCase()
+
   if (SEA_PREFIX_MAP[upper]) {
-    return { name: SEA_PREFIX_MAP[upper], code: upper }
+    return { carrierName: SEA_PREFIX_MAP[upper], mode: "sea" }
   }
+
   if (AIR_PREFIX_MAP[upper]) {
-    return { name: AIR_PREFIX_MAP[upper], code: upper }
+    return { carrierName: AIR_PREFIX_MAP[upper], mode: "air" }
   }
-  return null
+
+  return {}
 }
 
 export function getAllCarrierNames(): string[] {
@@ -288,13 +300,13 @@ export function getCarrierInfoByName(name: string): CarrierDetails | null {
 /* ------------------------------------------------------------------ */
 /*  Backward-compatibility aliases                                     */
 /* ------------------------------------------------------------------ */
-export const detectContainerInfo = detectShipmentTrackingInfo
+export const detectShipmentTrackingInfo = detectContainerInfo
 
 /**
  * Alias for backwards-compatibility.
- * Returns the same object as detectShipmentTrackingInfo.
+ * Returns the same object as detectContainerInfo.
  */
-export const detectAirCargoInfo = detectShipmentTrackingInfo
+export const detectAirCargoInfo = detectContainerInfo
 
 /**
  * Given a shipping-line prefix (e.g. "MSCU") **or** the carrier name

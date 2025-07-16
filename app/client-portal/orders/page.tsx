@@ -1,10 +1,5 @@
-/**
- * A tiny wrapper server component that dynamically loads the full client page.
- * Keeping this file minimal avoids huge chunks & ‘Loading chunk failed’ errors.
- */
+import ClientPortalOrdersWrapper from "./client-wrapper"
 
-import ClientPortalOrdersClientWrapper from "./client-wrapper"
-
-export default function OrdersRoute() {
-  return <ClientPortalOrdersClientWrapper />
+export default function Page() {
+  return <ClientPortalOrdersWrapper />
 }

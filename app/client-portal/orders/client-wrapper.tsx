@@ -3,14 +3,11 @@
 import dynamic from "next/dynamic"
 
 /**
- * Client-only wrapper that lazily loads the heavy ClientPortalOrdersPage
- * while keeping the server route segment minimal.
+ * Client component that dynamically imports the heavy ClientPortalOrdersPage
+ * with `ssr:false`, keeping the parent server component clean.
  */
-const ClientPortalOrdersPage = dynamic(() => import("./ClientPortalOrdersPage"), {
-  // Rendering happens on the client only
-  ssr: false,
-})
+const ClientPortalOrdersPage = dynamic(() => import("./ClientPortalOrdersPage"), { ssr: false })
 
-export default function ClientPortalOrdersClientWrapper() {
+export default function ClientPortalOrdersWrapper() {
   return <ClientPortalOrdersPage />
 }
