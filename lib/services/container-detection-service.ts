@@ -247,20 +247,26 @@ interface DetectionResult {
  *  • Sea containers: 4-letter prefix + 7 digits (e.g. MSCU1234567)
  *  • Air waybills : 3-digit IATA prefix + 8 digits (e.g. 618-12345678)
  */
-export function detectContainerInfo(number: string): DetectionResult {
-  const cleaned = number.trim().toUpperCase()
+export function detectContainerInfo(number: string): { mode: Mode; carrierPrefix?: string } {
+  if (!number) return { mode: "unknown" }
 
-  // ISO 6346 container
-  const seaMatch = cleaned.match(/^([A-Z]{4})\d{7}$/)
-  if (seaMatch) {
-    return { mode: "sea", carrierPrefix: seaMatch[1] }
+  const upper = number.trim().toUpperCase()
+
+  // Check 3-digit IATA prefixes for air waybills
+  const iata = upper.slice(0, 3)
+  if (/^\d{3}$/.test(iata) && CARRIER_PREFIXES[iata]) {
+    return { mode: "air", carrierPrefix: iata }
   }
 
-  // IATA airway-bill
-  const airMatch = cleaned.match(/^(\d{3})[-\s]?\d{8}$/)
-  if (airMatch) {
-    return { mode: "air", carrierPrefix: airMatch[1] }
+  // Check 4-letter ocean container prefixes
+  const oceanPrefix = upper.slice(0, 4)
+  if (/^[A-Z]{4}$/.test(oceanPrefix) && CARRIER_PREFIXES[oceanPrefix]) {
+    return { mode: "sea", carrierPrefix: oceanPrefix }
   }
+
+  // Fallback simple heuristics
+  if (/^[A-Z]{4}\d{7}$/.test(upper)) return { mode: "sea" }
+  if (/^\d{11}$/.test(upper)) return { mode: "air" }
 
   return { mode: "unknown" }
 }
@@ -280,10 +286,17 @@ const AIR_PREFIX_TABLE: Record<string, string> = {
   "176": "Air France",
 }
 
-export function getShippingLineInfo(prefix: string) {
-  const name = SEA_PREFIX_TABLE[prefix] ?? AIR_PREFIX_TABLE[prefix] ?? null
+const CARRIER_PREFIXES: Record<string, { name: string; mode: Mode }> = {
+  MSCU: { name: "MSC", mode: "sea" },
+  MAEU: { name: "Maersk", mode: "sea" },
+  CMAU: { name: "CMA-CGM", mode: "sea" },
+  ONEU: { name: "Ocean Network Express", mode: "sea" },
+  "618": { name: "Cathay Pacific Cargo", mode: "air" }, // IATA prefix example
+}
 
-  return name ? { prefix, name } : null
+export function getShippingLineInfo(prefix: string | undefined) {
+  if (!prefix) return undefined
+  return CARRIER_PREFIXES[prefix.toUpperCase()]
 }
 
 export function getAllCarrierNames(): string[] {

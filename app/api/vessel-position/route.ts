@@ -1,20 +1,23 @@
-import { NextResponse } from "next/server"
-import { MarineTrafficService } from "@/lib/services/marinetraffic-service"
+import { type NextRequest, NextResponse } from "next/server"
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url)
-  const imo = searchParams.get("imo")
-
+export async function GET(req: NextRequest) {
+  const imo = req.nextUrl.searchParams.get("imo")
   if (!imo) {
-    return NextResponse.json({ success: false, error: "IMO is required" }, { status: 400 })
+    return NextResponse.json({ error: "Missing IMO" }, { status: 400 })
   }
 
-  const service = new MarineTrafficService(process.env.MARINE_TRAFFIC_API_KEY || "")
-
   try {
-    const data = await service.getVesselPosition(imo)
-    return NextResponse.json(data)
+    const res = await fetch(
+      `https://services.marinetraffic.com/api/exportvessel/v:8/${process.env.MARINE_TRAFFIC_API_KEY}/imo:${imo}`,
+    )
+
+    if (!res.ok) {
+      return NextResponse.json({ error: "MarineTraffic error", status: res.status }, { status: res.status })
+    }
+
+    const data = await res.text() // MarineTraffic often returns CSV / text
+    return NextResponse.json({ data })
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message ?? "Unknown error" }, { status: 500 })
+    return NextResponse.json({ error: "Server error", message: err.message }, { status: 500 })
   }
 }
