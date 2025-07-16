@@ -5,7 +5,8 @@ export class SeaRatesService {
   private baseUrl: string
 
   constructor() {
-    this.apiKey = process.env.SEARATES_API_KEY || ""
+    // Use the provided API key directly
+    this.apiKey = process.env.SEARATES_API_KEY || "K-A6ACE445-D8FF-4B45-A177-DAC3C763F752"
     this.baseUrl = "https://tracking.searates.com/tracking" // Updated API endpoint
   }
 

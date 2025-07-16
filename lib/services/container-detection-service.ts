@@ -16,6 +16,14 @@ export interface DetectedTrackingInfo {
   originalInput: string
 }
 
+export type TransportMode = "sea" | "air" | "unknown"
+
+export interface DetectedInfo {
+  transportMode: TransportMode
+  carrierCode?: string
+  raw: string
+}
+
 const carriers: Record<string, CarrierDetails> = {
   // Ocean Carriers (Container/BL)
   BMOU: {
@@ -194,78 +202,70 @@ function getCarrierByPrefix(prefix: string): CarrierDetails | undefined {
   return undefined
 }
 
-export function detectShipmentTrackingInfo(trackingNumber: string): DetectedTrackingInfo {
-  const originalInput = trackingNumber.trim()
-  const cleanNumber = originalInput.toUpperCase().replace(/[\s-]/g, "")
+//  Shipping-line container codes (subset – extend as needed)
+const SEA_PREFIX_MAP: Record<string, string> = {
+  MSCU: "Mediterranean Shipping Company (MSC)",
+  MAEU: "Maersk Line",
+  SUDU: "Hamburg Süd",
+  CMAU: "CMA-CGM",
+  ONEU: "Ocean Network Express",
+}
 
-  let detectedType: "container" | "bl" | "awb" | "booking" | "unknown" = "unknown"
-  let carrierDetails: CarrierDetails | null = null
-  let isValidFormat = false
+//  IATA airline prefixes (subset – extend as needed)
+const AIR_PREFIX_MAP: Record<string, string> = {
+  "618": "Emirates",
+  "176": "Qatar Airways",
+  "014": "American Airlines",
+}
 
-  // Attempt to detect Air Waybill (AWB) - usually 3-digit prefix + 8 digits (e.g., 071-12345678)
-  const awbPattern = /^(\d{3})-?(\d{8})$/
-  const awbMatch = cleanNumber.match(awbPattern)
-  if (awbMatch) {
-    const prefix = awbMatch[1]
-    carrierDetails = getCarrierByPrefix(prefix)
-    if (carrierDetails && carrierDetails.type === "air") {
-      detectedType = "awb"
-      isValidFormat = true
+/* ------------------------------------------------------------------ */
+/*  Public helpers                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Best-effort detection of transport mode and carrier information.
+ * Exposed under two names to satisfy different call-sites.
+ */
+export function detectShipmentTrackingInfo(number: string): DetectedInfo {
+  const trimmed = number.trim().toUpperCase()
+
+  // --- Sea container number 4-letter owner code + 'U' + 7 digits (11 chars)
+  if (/^[A-Z]{4}U\d{7}$/.test(trimmed)) {
+    const prefix = trimmed.slice(0, 4) + "U"
+    return {
+      transportMode: "sea",
+      carrierCode: prefix,
+      raw: number,
     }
   }
 
-  // If not AWB, try to detect Container or Bill of Lading
-  if (!isValidFormat) {
-    // Container number pattern: 4 letters + 7 digits (e.g., XXXU1234567)
-    const containerPattern = /^([A-Z]{4})(\d{7})$/
-    const containerMatch = cleanNumber.match(containerPattern)
-    if (containerMatch) {
-      const prefix = containerMatch[1]
-      carrierDetails = getCarrierByPrefix(prefix)
-      if (carrierDetails && (carrierDetails.type === "ocean" || carrierDetails.type === "lcl")) {
-        detectedType = "container"
-        isValidFormat = true
-      }
+  // --- AWB format 3-digit prefix-8-digit serial (may include a dash)
+  if (/^\d{3}-?\d{8}$/.test(trimmed)) {
+    const prefix = trimmed.slice(0, 3)
+    return {
+      transportMode: "air",
+      carrierCode: prefix,
+      raw: number,
     }
   }
 
-  // If not container/AWB, try to detect Bill of Lading (often 4 letters + variable digits)
-  // Or generic booking reference (variable length, alphanumeric)
-  if (!isValidFormat) {
-    // Common BL pattern: 4 letters followed by 9-12 digits (example, MAEU123456789)
-    const blPrefix = cleanNumber.substring(0, 4)
-    carrierDetails = getCarrierByPrefix(blPrefix)
-    if (carrierDetails && (carrierDetails.type === "ocean" || carrierDetails.type === "lcl")) {
-      // Could be BL or Booking reference if it starts with a known ocean carrier prefix
-      // For simplicity, treat as 'bl' if it matches carrier prefix and has reasonable length
-      if (cleanNumber.length >= 8 && cleanNumber.length <= 20) {
-        // Arbitrary length for BL/Booking
-        detectedType = "bl"
-        isValidFormat = true
-      }
-    }
-  }
+  // Fallback
+  return { transportMode: "unknown", raw: number }
+}
 
-  // Fallback to generic booking if it's alphanumeric and has a reasonable length
-  if (!isValidFormat && cleanNumber.length >= 6 && cleanNumber.length <= 25 && /^[A-Z0-9]+$/.test(cleanNumber)) {
-    detectedType = "booking"
-    isValidFormat = true
-    // Try to find a carrier based on first few characters if it's a booking reference, though less reliable
-    const genericPrefix = cleanNumber.substring(0, 4)
-    carrierDetails = getCarrierByPrefix(genericPrefix) || null
-    if (carrierDetails && !["ocean", "air", "lcl"].includes(carrierDetails.type)) {
-      // If the detected carrier is not explicitly ocean/air/lcl, revert to unknown carrier
-      carrierDetails = null
-    }
+/**
+ * Get human-readable carrier information given a prefix or code.
+ * Returns `null` if the prefix is unrecognised.
+ */
+export function getShippingLineInfo(code: string): { name: string; code: string } | null {
+  const upper = code.toUpperCase()
+  if (SEA_PREFIX_MAP[upper]) {
+    return { name: SEA_PREFIX_MAP[upper], code: upper }
   }
-
-  return {
-    cleanNumber,
-    type: detectedType,
-    carrierDetails: carrierDetails,
-    isValidFormat: isValidFormat,
-    originalInput: originalInput,
+  if (AIR_PREFIX_MAP[upper]) {
+    return { name: AIR_PREFIX_MAP[upper], code: upper }
   }
+  return null
 }
 
 export function getAllCarrierNames(): string[] {
@@ -282,5 +282,42 @@ export function getCarrierInfoByName(name: string): CarrierDetails | null {
       return carriers[key]
     }
   }
+  return null
+}
+
+/* ------------------------------------------------------------------ */
+/*  Backward-compatibility aliases                                     */
+/* ------------------------------------------------------------------ */
+export const detectContainerInfo = detectShipmentTrackingInfo
+
+/**
+ * Alias for backwards-compatibility.
+ * Returns the same object as detectShipmentTrackingInfo.
+ */
+export const detectAirCargoInfo = detectShipmentTrackingInfo
+
+/**
+ * Given a shipping-line prefix (e.g. "MSCU") **or** the carrier name
+ * (e.g. "MSC"), return the matching CarrierDetails or null.
+ */
+export function getLegacyShippingLineInfo(prefixOrName: string): CarrierDetails | null {
+  const query = prefixOrName.trim().toUpperCase()
+
+  // 1️⃣  Try prefix match
+  for (const key in carriers) {
+    const carrier = carriers[key]
+    if (carrier.prefixes.map((p) => p.toUpperCase()).includes(query)) {
+      return carrier
+    }
+  }
+
+  // 2️⃣  Try name match (case-insensitive)
+  for (const key in carriers) {
+    const carrier = carriers[key]
+    if (carrier.name.toUpperCase() === query) {
+      return carrier
+    }
+  }
+
   return null
 }
