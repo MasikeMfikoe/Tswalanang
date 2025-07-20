@@ -1,12 +1,11 @@
 /**
- * A tiny wrapper server component that dynamically loads the full client page.
- * Keeping this file minimal avoids huge chunks & ‘Loading chunk failed’ errors.
+ * Server component route - delegates rendering to a tiny
+ * client wrapper so we can use `dynamic(..., { ssr:false })`
+ * without violating the server-component rules.
  */
 
-import dynamic from "next/dynamic"
-
-const ClientPortalOrdersPage = dynamic(() => import("./ClientPortalOrdersPage"), { ssr: false })
+import OrdersPageLoader from "./orders-page-loader"
 
 export default function OrdersRoute() {
-  return <ClientPortalOrdersPage />
+  return <OrdersPageLoader />
 }
