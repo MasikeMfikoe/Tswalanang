@@ -7,11 +7,11 @@ export async function POST(request: NextRequest) {
     const { trackingNumber, bookingType, preferScraping = false, carrierHint } = body
 
     console.log(
-      `[API/Tracking] Received request for trackingNumber: ${trackingNumber}, bookingType: ${bookingType}, preferScraping: ${preferScraping}, carrierHint: ${carrierHint}`,
+      `[API/Tracking] Received POST request for trackingNumber: ${trackingNumber}, bookingType: ${bookingType}, preferScraping: ${preferScraping}, carrierHint: ${carrierHint}`,
     )
 
     if (!trackingNumber) {
-      console.warn("[API/Tracking] Missing tracking number in request.")
+      console.warn("[API/Tracking] Missing tracking number in POST request.")
       return NextResponse.json(
         {
           success: false,
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const multiProviderTrackingService = new MultiProviderTrackingService()
-    console.log("[API/Tracking] MultiProviderTrackingService initialized.")
+    console.log("[API/Tracking] MultiProviderTrackingService initialized for POST.")
 
     const result = await multiProviderTrackingService.trackShipment(trackingNumber, {
       preferredProvider: bookingType === "ocean" || bookingType === "lcl" ? "TrackShip" : undefined, // Prefer TrackShip for ocean/lcl
@@ -52,14 +52,14 @@ export async function POST(request: NextRequest) {
       })
     }
   } catch (error) {
-    console.error("[API/Tracking] Uncaught API error:", error)
+    console.error("[API/Tracking] Uncaught API POST error:", error)
     // Log the full error object for debugging
     if (error instanceof Error) {
       console.error("[API/Tracking] Error name:", error.name)
       console.error("[API/Tracking] Error message:", error.message)
       console.error("[API/Tracking] Error stack:", error.stack)
     } else {
-      console.error("[API/Tracking] Unknown error type:", typeof error, error)
+      console.error("[API/Tracking] Unknown error type in POST:", typeof error, error)
     }
 
     return NextResponse.json(
@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const multiProviderTrackingService = new MultiProviderTrackingService()
+    console.log("[API/Tracking] MultiProviderTrackingService initialized for GET.")
     const result = await multiProviderTrackingService.trackShipment(containerNumber, {
       preferScraping,
       carrierHint: carrierHint || undefined,

@@ -284,3 +284,12 @@ export function getCarrierInfoByName(name: string): CarrierDetails | null {
   }
   return null
 }
+
+// Alias wrappers for backward-compat imports -----------------
+export function detectContainerInfo(trackingNumber: string) {
+  return detectShipmentTrackingInfo(trackingNumber)
+}
+
+export function getShippingLineInfo(name: string) {
+  return getCarrierInfoByName(name)
+}

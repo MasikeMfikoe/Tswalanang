@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Ship,
@@ -15,21 +14,52 @@ import {
   XCircle,
   ExternalLink,
 } from "lucide-react"
-import type { TrackingResult } from "@/types/tracking"
+import type { TrackingResult, TrackingEvent } from "@/types/tracking"
+import { format, parseISO } from "date-fns"
+import { Info, Truck } from "lucide-react" // Added missing imports
+import { getStatusBadge } from "@/utils/status-badge"
 
-interface ShipmentTrackingResultsProps {
-  trackingNumber: string
-  bookingType: "ocean" | "air" | "lcl" | "unknown"
-  preferScraping: boolean
-  carrierHint?: string
+const getStatusColor = (status: string) => {
+  const lowerStatus = status.toLowerCase()
+  if (lowerStatus.includes("delivered") || lowerStatus.includes("completed")) {
+    return "bg-green-100 text-green-800"
+  }
+  if (lowerStatus.includes("in transit") || lowerStatus.includes("departed") || lowerStatus.includes("arrived")) {
+    return "bg-blue-100 text-blue-800"
+  }
+  if (lowerStatus.includes("pending") || lowerStatus.includes("exception")) {
+    return "bg-yellow-100 text-yellow-800"
+  }
+  return "bg-gray-100 text-gray-800"
 }
 
-export default function ShipmentTrackingResults({
-  trackingNumber,
-  bookingType,
-  preferScraping,
-  carrierHint,
-}: ShipmentTrackingResultsProps) {
+const getEventIcon = (event: TrackingEvent) => {
+  const status = event.status.toLowerCase()
+  if (status.includes("departed") || status.includes("loaded")) {
+    return event.mode === "air" ? <PlaneTakeoff className="h-4 w-4" /> : <Ship className="h-4 w-4" />
+  }
+  if (status.includes("arrived") || status.includes("unloaded")) {
+    return <MapPin className="h-4 w-4" />
+  }
+  if (status.includes("delivered")) {
+    return <Truck className="h-4 w-4" />
+  }
+  return <Info className="h-4 w-4" />
+}
+
+const getIconForBookingType = (type: string) => {
+  switch (type) {
+    case "ocean":
+    case "lcl":
+      return <Ship className="h-4 w-4 mr-1 text-blue-500" />
+    case "air":
+      return <PlaneTakeoff className="h-4 w-4 mr-1 text-purple-500" />
+    default:
+      return <Package className="h-4 w-4 mr-1 text-gray-500" />
+  }
+}
+
+export default function ShipmentTrackingResults({ trackingNumber, bookingType, preferScraping, carrierHint }: any) {
   const [isLoading, setIsLoading] = useState(true)
   const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null)
   const [error, setError] = useState<{
@@ -59,16 +89,36 @@ export default function ShipmentTrackingResults({
           }),
         })
 
-        const result: TrackingResult = await response.json()
+        let result: TrackingResult | null = null
+        let fallbackText = ""
 
-        if (result.success) {
-          setTrackingResult(result)
+        try {
+          result = await response.clone().json()
+        } catch {
+          fallbackText = await response.text()
+        }
+
+        if (result) {
+          if (result.success) {
+            setTrackingResult(result)
+          } else {
+            setError({
+              title: "Tracking Failed",
+              message: result.error || "Could not retrieve tracking information.",
+              suggestion: "Please check the tracking number and try again.",
+              fallbackOptions: result.fallbackOptions,
+            })
+          }
         } else {
           setError({
-            title: "Tracking Failed",
-            message: result.error || "Could not retrieve tracking information.",
-            suggestion: "Please check the tracking number and try again.",
-            fallbackOptions: result.fallbackOptions,
+            title: "Server Error",
+            message: `Tracking service returned an unexpected response${
+              response.status ? ` (HTTP ${response.status})` : ""
+            }.`,
+            suggestion:
+              fallbackText.length > 0
+                ? `Response excerpt: ${fallbackText.slice(0, 120)}…`
+                : "Please try again later or contact support.",
           })
         }
       } catch (err) {
@@ -87,48 +137,14 @@ export default function ShipmentTrackingResults({
     }
   }, [trackingNumber, bookingType, preferScraping, carrierHint])
 
-  const getStatusBadge = (status: string) => {
-    const statusLower = status.toLowerCase()
-    let colorClass = "bg-gray-100 text-gray-800"
-
-    if (statusLower.includes("transit") || statusLower.includes("departed") || statusLower.includes("loaded")) {
-      colorClass = "bg-blue-100 text-blue-800"
-    } else if (statusLower.includes("arrived") || statusLower.includes("at destination")) {
-      colorClass = "bg-green-100 text-green-800"
-    } else if (statusLower.includes("delivered") || statusLower.includes("completed")) {
-      colorClass = "bg-emerald-100 text-emerald-800"
-    } else if (statusLower.includes("pending") || statusLower.includes("scheduled")) {
-      colorClass = "bg-yellow-100 text-yellow-800"
-    } else if (statusLower.includes("exception") || statusLower.includes("delay")) {
-      colorClass = "bg-red-100 text-red-800"
-    }
-
-    return (
-      <Badge variant="secondary" className={`${colorClass} px-3 py-1 text-xs font-medium`}>
-        {status.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-      </Badge>
-    )
-  }
-
-  const formatTimestamp = (timestamp: string) => {
+  const formatTimestamp = (timestamp: string | null | undefined) => {
+    if (!timestamp) return "N/A"
     try {
-      const date = new Date(timestamp)
-      if (isNaN(date.getTime())) return "N/A" // Check for invalid date
-      return date.toLocaleString()
+      const date = parseISO(timestamp)
+      if (isNaN(date.getTime())) return "N/A"
+      return format(date, "PPP p")
     } catch {
       return "N/A"
-    }
-  }
-
-  const getIconForBookingType = (type: string) => {
-    switch (type) {
-      case "ocean":
-      case "lcl":
-        return <Ship className="h-4 w-4 mr-1 text-blue-500" />
-      case "air":
-        return <PlaneTakeoff className="h-4 w-4 mr-1 text-purple-500" />
-      default:
-        return <Package className="h-4 w-4 mr-1 text-gray-500" />
     }
   }
 

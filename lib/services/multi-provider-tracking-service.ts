@@ -19,29 +19,39 @@ export class MultiProviderTrackingService {
   private initializeProviders() {
     this.providers = [] // Clear existing providers
 
-    // SeaRates Provider (Priority 1)
+    // Gocomet Provider (Priority 1 - default)
+    // Now checks for GOCOMET_EMAIL and GOCOMET_PASSWORD
+    if (process.env.GOCOMET_EMAIL && process.env.GOCOMET_PASSWORD) {
+      this.providers.push({
+        name: "Gocomet",
+        priority: 1, // Highest priority
+        isAvailable: () => !!process.env.GOCOMET_EMAIL && !!process.env.GOCOMET_PASSWORD,
+        track: this.trackWithGocomet.bind(this),
+        supportedCarriers: ["*"], // GoComet supports all modes
+      })
+    }
+
+    // SeaRates Provider (Priority 2)
     if (process.env.SEARATES_API_KEY) {
       this.providers.push({
         name: "SeaRates",
-        priority: 1,
+        priority: 2,
         isAvailable: () => !!process.env.SEARATES_API_KEY,
         track: this.trackWithSeaRates.bind(this),
         supportedCarriers: ["*"],
       })
     }
 
-    // Gocomet Provider (Priority 2)
-    if (process.env.GOCOMET_API_KEY) {
-      this.providers.push({
-        name: "Gocomet",
-        priority: 2,
-        isAvailable: () => !!process.env.GOCOMET_API_KEY,
-        track: this.trackWithGocomet.bind(this),
-        supportedCarriers: ["*"],
-      })
-    }
+    // Add Web Scraping as a fallback (Priority 3)
+    this.providers.push({
+      name: "Web Scraping",
+      priority: 3,
+      isAvailable: () => true, // Web scraping is generally always available as a last resort
+      track: this.trackWithWebScraping.bind(this),
+      supportedCarriers: ["*"],
+    })
 
-    // Sort by priority (though with only two, it's less critical)
+    // Sort by priority
     this.providers.sort((a, b) => a.priority - b.priority)
   }
 
@@ -61,14 +71,14 @@ export class MultiProviderTrackingService {
       const webScrapingProvider = this.providers.find((p) => p.name === "Web Scraping")
       if (webScrapingProvider?.isAvailable()) {
         try {
-          console.log(`Attempting tracking with Web Scraping (preferred)...`)
+          console.log(`[MultiProviderTrackingService] Attempting tracking with Web Scraping (preferred)...`)
           const result = await webScrapingProvider.track(cleanTrackingNumber, options.carrierHint) // Pass carrierHint to scraping
           if (result.success && result.data) {
-            console.log(`✅ Tracking successful with Web Scraping (preferred)`)
+            console.log(`[MultiProviderTrackingService] ✅ Tracking successful with Web Scraping (preferred)`)
             return { ...result, source: webScrapingProvider.name, isLiveData: true }
           }
         } catch (error) {
-          console.warn(`Preferred Web Scraping failed:`, error)
+          console.warn(`[MultiProviderTrackingService] Preferred Web Scraping failed:`, error)
         }
       }
     }
@@ -78,13 +88,15 @@ export class MultiProviderTrackingService {
       const preferredProvider = this.providers.find((p) => p.name === options.preferredProvider)
       if (preferredProvider?.isAvailable()) {
         try {
-          console.log(`Attempting tracking with ${options.preferredProvider} (preferred)...`)
+          console.log(
+            `[MultiProviderTrackingService] Attempting tracking with ${options.preferredProvider} (preferred)...`,
+          )
           const result = await preferredProvider.track(cleanTrackingNumber, options)
           if (result.success) {
             return { ...result, source: preferredProvider.name, isLiveData: true }
           }
         } catch (error) {
-          console.warn(`Preferred provider ${options.preferredProvider} failed:`, error)
+          console.warn(`[MultiProviderTrackingService] Preferred provider ${options.preferredProvider} failed:`, error)
         }
       }
     }
@@ -99,7 +111,10 @@ export class MultiProviderTrackingService {
         continue
       }
 
-      if (!provider.isAvailable()) continue
+      if (!provider.isAvailable()) {
+        console.log(`[MultiProviderTrackingService] Provider ${provider.name} is not available. Skipping.`)
+        continue
+      }
 
       // Skip if provider doesn't support the detected carrier
       if (
@@ -107,28 +122,36 @@ export class MultiProviderTrackingService {
         !provider.supportedCarriers.includes("*") &&
         !provider.supportedCarriers.includes(options.carrierHint)
       ) {
+        console.log(
+          `[MultiProviderTrackingService] Provider ${provider.name} does not support carrier hint ${options.carrierHint}. Skipping.`,
+        )
         continue
       }
 
       try {
-        console.log(`Attempting tracking with ${provider.name}...`)
+        console.log(`[MultiProviderTrackingService] Attempting tracking with ${provider.name}...`)
         const result = await provider.track(cleanTrackingNumber, options)
 
         if (result.success && result.data) {
-          console.log(`✅ Tracking successful with ${provider.name}`)
+          console.log(`[MultiProviderTrackingService] ✅ Tracking successful with ${provider.name}`)
           return {
             ...result,
             source: provider.name,
             isLiveData: true,
           }
+        } else {
+          console.warn(
+            `[MultiProviderTrackingService] Provider ${provider.name} returned no data or failed: ${result.error || "No specific error message."}`,
+          )
         }
       } catch (error) {
-        console.warn(`Provider ${provider.name} failed:`, error)
+        console.error(`[MultiProviderTrackingService] Provider ${provider.name} threw an unexpected error:`, error)
         continue
       }
     }
 
     // All providers failed
+    console.error(`[MultiProviderTrackingService] All tracking providers failed for ${trackingNumber}.`)
     return {
       success: false,
       error: "Unable to track shipment with any available provider",
