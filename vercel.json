@@ -1,0 +1,7 @@
+{
+  // Disable the strict lock-file check so the build can freely
+  // update pnpm-lock.yaml when versions in package.json change.
+  // Vercel will still cache the resulting files for faster
+  // subsequent builds.
+  "installCommand": "pnpm install --no-frozen-lockfile"
+}
