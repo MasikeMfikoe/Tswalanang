@@ -1,88 +1,42 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { LineChart } from "@/components/Charts"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 
-interface PerformanceChartsProps {
-  isDarkMode: boolean
-}
+const performanceData = [
+  { name: "Jan", "On-Time Delivery": 90, "Avg. Transit Time": 5 },
+  { name: "Feb", "On-Time Delivery": 92, "Avg. Transit Time": 4.8 },
+  { name: "Mar", "On-Time Delivery": 88, "Avg. Transit Time": 5.5 },
+  { name: "Apr", "On-Time Delivery": 95, "Avg. Transit Time": 4.2 },
+  { name: "May", "On-Time Delivery": 93, "Avg. Transit Time": 4.5 },
+  { name: "Jun", "On-Time Delivery": 96, "Avg. Transit Time": 4.0 },
+  { name: "Jul", "On-Time Delivery": 94, "Avg. Transit Time": 4.3 },
+]
 
-export function PerformanceCharts({ isDarkMode }: PerformanceChartsProps) {
+export function PerformanceCharts() {
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
-        <CardHeader>
-          <CardTitle className={`${isDarkMode ? "text-white" : "text-gray-900"}`}>Delivery Performance</CardTitle>
-          <CardDescription className={`${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
-            On-time delivery rate
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[240px]">
-            <LineChart
-              data={[
-                { name: "Jan", value: 82 },
-                { name: "Feb", value: 78 },
-                { name: "Mar", value: 85 },
-                { name: "Apr", value: 91 },
-                { name: "May", value: 88 },
-                { name: "Jun", value: 92 },
-              ]}
+    <Card>
+      <CardHeader>
+        <CardTitle>Operational Performance</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={performanceData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis yAxisId="left" label={{ value: "On-Time (%)", angle: -90, position: "insideLeft" }} />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              label={{ value: "Avg. Transit (Days)", angle: 90, position: "insideRight" }}
             />
-          </div>
-          <div className="flex justify-between items-center mt-4">
-            <div>
-              <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Current</p>
-              <p className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>92%</p>
-            </div>
-            <div>
-              <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Target</p>
-              <p className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>95%</p>
-            </div>
-            <div>
-              <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Trend</p>
-              <p className={`text-lg font-bold text-green-500`}>+4%</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
-        <CardHeader>
-          <CardTitle className={`${isDarkMode ? "text-white" : "text-gray-900"}`}>Operational Efficiency</CardTitle>
-          <CardDescription className={`${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
-            Cost per order metrics
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[240px]">
-            <LineChart
-              data={[
-                { name: "Jan", value: 450 },
-                { name: "Feb", value: 420 },
-                { name: "Mar", value: 410 },
-                { name: "Apr", value: 390 },
-                { name: "May", value: 380 },
-                { name: "Jun", value: 375 },
-              ]}
-            />
-          </div>
-          <div className="flex justify-between items-center mt-4">
-            <div>
-              <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Current</p>
-              <p className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>R 375</p>
-            </div>
-            <div>
-              <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Target</p>
-              <p className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>R 350</p>
-            </div>
-            <div>
-              <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Trend</p>
-              <p className={`text-lg font-bold text-green-500`}>-16.7%</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+            <Tooltip />
+            <Legend />
+            <Line yAxisId="left" type="monotone" dataKey="On-Time Delivery" stroke="#8884d8" activeDot={{ r: 8 }} />
+            <Line yAxisId="right" type="monotone" dataKey="Avg. Transit Time" stroke="#82ca9d" />
+          </LineChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
   )
 }

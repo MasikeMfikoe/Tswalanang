@@ -1,99 +1,72 @@
 "use client"
 
-import type React from "react"
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Package, BarChartIcon, Users, TrendingUp } from "lucide-react"
 import { KPISummaryCards } from "./KPISummaryCards"
+import { OrderStatistics } from "./OrderStatistics"
+import { CustomerStatistics } from "./CustomerStatistics"
+import { PerformanceCharts } from "./PerformanceCharts"
 import { OrderStatusCharts } from "./OrderStatusCharts"
+import { RecentOrdersList } from "./RecentOrdersList"
+import { PerformanceMetrics } from "./PerformanceMetrics"
 
-interface DashboardTabsProps {
-  isDarkMode: boolean
-  activeTab: string
-  setActiveTab: (value: string) => void
-  isLoading: boolean
-  renderSkeleton: () => React.ReactNode
-  filteredOrders: any[]
-  totalOrderValue: number
-  completedOrders: any[]
-  customers: any[]
-  orderStatusData: Array<{
-    name: string
-    value: number
-    color: string
-  }>
-  monthlyOrderTrendData: Array<{
-    name: string
-    value: number
-  }>
-  activeOrders: any[]
-  pendingOrders: any[]
-  children?: React.ReactNode
-}
-
-export function DashboardTabs({
-  isDarkMode,
-  activeTab,
-  setActiveTab,
-  isLoading,
-  renderSkeleton,
-  filteredOrders,
-  totalOrderValue,
-  completedOrders,
-  customers,
-  orderStatusData,
-  monthlyOrderTrendData,
-  activeOrders,
-  pendingOrders,
-  children,
-}: DashboardTabsProps) {
+export function DashboardTabs() {
   return (
-    <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="mb-6">
-      <TabsList className={isDarkMode ? "bg-zinc-800" : "bg-gray-100"}>
-        <TabsTrigger value="overview" className="flex items-center gap-2">
-          <BarChartIcon className="h-4 w-4" />
-          <span>Overview</span>
-        </TabsTrigger>
-        <TabsTrigger value="orders" className="flex items-center gap-2">
-          <Package className="h-4 w-4" />
-          <span>Orders</span>
-        </TabsTrigger>
-        <TabsTrigger value="customers" className="flex items-center gap-2">
-          <Users className="h-4 w-4" />
-          <span>Customers</span>
-        </TabsTrigger>
-        <TabsTrigger value="performance" className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4" />
-          <span>Performance</span>
-        </TabsTrigger>
+    <Tabs defaultValue="overview" className="w-full">
+      <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 lg:grid-cols-8">
+        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="orders">Orders</TabsTrigger>
+        <TabsTrigger value="customers">Customers</TabsTrigger>
+        <TabsTrigger value="performance">Performance</TabsTrigger>
+        <TabsTrigger value="status">Status</TabsTrigger>
+        <TabsTrigger value="metrics">Metrics</TabsTrigger>
+        <TabsTrigger value="recent">Recent</TabsTrigger>
+        <TabsTrigger value="all-charts">All Charts</TabsTrigger>
       </TabsList>
-
-      <TabsContent value="overview" className="mt-4">
-        {isLoading ? (
-          renderSkeleton()
-        ) : (
-          <>
-            <KPISummaryCards
-              isDarkMode={isDarkMode}
-              filteredOrders={filteredOrders}
-              totalOrderValue={totalOrderValue}
-              completedOrders={completedOrders}
-              customers={customers}
-            />
-            <OrderStatusCharts
-              isDarkMode={isDarkMode}
-              orderStatusData={orderStatusData}
-              monthlyOrderTrendData={monthlyOrderTrendData}
-              activeOrders={activeOrders}
-              completedOrders={completedOrders}
-              pendingOrders={pendingOrders}
-            />
-          </>
-        )}
+      <TabsContent value="overview" className="mt-6">
+        <KPISummaryCards />
+        <div className="grid gap-6 md:grid-cols-2 mt-6">
+          <OrderStatistics />
+          <CustomerStatistics />
+        </div>
+        <div className="mt-6">
+          <RecentOrdersList />
+        </div>
       </TabsContent>
-
-      {/* Other tabs content will be passed as children */}
-      {children}
+      <TabsContent value="orders" className="mt-6">
+        <OrderStatistics />
+        <div className="mt-6">
+          <RecentOrdersList />
+        </div>
+      </TabsContent>
+      <TabsContent value="customers" className="mt-6">
+        <CustomerStatistics />
+        <div className="mt-6">
+          <RecentOrdersList />
+        </div>
+      </TabsContent>
+      <TabsContent value="performance" className="mt-6">
+        <PerformanceCharts />
+        <div className="mt-6">
+          <PerformanceMetrics />
+        </div>
+      </TabsContent>
+      <TabsContent value="status" className="mt-6">
+        <OrderStatusCharts />
+      </TabsContent>
+      <TabsContent value="metrics" className="mt-6">
+        <PerformanceMetrics />
+      </TabsContent>
+      <TabsContent value="recent" className="mt-6">
+        <RecentOrdersList />
+      </TabsContent>
+      <TabsContent value="all-charts" className="mt-6">
+        <div className="grid gap-6 md:grid-cols-2">
+          <OrderStatistics />
+          <CustomerStatistics />
+          <PerformanceCharts />
+          <OrderStatusCharts />
+        </div>
+      </TabsContent>
     </Tabs>
   )
 }

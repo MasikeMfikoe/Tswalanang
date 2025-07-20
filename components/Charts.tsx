@@ -1,137 +1,113 @@
 "use client"
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
+  BarChart,
   Bar,
-  BarChart as RechartsBarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart as RechartsLineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from "recharts"
-import { useTheme } from "next-themes"
 
-type ChartData = {
-  name: string
-  value: number
-  color?: string
-}
+// Sample Data for Charts
+const salesData = [
+  { name: "Jan", sales: 4000, profit: 2400 },
+  { name: "Feb", sales: 3000, profit: 1398 },
+  { name: "Mar", sales: 2000, profit: 9800 },
+  { name: "Apr", sales: 2780, profit: 3908 },
+  { name: "May", sales: 1890, profit: 4800 },
+  { name: "Jun", sales: 2390, profit: 3800 },
+  { name: "Jul", sales: 3490, profit: 4300 },
+]
 
-interface ChartProps {
-  data: Array<{
-    name: string
-    value: number
-  }>
-  colors?: string[]
-}
+const productSalesData = [
+  { name: "Product A", value: 400 },
+  { name: "Product B", value: 300 },
+  { name: "Product C", value: 300 },
+  { name: "Product D", value: 200 },
+]
 
-export function BarChart({ data, colors = ["#3b82f6", "#6366f1", "#8b5cf6", "#ec4899"] }: ChartProps) {
-  if (!data || data.length === 0) {
-    return <div className="flex items-center justify-center h-64">No data available</div>
-  }
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"]
 
+export function Charts() {
   return (
-    <ResponsiveContainer width="100%" height={350}>
-      <RechartsBarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 30 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="name" tick={{ fill: "#888888" }} tickLine={false} axisLine={{ stroke: "#e5e7eb" }} />
-        <YAxis
-          tick={{ fill: "#888888" }}
-          tickLine={false}
-          axisLine={{ stroke: "#e5e7eb" }}
-          tickFormatter={(value) => value.toLocaleString()}
-        />
-        <Tooltip
-          formatter={(value: number) => [value.toLocaleString(), "Count"]}
-          contentStyle={{
-            backgroundColor: "#fff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "0.375rem",
-            boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)",
-          }}
-        />
-        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-          {data.map((_, index) => (
-            <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-          ))}
-        </Bar>
-      </RechartsBarChart>
-    </ResponsiveContainer>
-  )
-}
+    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+      {/* Bar Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Monthly Sales & Profit</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={salesData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="sales" fill="#8884d8" name="Sales" />
+              <Bar dataKey="profit" fill="#82ca9d" name="Profit" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
-export function LineChart({ data }: { data: ChartData[] }) {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === "dark"
+      {/* Line Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Sales Trend Over Time</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={salesData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="sales" stroke="#8884d8" activeDot={{ r: 8 }} name="Sales" />
+              <Line type="monotone" dataKey="profit" stroke="#82ca9d" name="Profit" />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <RechartsLineChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#333" : "#eee"} />
-        <XAxis
-          dataKey="name"
-          tick={{ fill: isDark ? "#aaa" : "#666" }}
-          axisLine={{ stroke: isDark ? "#333" : "#eee" }}
-        />
-        <YAxis tick={{ fill: isDark ? "#aaa" : "#666" }} axisLine={{ stroke: isDark ? "#333" : "#eee" }} />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: isDark ? "#222" : "#fff",
-            borderColor: isDark ? "#333" : "#ddd",
-            color: isDark ? "#fff" : "#000",
-          }}
-        />
-        <Line
-          type="monotone"
-          dataKey="value"
-          stroke="#3b82f6"
-          strokeWidth={2}
-          dot={{ fill: "#3b82f6", r: 4 }}
-          activeDot={{ r: 6 }}
-        />
-      </RechartsLineChart>
-    </ResponsiveContainer>
-  )
-}
-
-export function PieChartComponent({ data, colors = ["#3b82f6", "#6366f1", "#8b5cf6", "#ec4899"] }: ChartProps) {
-  if (!data || data.length === 0) {
-    return <div className="flex items-center justify-center h-64">No data available</div>
-  }
-
-  return (
-    <ResponsiveContainer width="100%" height={350}>
-      <PieChart>
-        <Pie
-          data={data}
-          cx="50%"
-          cy="50%"
-          labelLine={false}
-          outerRadius={80}
-          fill="#8884d8"
-          dataKey="value"
-          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-        >
-          {data.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-          ))}
-        </Pie>
-        <Tooltip
-          formatter={(value: number) => [value.toLocaleString(), "Count"]}
-          contentStyle={{
-            backgroundColor: "#fff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "0.375rem",
-            boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)",
-          }}
-        />
-        <Legend />
-      </PieChart>
-    </ResponsiveContainer>
+      {/* Pie Chart */}
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <CardTitle>Product Sales Distribution</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={productSalesData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                outerRadius={100}
+                fill="#8884d8"
+                dataKey="value"
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              >
+                {productSalesData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

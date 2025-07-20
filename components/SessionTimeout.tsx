@@ -1,123 +1,133 @@
 "use client"
 
+import React from "react"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { useStableId } from "@/lib/react-compatibility"
+import { useToast } from "@/components/ui/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface SessionTimeoutProps {
-  timeout?: number // in milliseconds
-  warningTime?: number // in milliseconds before timeout
-  onTimeout?: () => void
+  timeoutMinutes?: number // Default to 30 minutes
+  countdownMinutes?: number // How many minutes before timeout to show warning
+  onLogout?: () => void // Callback for custom logout logic
 }
 
-// Component implementation
-export function SessionTimeout({
-  timeout = 30 * 60 * 1000, // 30 minutes default
-  warningTime = 5 * 60 * 1000, // 5 minutes warning default
-  onTimeout = () => {},
-}: SessionTimeoutProps) {
-  const [showWarning, setShowWarning] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(warningTime / 1000)
-  const [lastActivity, setLastActivity] = useState(Date.now())
+export function SessionTimeout({ timeoutMinutes = 30, countdownMinutes = 5, onLogout }: SessionTimeoutProps) {
   const router = useRouter()
-  const dialogId = useStableId()
+  const { toast } = useToast()
+  const [showWarning, setShowWarning] = useState(false)
+  const [countdown, setCountdown] = useState(countdownMinutes * 60) // in seconds
 
-  // Reset timer on user activity
+  const timeoutIdRef = React.useRef<NodeJS.Timeout | null>(null)
+  const countdownIntervalIdRef = React.useRef<NodeJS.Timeout | null>(null)
+
   const resetTimer = () => {
-    setLastActivity(Date.now())
+    if (timeoutIdRef.current) {
+      clearTimeout(timeoutIdRef.current)
+    }
+    if (countdownIntervalIdRef.current) {
+      clearInterval(countdownIntervalIdRef.current)
+    }
     setShowWarning(false)
+    setCountdown(countdownMinutes * 60)
+
+    // Set main timeout
+    timeoutIdRef.current = setTimeout(
+      () => {
+        setShowWarning(true)
+        startCountdown()
+      },
+      (timeoutMinutes - countdownMinutes) * 60 * 1000,
+    )
   }
 
-  useEffect(() => {
-    // Track user activity
-    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"]
-
-    const handleUserActivity = () => {
-      resetTimer()
-    }
-
-    events.forEach((event) => {
-      window.addEventListener(event, handleUserActivity)
-    })
-
-    // Check session status
-    const interval = setInterval(() => {
-      const now = Date.now()
-      const timeSinceLastActivity = now - lastActivity
-
-      if (timeSinceLastActivity >= timeout - warningTime && !showWarning) {
-        // Show warning dialog
-        setShowWarning(true)
-        setTimeLeft(Math.ceil(warningTime / 1000))
-      } else if (timeSinceLastActivity >= timeout) {
-        // Session timeout
-        clearInterval(interval)
-        onTimeout()
-      }
-    }, 1000)
-
-    // Countdown timer for warning dialog
-    let countdownInterval: NodeJS.Timeout | null = null
-
-    if (showWarning) {
-      countdownInterval = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            clearInterval(countdownInterval as NodeJS.Timeout)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-    }
-
-    return () => {
-      events.forEach((event) => {
-        window.removeEventListener(event, handleUserActivity)
+  const startCountdown = () => {
+    countdownIntervalIdRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownIntervalIdRef.current!)
+          handleLogout()
+          return 0
+        }
+        return prev - 1
       })
-      clearInterval(interval)
-      if (countdownInterval) clearInterval(countdownInterval)
-    }
-  }, [lastActivity, timeout, warningTime, showWarning, onTimeout])
-
-  const handleStayLoggedIn = () => {
-    resetTimer()
+    }, 1000)
   }
 
   const handleLogout = () => {
-    onTimeout()
+    if (onLogout) {
+      onLogout()
+    } else {
+      // Default logout action: redirect to login
+      router.push("/login?sessionExpired=true")
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired due to inactivity. Please log in again.",
+        variant: "destructive",
+      })
+    }
+    setShowWarning(false)
+    clearTimers()
   }
 
+  const handleStayLoggedIn = () => {
+    // Simulate refreshing session (e.g., by making an API call)
+    // In a real app, you'd hit an endpoint that refreshes the session token
+    console.log("Refreshing session...")
+    toast({
+      title: "Session Extended",
+      description: "Your session has been extended.",
+    })
+    resetTimer()
+  }
+
+  const clearTimers = () => {
+    if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current)
+    if (countdownIntervalIdRef.current) clearInterval(countdownIntervalIdRef.current)
+  }
+
+  useEffect(() => {
+    resetTimer()
+
+    const events = ["load", "mousemove", "mousedown", "click", "scroll", "keypress"]
+    events.forEach((event) => window.addEventListener(event, resetTimer))
+
+    return () => {
+      clearTimers()
+      events.forEach((event) => window.removeEventListener(event, resetTimer))
+    }
+  }, [timeoutMinutes, countdownMinutes, onLogout]) // Re-run if these props change
+
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, "0")}`
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+    return `${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`
   }
 
   return (
-    <Dialog open={showWarning} onOpenChange={setShowWarning} id={dialogId}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Session Timeout Warning</DialogTitle>
-        </DialogHeader>
-        <div className="py-4">
-          <p className="mb-4">
-            Your session will expire in <span className="font-bold">{formatTime(timeLeft)}</span> due to inactivity.
-          </p>
-          <p>Would you like to stay logged in?</p>
-        </div>
-        <div className="flex justify-end gap-4">
-          <Button variant="outline" onClick={handleLogout}>
-            Logout
-          </Button>
-          <Button onClick={handleStayLoggedIn}>Stay Logged In</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <AlertDialog open={showWarning} onOpenChange={setShowWarning}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Session About to Expire</AlertDialogTitle>
+          <AlertDialogDescription>
+            You will be logged out in {formatTime(countdown)} due to inactivity. Do you want to stay logged in?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleLogout}>Log Out</AlertDialogCancel>
+          <AlertDialogAction onClick={handleStayLoggedIn}>Stay Logged In</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
-
-// Also export as default for backward compatibility
-export default SessionTimeout

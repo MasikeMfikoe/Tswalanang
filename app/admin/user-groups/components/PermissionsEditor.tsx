@@ -19,6 +19,16 @@ interface PermissionsEditorProps {
   onUpdatePermissions: (permissions: GroupPermission[]) => void
 }
 
+const permissionCategories = {
+  Orders: ["canViewOrders", "canCreateOrders", "canEditOrders", "canDeleteOrders"],
+  Customers: ["canViewCustomers", "canCreateCustomers", "canEditCustomers", "canDeleteCustomers"],
+  Estimates: ["canViewEstimates", "canCreateEstimates", "canEditEstimates", "canDeleteEstimates"],
+  Documents: ["canViewDocuments", "canUploadDocuments", "canDeleteDocuments"],
+  "Users & Groups": ["canManageUsers", "canManageUserGroups"],
+  Settings: ["canAccessSettings"],
+  Tracking: ["canViewTracking", "canInitiateTracking"],
+}
+
 // Navigation structure for the app
 const navigationStructure = [
   {
@@ -171,6 +181,33 @@ export default function PermissionsEditor({
             <LivePreviewSection navigationStructure={navigationStructure} permissions={permissions} />
           </TabsContent>
         </Tabs>
+
+        {/* New code for permission categories */}
+        <TabsContent value="categories" className="space-y-4">
+          {Object.entries(permissionCategories).map(([category, perms]) => (
+            <div key={category} className="space-y-2">
+              <h3 className="font-semibold text-md mb-2">{category}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {perms.map((permission) => (
+                  <div key={permission} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={permission}
+                      checked={permissions.some((p) => p.pagePath === permission) || false}
+                      onCheckedChange={(checked) => handlePermissionChange(permission, !!checked)}
+                    />
+                    <Label htmlFor={permission}>
+                      {permission
+                        .replace(/([A-Z])/g, " $1")
+                        .replace("can", "")
+                        .trim()}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <hr className="my-2" />
+            </div>
+          ))}
+        </TabsContent>
       </CardContent>
     </Card>
   )

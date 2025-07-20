@@ -1,15 +1,9 @@
-import type React from "react"
-import { Navigation } from "@/components/Navigation"
+import type { ReactNode } from "react"
 
-export default function ShipmentTrackerLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function ShipmentTrackerLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen">
-      <Navigation />
-      <div className="pt-16">{children}</div>
+    <div className="flex flex-col min-h-screen">
+      <main className="flex-1">{children}</main>
     </div>
   )
 }

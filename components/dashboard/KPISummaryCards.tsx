@@ -1,7 +1,7 @@
 "use client"
 
-import { Card, CardContent } from "@/components/ui/card"
-import { Package, TrendingUp, CheckCircle, Users } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DollarSign, Truck, Package, Clock } from "lucide-react"
 
 interface KPISummaryCardsProps {
   isDarkMode: boolean
@@ -9,7 +9,16 @@ interface KPISummaryCardsProps {
   totalOrderValue: number
   completedOrders: any[]
   customers: any[]
+  avgDeliveryTime: string
+  onTimeDeliveryRate: string
 }
+
+const kpiData = [
+  { title: "Total Orders", value: "1,234", change: "+20.1% from last month", icon: Package },
+  { title: "Revenue", value: "$45,231.89", change: "+15.5% from last month", icon: DollarSign },
+  { title: "Avg. Delivery Time", value: "3.2 days", change: "-5% from last month", icon: Clock },
+  { title: "On-Time Delivery", value: "98.5%", change: "+1.2% from last month", icon: Truck },
+]
 
 export function KPISummaryCards({
   isDarkMode,
@@ -17,88 +26,28 @@ export function KPISummaryCards({
   totalOrderValue,
   completedOrders,
   customers,
+  avgDeliveryTime,
+  onTimeDeliveryRate,
 }: KPISummaryCardsProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-4 mb-6">
-      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
-        <CardContent className="p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Total Orders</p>
-              <h3 className={`text-2xl font-bold mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                {filteredOrders.length}
-              </h3>
-              <p className="text-xs text-green-500 mt-1 flex items-center">
-                <TrendingUp className="h-3 w-3 mr-1" />
-                +12% from previous period
-              </p>
-            </div>
-            <div className={`p-3 rounded-full ${isDarkMode ? "bg-blue-900/20" : "bg-blue-50"}`}>
-              <Package className={`h-5 w-5 ${isDarkMode ? "text-blue-400" : "text-blue-500"}`} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
-        <CardContent className="p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Total Revenue</p>
-              <h3 className={`text-2xl font-bold mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                R {totalOrderValue.toLocaleString()}
-              </h3>
-              <p className="text-xs text-green-500 mt-1 flex items-center">
-                <TrendingUp className="h-3 w-3 mr-1" />
-                +8.5% from previous period
-              </p>
-            </div>
-            <div className={`p-3 rounded-full ${isDarkMode ? "bg-green-900/20" : "bg-green-50"}`}>
-              <TrendingUp className={`h-5 w-5 ${isDarkMode ? "text-green-400" : "text-green-500"}`} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
-        <CardContent className="p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Completion Rate</p>
-              <h3 className={`text-2xl font-bold mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                {completedOrders.length > 0 ? Math.round((completedOrders.length / filteredOrders.length) * 100) : 0}%
-              </h3>
-              <p className="text-xs text-yellow-500 mt-1 flex items-center">
-                <TrendingUp className="h-3 w-3 mr-1" />
-                +2% from previous period
-              </p>
-            </div>
-            <div className={`p-3 rounded-full ${isDarkMode ? "bg-yellow-900/20" : "bg-yellow-50"}`}>
-              <CheckCircle className={`h-5 w-5 ${isDarkMode ? "text-yellow-400" : "text-yellow-500"}`} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
-        <CardContent className="p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Active Customers</p>
-              <h3 className={`text-2xl font-bold mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                {customers.length}
-              </h3>
-              <p className="text-xs text-green-500 mt-1 flex items-center">
-                <TrendingUp className="h-3 w-3 mr-1" />
-                +5% from previous period
-              </p>
-            </div>
-            <div className={`p-3 rounded-full ${isDarkMode ? "bg-purple-900/20" : "bg-purple-50"}`}>
-              <Users className={`h-5 w-5 ${isDarkMode ? "text-purple-400" : "text-purple-500"}`} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {kpiData.map((kpi, index) => (
+        <Card
+          key={index}
+          className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className={`text-sm font-medium ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
+              {kpi.title}
+            </CardTitle>
+            <kpi.icon className={`h-4 w-4 ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`} />
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{kpi.value}</div>
+            <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>{kpi.change}</p>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   )
 }

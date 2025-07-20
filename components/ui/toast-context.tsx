@@ -3,6 +3,7 @@
 import * as React from "react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Toaster } from "@/components/ui/sonner" // Assuming sonner is used for toasts
 
 type ToastProps = {
   id: string
@@ -107,7 +108,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <ToastContainer />
+      <Toaster />
     </ToastContext.Provider>
   )
 }

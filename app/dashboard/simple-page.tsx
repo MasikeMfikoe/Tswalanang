@@ -1,62 +1,72 @@
-"use client"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-
-export default function SimpleDashboardPage() {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [])
-
+export default function SimplePage() {
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+    <div className="flex flex-col gap-6 p-6">
+      <h1 className="text-3xl font-bold">Simple Page Example</h1>
+      <p className="text-lg text-muted-foreground">This is a basic page demonstrating common UI components.</p>
 
-      {isLoading ? (
-        <div className="animate-pulse space-y-4">
-          <div className="h-12 bg-gray-200 rounded"></div>
-          <div className="h-24 bg-gray-200 rounded"></div>
-          <div className="h-24 bg-gray-200 rounded"></div>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-medium">Welcome to TSW SmartLog Dashboard</h2>
-            <p className="text-gray-500">This is a simplified dashboard page for troubleshooting.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h3 className="font-medium">Total Orders</h3>
-              <p className="text-2xl font-bold">24</p>
+      {/* Card with Form */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Contact Form</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input id="name" placeholder="Your Name" />
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h3 className="font-medium">Active Orders</h3>
-              <p className="text-2xl font-bold">12</p>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h3 className="font-medium">Completed Orders</h3>
-              <p className="text-2xl font-bold">8</p>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" placeholder="your@example.com" />
             </div>
           </div>
-
-          <div className="flex justify-between">
-            <button className="bg-black text-white px-4 py-2 rounded" onClick={() => router.push("/orders")}>
-              View Orders
-            </button>
-            <button className="bg-gray-200 px-4 py-2 rounded" onClick={() => router.push("/")}>
-              Back to Home
-            </button>
+          <div className="space-y-2">
+            <Label htmlFor="subject">Subject</Label>
+            <Input id="subject" placeholder="Subject of your message" />
           </div>
-        </div>
-      )}
+          <div className="space-y-2">
+            <Label htmlFor="message">Message</Label>
+            <Textarea id="message" placeholder="Your message here..." rows={5} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="priority">Priority</Label>
+            <Select>
+              <SelectTrigger id="priority">
+                <SelectValue placeholder="Select priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="w-full">Submit</Button>
+        </CardContent>
+      </Card>
+
+      {/* Another Card with just text */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Information Section</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>
+            This section can be used to display important information, announcements, or static content. It demonstrates
+            how cards can be used to group related content visually.
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You can customize the content and layout of these cards to fit your application's needs.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   )
 }

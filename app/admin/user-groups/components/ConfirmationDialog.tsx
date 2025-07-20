@@ -12,24 +12,16 @@ import {
 } from "@/components/ui/alert-dialog"
 
 interface ConfirmationDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  isOpen: boolean
   onConfirm: () => void
   onCancel: () => void
   title: string
   description: string
 }
 
-export default function ConfirmationDialog({
-  open,
-  onOpenChange,
-  onConfirm,
-  onCancel,
-  title,
-  description,
-}: ConfirmationDialogProps) {
+export function ConfirmationDialog({ isOpen, onConfirm, onCancel, title, description }: ConfirmationDialogProps) {
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={isOpen} onOpenChange={onCancel}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -37,7 +29,7 @@ export default function ConfirmationDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>Continue</AlertDialogAction>
+          <AlertDialogAction onClick={onConfirm}>Confirm</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

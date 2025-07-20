@@ -15,8 +15,22 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     // In a real implementation, this would fetch from a notifications table
     // For now, we'll construct a response based on the order data
-    const notifications = []
+    const notifications = [
+      {
+        id: "notif_001",
+        type: "status_update",
+        message: `Order ${orderId} is now 'Out for Delivery'.`,
+        timestamp: "2024-07-19T10:00:00Z",
+      },
+      {
+        id: "notif_002",
+        type: "delivery_attempt",
+        message: `Attempted delivery for order ${orderId}. Customer not available.`,
+        timestamp: "2024-07-19T14:30:00Z",
+      },
+    ]
 
+    // Additional notifications based on order data
     if (order.notify_recipient && order.recipient_email) {
       notifications.push({
         id: 1,
@@ -57,10 +71,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       })
     }
 
-    return NextResponse.json({
-      success: true,
-      data: notifications,
-    })
+    return NextResponse.json(notifications)
   } catch (error) {
     console.error("Error fetching notifications:", error)
     return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 })

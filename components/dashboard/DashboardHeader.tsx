@@ -57,11 +57,8 @@ export function DashboardHeader({
 }: DashboardHeaderProps) {
   return (
     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-      <div>
-        <h1 className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>Dashboard</h1>
-        <p className={`text-sm mt-1 ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
-          Welcome back! Here's what's happening with your logistics operations.
-        </p>
+      <div className="flex items-center justify-between">
+        <h1 className={`text-3xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>Dashboard Overview</h1>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

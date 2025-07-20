@@ -1,73 +1,51 @@
-"use client"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+const topCustomers = [
+  { id: "1", name: "Acme Corp", email: "contact@acmecorp.com", orders: 120, revenue: 150000 },
+  { id: "2", name: "Globex Inc", email: "info@globex.com", orders: 90, revenue: 120000 },
+  { id: "3", name: "Stark Industries", email: "sales@stark.com", orders: 75, revenue: 90000 },
+  { id: "4", name: "Wayne Enterprises", email: "support@wayne.com", orders: 60, revenue: 80000 },
+  { id: "5", name: "Cyberdyne Systems", email: "hr@cyberdyne.com", orders: 50, revenue: 70000 },
+]
 
-interface TopCustomersProps {
-  isDarkMode: boolean
-  topCustomers: Array<{
-    id: string
-    name: string
-    totalOrders: number
-  }>
-}
-
-export function TopCustomers({ isDarkMode, topCustomers }: TopCustomersProps) {
+export function TopCustomers() {
   return (
-    <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all mb-6`}>
+    <Card>
       <CardHeader>
-        <CardTitle className={`${isDarkMode ? "text-white" : "text-gray-900"}`}>Top Customers</CardTitle>
-        <CardDescription className={`${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
-          Customers with the highest order volume
-        </CardDescription>
+        <CardTitle>Top 5 Customers</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
-          {topCustomers.map((customer, index) => (
-            <div key={customer.id} className="flex items-center">
-              <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                  index === 0
-                    ? "bg-yellow-100 text-yellow-600"
-                    : index === 1
-                      ? "bg-gray-100 text-gray-600"
-                      : "bg-amber-100 text-amber-600"
-                } mr-4 font-bold`}
-              >
-                {index + 1}
-              </div>
-              <div className="flex-1">
-                <h4 className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>{customer.name}</h4>
-                <div className="flex items-center mt-1">
-                  <div className="flex-1 mr-4">
-                    <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500"
-                        style={{
-                          width: `${(customer.totalOrders / topCustomers[0].totalOrders) * 100}%`,
-                        }}
-                      ></div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Customer</TableHead>
+              <TableHead>Orders</TableHead>
+              <TableHead className="text-right">Revenue</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {topCustomers.map((customer) => (
+              <TableRow key={customer.id}>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${customer.name}`} />
+                      <AvatarFallback>{customer.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-medium">{customer.name}</div>
+                      <div className="text-sm text-muted-foreground">{customer.email}</div>
                     </div>
                   </div>
-                  <span className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
-                    {customer.totalOrders} orders
-                  </span>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" className={`${isDarkMode ? "hover:bg-zinc-700" : "hover:bg-gray-100"}`}>
-                View
-              </Button>
-            </div>
-          ))}
-        </div>
-        <div className="flex justify-center mt-6">
-          <Button
-            variant="outline"
-            className={`${isDarkMode ? "bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700" : "bg-white hover:bg-gray-100"}`}
-          >
-            View All Customers
-          </Button>
-        </div>
+                </TableCell>
+                <TableCell>{customer.orders}</TableCell>
+                <TableCell className="text-right">${customer.revenue.toLocaleString()}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   )

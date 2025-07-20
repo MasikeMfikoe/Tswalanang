@@ -1,62 +1,70 @@
-"use client"
-
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useState } from "react"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-export default function SimpleNewOrderPage() {
-  const router = useRouter()
-  const [poNumber, setPoNumber] = useState("")
-
-  function generatePONumber() {
-    const prefix = "PO"
-    const timestamp = Date.now().toString().slice(-6)
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0")
-    return `${prefix}-${timestamp}-${random}`
-  }
-
+export default function SimplePage() {
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Create New Order (Simple Page)</h1>
-        <Button variant="outline" onClick={() => router.push("/orders")}>
-          Back to Orders
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6 p-6">
+      <h1 className="text-3xl font-bold">Simple Page Example</h1>
+      <p className="text-lg text-muted-foreground">This is a basic page demonstrating common UI components.</p>
 
+      {/* Card with Form */}
       <Card>
         <CardHeader>
-          <CardTitle>Order Information</CardTitle>
+          <CardTitle>Contact Form</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
+        <CardContent className="grid gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="poNumber">PO Number</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="poNumber"
-                  value={poNumber}
-                  onChange={(e) => setPoNumber(e.target.value)}
-                  placeholder="Enter PO number or generate one"
-                />
-                <Button type="button" variant="outline" onClick={() => setPoNumber(generatePONumber())}>
-                  Generate
-                </Button>
-              </div>
+              <Label htmlFor="name">Name</Label>
+              <Input id="name" placeholder="Your Name" />
             </div>
-
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button variant="outline" onClick={() => router.push("/orders")}>
-                Cancel
-              </Button>
-              <Button>Create Order</Button>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" placeholder="your@example.com" />
             </div>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="subject">Subject</Label>
+            <Input id="subject" placeholder="Subject of your message" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="message">Message</Label>
+            <Textarea id="message" placeholder="Your message here..." rows={5} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="priority">Priority</Label>
+            <Select>
+              <SelectTrigger id="priority">
+                <SelectValue placeholder="Select priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="w-full">Submit</Button>
+        </CardContent>
+      </Card>
+
+      {/* Another Card with just text */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Information Section</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>
+            This section can be used to display important information, announcements, or static content. It demonstrates
+            how cards can be used to group related content visually.
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You can customize the content and layout of these cards to fit your application's needs.
+          </p>
         </CardContent>
       </Card>
     </div>

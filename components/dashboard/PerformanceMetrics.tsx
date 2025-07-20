@@ -1,78 +1,49 @@
-"use client"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Gauge, TrendingUp, Clock, CheckCircle } from "lucide-react"
 
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Truck, Package, FileText } from "lucide-react"
+const metrics = [
+  {
+    title: "On-Time Delivery Rate",
+    value: "98.5%",
+    description: "Target: 95%",
+    icon: CheckCircle,
+    color: "text-green-500",
+  },
+  {
+    title: "Average Transit Time",
+    value: "3.2 Days",
+    description: "Last Month: 3.5 Days",
+    icon: Clock,
+    color: "text-blue-500",
+  },
+  {
+    title: "Customer Satisfaction",
+    value: "4.7/5",
+    description: "Based on recent surveys",
+    icon: Gauge,
+    color: "text-yellow-500",
+  },
+  {
+    title: "Revenue Growth",
+    value: "+15%",
+    description: "Compared to previous quarter",
+    icon: TrendingUp,
+    color: "text-purple-500",
+  },
+]
 
-interface PerformanceMetricsProps {
-  isDarkMode: boolean
-  performanceMetrics: Array<{
-    title: string
-    description: string
-    value: number
-    target: number
-    timeframe: string
-    status: string
-    statusColor: string
-    progressColor: string
-    color: string
-    icon: string
-    daysLeft: number
-  }>
-}
-
-export function PerformanceMetrics({ isDarkMode, performanceMetrics }: PerformanceMetricsProps) {
-  // Helper function to render the correct icon
-  const renderIcon = (iconName: string, colorClass: string) => {
-    switch (iconName) {
-      case "Truck":
-        return <Truck className={`h-5 w-5 ${colorClass}`} />
-      case "Package":
-        return <Package className={`h-5 w-5 ${colorClass}`} />
-      case "FileText":
-        return <FileText className={`h-5 w-5 ${colorClass}`} />
-      default:
-        return null
-    }
-  }
-
+export function PerformanceMetrics() {
   return (
-    <div className="grid gap-6 md:grid-cols-3 mb-6">
-      {performanceMetrics.map((metric, index) => (
-        <Card
-          key={index}
-          className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}
-        >
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-3 rounded-full ${isDarkMode ? metric.statusColor + "/20" : "bg-gray-100"}`}>
-                {renderIcon(metric.icon, metric.color)}
-              </div>
-              <Badge variant="outline" className={`${metric.color} ${isDarkMode ? "border-opacity-50" : ""}`}>
-                {metric.status}
-              </Badge>
-            </div>
-            <h3 className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{metric.title}</h3>
-            <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"} mb-4`}>{metric.description}</p>
-
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Progress</span>
-                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                  {metric.value} / {metric.target}
-                </span>
-              </div>
-              <Progress
-                value={(metric.value / metric.target) * 100}
-                className={`h-2 ${isDarkMode ? "bg-zinc-800" : "bg-gray-200"}`}
-                indicatorClassName={metric.progressColor}
-              />
-              <div className="flex justify-between text-xs">
-                <span className={`${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Target: {metric.timeframe}</span>
-                <span className={`${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>{metric.daysLeft} days left</span>
-              </div>
-            </div>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {metrics.map((metric, index) => (
+        <Card key={index}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{metric.title}</CardTitle>
+            <metric.icon className={`h-4 w-4 ${metric.color}`} />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metric.value}</div>
+            <p className="text-xs text-muted-foreground">{metric.description}</p>
           </CardContent>
         </Card>
       ))}

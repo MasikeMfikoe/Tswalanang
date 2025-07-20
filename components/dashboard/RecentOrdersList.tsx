@@ -8,10 +8,10 @@ import { CheckCircle, Clock, AlertCircle } from "lucide-react"
 
 interface RecentOrdersListProps {
   isDarkMode: boolean
-  recentOrders: any[]
+  recentOrders?: any[]
 }
 
-export function RecentOrdersList({ isDarkMode, recentOrders }: RecentOrdersListProps) {
+export function RecentOrdersList({ isDarkMode, recentOrders = [] }: RecentOrdersListProps) {
   // Helper function to get status icon
   const getStatusIcon = (status: string) => {
     const normalizedStatus = status?.toLowerCase() || ""

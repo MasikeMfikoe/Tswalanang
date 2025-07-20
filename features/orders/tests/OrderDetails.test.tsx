@@ -1,89 +1,95 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
-import OrderDetails from "@/features/orders/components/OrderDetails"
-import { fetchOrder, updateOrder } from "@/features/orders/api/ordersApi"
+import { render, screen, waitFor } from "@testing-library/react"
+import { OrderDetails } from "../components/OrderDetails"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-// Mock the API functions
-jest.mock("@/features/orders/api/ordersApi", () => ({
-  fetchOrder: jest.fn(),
-  updateOrder: jest.fn(),
+// Mock the API calls
+jest.mock("../api/ordersApi", () => ({
+  fetchOrderById: jest.fn((id) => {
+    if (id === "ORD001") {
+      return Promise.resolve({
+        id: "ORD001",
+        customerName: "Acme Corp",
+        status: "In Transit",
+        origin: "Shanghai",
+        destination: "New York",
+        eta: "2024-08-01",
+        value: 15000,
+        currency: "USD",
+        description: "Electronics shipment",
+        documents: [{ type: "Bill of Lading", url: "/docs/bill-of-lading-001.pdf" }],
+      })
+    }
+    return Promise.reject(new Error("Order not found"))
+  }),
+  deleteOrder: jest.fn(() => Promise.resolve({ message: "Order deleted" })),
 }))
 
-// Mock the toast component
+// Mock useToast if it's used in the component
 jest.mock("@/components/ui/use-toast", () => ({
   useToast: () => ({
     toast: jest.fn(),
   }),
 }))
 
-describe("OrderDetails", () => {
-  const mockOrder = {
-    id: "123",
-    poNumber: "PO001",
-    supplier: "Supplier A",
-    importer: "Importer X",
-    status: "In Progress",
-    cargoStatus: "In Transit",
-    freightType: "Sea Freight",
-  }
+const queryClient = new QueryClient()
 
-  beforeEach(() => {
-    jest.clearAllMocks()
-    // Mock successful API response
-    ;(fetchOrder as jest.Mock).mockResolvedValue(mockOrder)
-    ;(updateOrder as jest.Mock).mockResolvedValue({ ...mockOrder, status: "Updated" })
-  })
+describe('OrderDetails', () => {
+  it('renders loading state initially', () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OrderDetails orderId="ORD001" />
+      </QueryClientProvider>
+    );
+    expect(screen.getByText(/Loading order details.../i)).toBeInTheDocument();
+  });
 
-  test("renders order details correctly", async () => {
-    render(<OrderDetails orderId="123" />)
+  it('renders order details after loading', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OrderDetails orderId="ORD001" />
+      </QueryClientProvider>
+    );
 
-    // Check loading state
-    expect(screen.getByText(/loading/i)).toBeInTheDocument()
-
-    // Wait for data to load
     await waitFor(() => {
-      expect(screen.getByText("PO001")).toBeInTheDocument()
-    })
+      expect(screen.queryByText(/Loading order details.../i)).not.toBeInTheDocument();
+    });
 
-    // Check order details are displayed
-    expect(screen.getByText("Supplier A")).toBeInTheDocument()
-    expect(screen.getByText("Importer X")).toBeInTheDocument()
-    expect(screen.getByText("In Progress")).toBeInTheDocument()
-  })
+    expect(screen.getByText('Order Details: ORD001')).toBeInTheDocument();
+    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    expect(screen.getByText('In Transit')).toBeInTheDocument();
+    expect(screen.getByText('Shanghai')).toBeInTheDocument();
+    expect(screen.getByText('New York')).toBeInTheDocument();
+    expect(screen.getByText('2024-08-01')).toBeInTheDocument();
+    expect(screen.getByText('USD 15,000')).toBeInTheDocument();
+    expect(screen.getByText('Electronics shipment')).toBeInTheDocument();
+    expect(screen.getByText('Bill of Lading')).toBeInTheDocument();
+  });
 
-  test("allows editing order details", async () => {
-    render(<OrderDetails orderId="123" />)
+  it('renders "Order not found" if order does not exist', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OrderDetails orderId="NONEXISTENT" />
+      </QueryClientProvider>
+    );
 
-    // Wait for data to load
     await waitFor(() => {
-      expect(screen.getByText("PO001")).toBeInTheDocument()
-    })
+      expect(screen.queryByText(/Loading order details.../i)).not.toBeInTheDocument();
+    });
 
-    // Click edit button
-    fireEvent.click(screen.getByText("Edit Order"))
+    expect(screen.getByText('Order not found.')).toBeInTheDocument();
+  });
 
-    // Change status
-    const statusSelect = screen.getByLabelText("Order Status:")
-    fireEvent.change(statusSelect, { target: { value: "Completed" } })
+  it('renders error message if fetching fails', async () => {
+    // Temporarily override mock to simulate fetch failure
+    require('../api/ordersApi').fetchOrderById.mockImplementationOnce(() =>
+      Promise.reject(new Error('Network error'))
+    );
 
-    // Save changes
-    fireEvent.click(screen.getByText("Save Changes"))
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OrderDetails orderId="ORD001" />
+      </QueryClientProvider>
+    );
 
-    // Verify API was called with updated data
-    expect(updateOrder).toHaveBeenCalledWith({
-      ...mockOrder,
-      status: "Completed",
-    })
-  })
-
-  test("handles API errors gracefully", async () => {
-    // Mock API error
-    ;(fetchOrder as jest.Mock).mockRejectedValue(new Error("Failed to fetch"))
-
-    render(<OrderDetails orderId="123" />)
-
-    // Wait for error state
     await waitFor(() => {
-      expect(screen.getByText(/failed to load/i)).toBeInTheDocument()
-    })
-  })
-})
+      expect(screen.queryByText(/Loading order details.../i)).not.toBeInTheDocument

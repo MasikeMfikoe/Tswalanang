@@ -1,41 +1,29 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle } from "lucide-react"
 
-export default function DeliveryConfirmationSuccessPage() {
+export default function DeliverySuccessPage() {
   const router = useRouter()
-
-  // Redirect to home after 10 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      router.push("/")
-    }, 10000)
-
-    return () => clearTimeout(timer)
-  }, [router])
+  const searchParams = useSearchParams()
+  const deliveryId = searchParams.get("id")
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <CheckCircle className="h-16 w-16 text-green-500" />
-          </div>
-          <CardTitle className="text-2xl">Delivery Confirmed!</CardTitle>
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <Card className="w-full max-w-md text-center">
+        <CardHeader>
+          <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+          <CardTitle className="text-2xl font-bold text-green-600">Delivery Confirmed!</CardTitle>
         </CardHeader>
-        <CardContent className="text-center">
-          <p className="mb-4">
-            Thank you for confirming your delivery. A confirmation receipt has been sent to your email.
+        <CardContent className="space-y-4">
+          <p className="text-gray-700">
+            Delivery {deliveryId && <strong>#{deliveryId}</strong>} has been successfully confirmed.
           </p>
-          <p className="text-sm text-gray-500">This page will automatically redirect in 10 seconds.</p>
+          <p className="text-sm text-muted-foreground">Thank you for completing the delivery.</p>
+          <Button onClick={() => router.push("/deliveries")}>Back to Deliveries</Button>
         </CardContent>
-        <CardFooter className="flex justify-center">
-          <Button onClick={() => router.push("/")}>Return to Home</Button>
-        </CardFooter>
       </Card>
     </div>
   )

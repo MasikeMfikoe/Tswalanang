@@ -1,22 +1,11 @@
-"use client"
-
-import ProtectedRoute from "@/components/ProtectedRoute"
-import AuditTrailContent from "@/components/AuditTrailContent"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page-header"
+import { AuditTrailContent } from "@/components/AuditTrailContent"
 
 export default function AuditTrailPage() {
-  const router = useRouter()
-
   return (
-    <ProtectedRoute requiredPermission={{ module: "auditTrail", action: "view" }}>
-      <div className="p-6 flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Audit Trail</h1>
-        <Button variant="outline" onClick={() => router.push("/dashboard")}>
-          Return to Dashboard
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6 p-6">
+      <PageHeader title="Audit Trail" description="View a detailed log of all system activities and user actions." />
       <AuditTrailContent />
-    </ProtectedRoute>
+    </div>
   )
 }

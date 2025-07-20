@@ -1,31 +1,74 @@
+import { PageHeader } from "@/components/ui/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-export default function Loading() {
+export default function CustomerSummaryReportLoading() {
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <Button variant="outline" size="sm" className="mb-2" disabled>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Summary
-          </Button>
-          <Skeleton className="h-8 w-64 mb-2" />
-          <Skeleton className="h-4 w-96" />
-        </div>
-        <Skeleton className="h-9 w-32" />
+    <div className="flex flex-col gap-6 p-6">
+      <PageHeader
+        title="Customer Summary Report"
+        description="Detailed financial and operational summary for customers."
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Customer Info */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle>
+              <Skeleton className="h-6 w-48" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </CardContent>
+        </Card>
+
+        {/* KPI Cards */}
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                <Skeleton className="h-4 w-24" />
+              </CardTitle>
+              <Skeleton className="h-4 w-4" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                <Skeleton className="h-8 w-32" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                <Skeleton className="h-3 w-48 mt-1" />
+              </p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      <div className="rounded-md border overflow-hidden">
-        <div className="p-4">
-          <Skeleton className="h-8 w-full mb-4" />
-          <div className="space-y-2">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Charts */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <Skeleton className="h-6 w-48" />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
+
+      {/* Recent Orders */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <Skeleton className="h-6 w-48" />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-48 w-full" />
+        </CardContent>
+      </Card>
     </div>
   )
 }

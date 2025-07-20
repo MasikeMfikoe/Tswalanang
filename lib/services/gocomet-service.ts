@@ -10,7 +10,7 @@ export class GocometService {
 
   constructor() {
     this.email = process.env.GOCOMET_EMAIL || "ofentse@tlogistics.net.za" // Use env var, fallback to provided email
-    this.password = process.env.GOCOMET_PASSWORD || "Tswa#@2025" // Use env var, fallback to provided password
+    this.password = process.env.GOCOMET_PASSWORD || "Tswa#@2025" // Corrected password
     this.loginUrl = "https://login.gocomet.com/api/v1/integrations/generate-token-number"
     this.trackingUrl = "https://tracking.gocomet.com/api/v1/integrations/live-tracking"
   }
