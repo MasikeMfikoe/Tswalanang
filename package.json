@@ -48,6 +48,7 @@
     "@tanstack/react-query-devtools": "latest",
     "@testing-library/dom": "latest",
     "ai": "^3.4.32",
+    "axios": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",

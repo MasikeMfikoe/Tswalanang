@@ -24,6 +24,7 @@ export type TrackingData = {
   pol?: string // Port of Loading
   pod?: string // Port of Discharge
   estimatedArrival?: string // ISO 8601 string or date string
+  estimatedDeparture?: string // Added: ISO 8601 string or date string
   lastLocation?: string
   timeline: Array<{
     location: string

@@ -190,6 +190,7 @@ export default function ShipmentTrackingResults({
     pol,
     pod,
     estimatedArrival,
+    estimatedDeparture, // Destructure estimatedDeparture
     lastLocation,
     timeline,
     documents,
@@ -231,10 +232,21 @@ export default function ShipmentTrackingResults({
             <MapPin className="h-5 w-5 text-gray-500" />
             <strong>Destination:</strong> {destination} {pod && `(${pod})`}
           </div>
-          {estimatedArrival && (
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-gray-500" />
-              <strong>Estimated Arrival:</strong> {new Date(estimatedArrival).toLocaleDateString()}
+          {/* Display Estimated Departure and Estimated Arrival on the same row */}
+          {(estimatedDeparture || estimatedArrival) && (
+            <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {estimatedDeparture && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-gray-500" />
+                  <strong>Est. Departure:</strong> {new Date(estimatedDeparture).toLocaleDateString()}
+                </div>
+              )}
+              {estimatedArrival && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-gray-500" />
+                  <strong>Est. Arrival:</strong> {new Date(estimatedArrival).toLocaleDateString()}
+                </div>
+              )}
             </div>
           )}
           {lastLocation && (

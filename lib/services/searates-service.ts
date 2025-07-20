@@ -222,6 +222,7 @@ export class SeaRatesService {
       pol: polLocation?.name || "N/A",
       pod: podLocation?.name || "N/A",
       estimatedArrival: seaRatesData.route?.pod?.date || seaRatesData.route?.pod?.predictive_eta || "N/A",
+      estimatedDeparture: seaRatesData.route?.pol?.date || "N/A", // Added estimated departure
       lastLocation: lastLocationName,
       timeline: timeline,
       documents: [], // Not available in the provided JSON structure

@@ -816,3 +816,5 @@ export class WebScrapingService {
     }
   }
 }
+
+export const webScrapingService = new WebScrapingService()

@@ -362,3 +362,28 @@ export function getCarrierSuggestions(text: string): CarrierSuggestion[] {
 
   return [...ocean, ...air].slice(0, 6)
 }
+
+// ---- Compatibility helpers for legacy imports ----
+
+/**
+ * Back-compat: alias for detectShipmentTrackingInfo that some modules import
+ * as `detectContainerInfo`.
+ */
+export function detectContainerInfo(containerNumber: string) {
+  return detectShipmentTrackingInfo(containerNumber)
+}
+
+/**
+ * Back-compat: retrieves carrier details by prefix or full name.
+ * Returns null if the carrier is not found.
+ */
+export function getShippingLineInfo(prefixOrName: string) {
+  const key = prefixOrName.toUpperCase().trim()
+
+  // Try direct prefix lookup first
+  const carrierByPrefix = getCarrierByPrefix(key)
+  if (carrierByPrefix) return carrierByPrefix
+
+  // Fallback to lookup by name
+  return getCarrierInfoByName(prefixOrName)
+}

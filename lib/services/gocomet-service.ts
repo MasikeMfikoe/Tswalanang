@@ -1,14 +1,63 @@
 import type { TrackingResult, TrackingData, TrackingEvent, ShipmentType } from "@/types/tracking"
 
 export class GocometService {
-  private apiKey: string
-  private baseUrl: string
+  private email: string
+  private password: string
+  private loginUrl: string
+  private trackingUrl: string
+  private token: string | null = null
+  private tokenExpiry = 0 // Unix timestamp
 
   constructor() {
-    // Assuming Gocomet API key is also an environment variable
-    this.apiKey = process.env.GOCOMET_API_KEY || ""
-    // Placeholder URL, replace with actual Gocomet API endpoint
-    this.baseUrl = process.env.GOCOMET_API_URL || "https://api.gocomet.com/v1"
+    this.email = process.env.GOCOMET_EMAIL || "ofentse@tlogistics.net.za" // Use env var, fallback to provided email
+    this.password = process.env.GOCOMET_PASSWORD || "Tswa#@2025" // Use env var, fallback to provided password
+    this.loginUrl = "https://login.gocomet.com/api/v1/integrations/generate-token-number"
+    this.trackingUrl = "https://tracking.gocomet.com/api/v1/integrations/live-tracking"
+  }
+
+  private async getToken(): Promise<string | null> {
+    // Check if token is still valid
+    if (this.token && this.tokenExpiry > Date.now()) {
+      return this.token
+    }
+
+    if (!this.email || !this.password) {
+      console.error("Gocomet email or password not configured.")
+      return null
+    }
+
+    try {
+      const response = await fetch(this.loginUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: this.email,
+          password: this.password,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`Gocomet token generation error (${response.status}): ${errorText}`)
+        return null
+      }
+
+      const data = await response.json()
+      if (data.token) {
+        this.token = data.token
+        // Assuming token is valid for 1 hour (3600 seconds), adjust if Gocomet specifies otherwise
+        this.tokenExpiry = Date.now() + 3500 * 1000 // Set expiry slightly before actual expiry
+        return this.token
+      } else {
+        console.error("Gocomet token not found in response:", data)
+        return null
+      }
+    } catch (error) {
+      console.error("Error generating Gocomet token:", error)
+      return null
+    }
   }
 
   async trackShipment(
@@ -18,51 +67,55 @@ export class GocometService {
       carrierHint?: string
     },
   ): Promise<TrackingResult> {
-    if (!this.apiKey) {
+    const currentToken = await this.getToken()
+
+    if (!currentToken) {
       return {
         success: false,
-        error: "Gocomet API key not configured.",
+        error: "Failed to obtain Gocomet API token.",
         source: "Gocomet",
       }
     }
 
     try {
-      // Simulate API call to Gocomet
-      // In a real scenario, you would make an actual fetch request here
-      // const response = await fetch(`${this.baseUrl}/track`, {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //     "Authorization": `Bearer ${this.apiKey}`,
-      //   },
-      //   body: JSON.stringify({
-      //     trackingNumber,
-      //     shipmentType: options?.shipmentType,
-      //     carrierHint: options?.carrierHint,
-      //   }),
-      // });
+      const response = await fetch(
+        `${this.trackingUrl}?start_date=01/01/2024&tracking_numbers[]=${trackingNumber}&token=${currentToken}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      )
 
-      // if (!response.ok) {
-      //   const errorText = await response.text();
-      //   console.error(`Gocomet API error (${response.status}): ${errorText}`);
-      //   return {
-      //     success: false,
-      //     error: `Gocomet API returned status ${response.status}.`,
-      //     source: "Gocomet",
-      //   };
-      // }
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`Gocomet tracking API error (${response.status}): ${errorText}`)
+        return {
+          success: false,
+          error: `Gocomet API returned status ${response.status}. Details: ${errorText}`,
+          source: "Gocomet",
+        }
+      }
 
-      // const data = await response.json();
+      const data = await response.json()
 
-      // For demonstration, return mock data
-      const mockData = this.generateMockTrackingData(trackingNumber, options?.shipmentType)
-
-      return {
-        success: true,
-        data: mockData,
-        source: "Gocomet",
-        isLiveData: true, // Assume live data for mock
-        scrapedAt: new Date().toISOString(),
+      if (data && data.updated_trackings && data.updated_trackings.length > 0) {
+        const gocometTrackingInfo = data.updated_trackings[0]
+        return {
+          success: true,
+          data: this.transformGocometData(gocometTrackingInfo, trackingNumber, options?.shipmentType),
+          source: "Gocomet",
+          isLiveData: true,
+          scrapedAt: new Date().toISOString(),
+        }
+      } else {
+        console.warn("Gocomet API response indicates no tracking info or unexpected format:", data)
+        return {
+          success: false,
+          error: data.message || "No tracking information found for this number via Gocomet.",
+          source: "Gocomet",
+        }
       }
     } catch (error) {
       console.error("Error tracking with Gocomet:", error)
@@ -74,78 +127,63 @@ export class GocometService {
     }
   }
 
-  private generateMockTrackingData(trackingNumber: string, shipmentType?: ShipmentType): TrackingData {
-    const statusOptions = ["In Transit", "Delivered", "Pending", "Customs Hold"]
-    const randomStatus = statusOptions[Math.floor(Math.random() * statusOptions.length)]
-    const now = new Date()
-    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000)
-    const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000)
+  private transformGocometData(
+    gocometData: any,
+    originalTrackingNumber: string,
+    detectedShipmentType?: ShipmentType,
+  ): TrackingData {
+    const timeline: Array<{ location: string; terminal?: string; events: TrackingEvent[] }> = []
 
-    const timeline: Array<{ location: string; terminal?: string; events: TrackingEvent[] }> = [
-      {
-        location: "Origin Port/Airport",
-        events: [
-          {
-            type: "event",
-            status: "Cargo Received",
-            location: "Origin Port/Airport",
-            timestamp: fiveDaysAgo.toISOString(),
-            date: fiveDaysAgo.toLocaleDateString(),
-            time: fiveDaysAgo.toLocaleTimeString(),
-            description: "Cargo received at origin terminal.",
-          },
-          {
-            type: "vessel-departure",
-            status: "Departed",
-            location: "Origin Port/Airport",
-            timestamp: twoDaysAgo.toISOString(),
-            date: twoDaysAgo.toLocaleDateString(),
-            time: twoDaysAgo.toLocaleTimeString(),
-            vessel: shipmentType === "ocean" ? "MSC GÜLSÜN" : undefined,
-            flightNumber: shipmentType === "air" ? "ET 500" : undefined,
-            description: `Departed from ${shipmentType === "ocean" ? "port" : "airport"}.`,
-          },
-        ],
-      },
-      {
-        location: "Current Location",
-        events: [
-          {
-            type: "event",
-            status: randomStatus,
-            location: "Current Location",
-            timestamp: now.toISOString(),
-            date: now.toLocaleDateString(),
-            time: now.toLocaleTimeString(),
-            description: `Shipment is currently ${randomStatus.toLowerCase()}.`,
-          },
-        ],
-      },
-    ]
+    if (gocometData.events && Array.isArray(gocometData.events)) {
+      gocometData.events.forEach((event: any) => {
+        const eventDate = new Date(event.actual_date || event.event_date || new Date())
+        timeline.push({
+          location: event.location || "N/A",
+          events: [
+            {
+              type: "event",
+              status: event.display_event || event.event_type || "N/A",
+              location: event.location || "N/A",
+              timestamp: eventDate.toISOString(),
+              date: eventDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
+              time: eventDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+              description: event.event_description || event.display_event,
+              vessel: gocometData.vessel_name, // Gocomet often provides vessel at top level
+              voyage: gocometData.voyage_number, // Gocomet often provides voyage at top level
+            },
+          ],
+        })
+      })
+    }
 
     return {
-      shipmentNumber: trackingNumber,
-      status: randomStatus,
-      containerNumber: shipmentType === "ocean" ? "MSCU1234567" : undefined,
-      containerType: shipmentType === "ocean" ? "40' HC" : undefined,
-      weight: "1000 KG",
-      origin: "Shanghai, China",
-      destination: "New York, USA",
-      pol: shipmentType === "ocean" ? "Shanghai" : undefined,
-      pod: shipmentType === "ocean" ? "New York" : undefined,
-      estimatedArrival: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-      lastLocation: "Current Location",
+      shipmentNumber: gocometData.reference_no || originalTrackingNumber,
+      status: gocometData.status || "UNKNOWN",
+      containerNumber: gocometData.container_no || "N/A",
+      containerType: gocometData.container_type || "N/A",
+      weight: gocometData.weight_value ? `${gocometData.weight_value} ${gocometData.weight_unit || "KG"}` : "N/A",
+      origin: gocometData.pol_name || "N/A",
+      destination: gocometData.pod_name || "N/A",
+      pol: gocometData.pol_name || "N/A",
+      pod: gocometData.pod_name || "N/A",
+      estimatedArrival: gocometData.eta_date || "N/A",
+      estimatedDeparture: gocometData.etd_date || "N/A", // Added estimated departure
+      lastLocation: gocometData.last_location || "N/A",
       timeline: timeline,
-      documents: [],
+      documents: [], // Gocomet API might provide document links, populate if available
       details: {
-        packages: "10 cartons",
-        specialInstructions: "Handle with care",
-        dimensions: "2x2x2 m",
-        shipmentType: shipmentType || "unknown",
-        pieces: 10,
-        volume: "8 CBM",
+        shipmentType: detectedShipmentType || "unknown", // Use detected type or default
+        packages: gocometData.package_count
+          ? `${gocometData.package_count} ${gocometData.package_unit || "packages"}`
+          : undefined,
+        specialInstructions: undefined, // Not typically in Gocomet tracking response
+        dimensions: undefined, // Not typically in Gocomet tracking response
+        pieces: gocometData.package_count,
+        volume: gocometData.volume_value
+          ? `${gocometData.volume_value} ${gocometData.volume_unit || "CBM"}`
+          : undefined,
       },
-      raw: { mock: true, trackingNumber, shipmentType },
+      raw: gocometData,
     }
   }
 }
