@@ -1,137 +1,239 @@
-import type { TrackingResult, TrackingData } from "@/types/tracking"
+import type { TrackingResult, TrackingData, TrackingEvent } from "@/types/tracking"
 
 export class SeaRatesService {
-  private API_KEY = process.env.SEARATES_API_KEY || "YOUR_SEARATES_API_KEY" // Fallback for local dev
-  private BASE_URL = "https://api.searates.com/tracking/v2"
+  private apiKey: string
+  private baseUrl: string
 
   constructor() {
-    if (!process.env.SEARATES_API_KEY) {
-      console.warn("SEARATES_API_KEY environment variable is not set. Using a placeholder key.")
-    }
+    this.apiKey = process.env.SEARATES_API_KEY || ""
+    this.baseUrl = "https://tracking.searates.com/tracking" // Updated API endpoint
   }
 
   async trackShipment(
     trackingNumber: string,
     options?: {
+      sealine?: string
+      type?: "CT" | "BL" | "BK"
       forceUpdate?: boolean
       includeRoute?: boolean
       includeAis?: boolean
-      sealine?: string // Carrier hint for SeaRates
-      type?: "CT" | "BL" | "AWB" // Container, Bill of Lading, Air Waybill
     },
   ): Promise<TrackingResult> {
-    if (!this.API_KEY || this.API_KEY === "YOUR_SEARATES_API_KEY") {
-      return { success: false, error: "SeaRates API key not configured.", source: "SeaRates" }
+    if (!this.apiKey) {
+      return {
+        success: false,
+        error: "SeaRates API key not configured.",
+        source: "SeaRates",
+      }
     }
 
     const params = new URLSearchParams({
-      api_key: this.API_KEY,
+      api_key: this.apiKey,
       number: trackingNumber,
     })
 
-    if (options?.forceUpdate) {
-      params.append("force_update", "true")
-    }
-    if (options?.includeRoute) {
-      params.append("include_route", "true")
-    }
-    if (options?.includeAis) {
-      params.append("include_ais", "true")
-    }
     if (options?.sealine) {
       params.append("sealine", options.sealine)
     }
     if (options?.type) {
       params.append("type", options.type)
     }
-
-    const url = `${this.BASE_URL}?${params.toString()}`
-    console.log(`[SeaRatesService] Calling SeaRates API: ${url}`)
+    if (options?.forceUpdate) {
+      params.append("force_update", "true")
+    }
+    if (options?.includeRoute) {
+      params.append("route", "true")
+    }
+    if (options?.includeAis) {
+      params.append("ais", "true")
+    }
 
     try {
-      const response = await fetch(url, {
-        method: "GET",
+      const response = await fetch(`${this.baseUrl}?${params.toString()}`, {
+        method: "GET", // Changed to GET
         headers: {
           "Content-Type": "application/json",
         },
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        console.error("[SeaRatesService] API error:", errorData)
+        const errorText = await response.text()
+        console.error(`SeaRates API error (${response.status}): ${errorText}`)
         return {
           success: false,
-          error: `SeaRates API error: ${response.status} - ${errorData.message || "Unknown error"}`,
+          error: `SeaRates API returned status ${response.status}.`,
           source: "SeaRates",
         }
       }
 
       const data = await response.json()
-      console.log("[SeaRatesService] Raw SeaRates Response:", JSON.stringify(data, null, 2))
 
-      if (!data.tracking || data.tracking.length === 0) {
-        return { success: false, error: "No tracking information found from SeaRates.", source: "SeaRates" }
+      if (data.status === "success" && data.data) {
+        return {
+          success: true,
+          data: this.transformSeaRatesData(data.data),
+          source: "SeaRates",
+          isLiveData: !data.data.metadata?.from_cache, // Assuming 'from_cache' indicates live data
+          scrapedAt: data.data.metadata?.updated_at,
+        }
+      } else {
+        console.warn("SeaRates API response indicates failure or no tracking info:", data)
+        return {
+          success: false,
+          error: data.message || "No tracking information found for this number via SeaRates.",
+          source: "SeaRates",
+        }
       }
-
-      const seaRatesTracking = data.tracking[0] // Assuming the first tracking object is the most relevant
-
-      // Transform SeaRates response to your TrackingResult format
-      const transformedData: TrackingData = {
-        shipmentNumber: seaRatesTracking.number || trackingNumber,
-        status: seaRatesTracking.status || "Unknown",
-        containerNumber: seaRatesTracking.container_number,
-        mblOrAwbNumber: seaRatesTracking.bl_number || seaRatesTracking.awb_number,
-        carrier: seaRatesTracking.sealine || "Unknown",
-        vesselName: seaRatesTracking.vessel_name,
-        voyage: seaRatesTracking.voyage,
-        location: seaRatesTracking.current_location?.name || "Unknown",
-        estimatedArrival: seaRatesTracking.eta ? new Date(seaRatesTracking.eta).toISOString() : null,
-        events: (seaRatesTracking.events || []).map((event: any) => ({
-          status: event.status || "Unknown",
-          location: event.location?.name || "Unknown",
-          timestamp: event.date ? new Date(event.date).toISOString() : new Date().toISOString(),
-          description: event.description,
-          vesselName: event.vessel_name,
-          voyage: event.voyage,
-          mode: seaRatesTracking.type === "CT" ? "ocean" : seaRatesTracking.type === "AWB" ? "air" : undefined,
-        })),
-        source: "SeaRates API",
-        isLiveData: true,
-        lastUpdated: seaRatesTracking.updated_at
-          ? new Date(seaRatesTracking.updated_at).toISOString()
-          : new Date().toISOString(),
-        polName: seaRatesTracking.pol?.name,
-        podName: seaRatesTracking.pod?.name,
-        referenceNo: seaRatesTracking.reference_number,
-        containerType: seaRatesTracking.container_type,
-        containerSize: seaRatesTracking.container_size,
-        aisData: seaRatesTracking.ais_data
-          ? {
-              currentVessel: seaRatesTracking.ais_data.vessel_name,
-              speed: seaRatesTracking.ais_data.speed,
-              latLon: seaRatesTracking.ais_data.lat_lon,
-              lastUpdated: seaRatesTracking.ais_data.last_updated,
-              imoNumber: seaRatesTracking.ais_data.imo_number,
-            }
-          : undefined,
-        trackingLink: seaRatesTracking.tracking_link,
-        otherData: {
-          packages: seaRatesTracking.packages,
-          weight: seaRatesTracking.weight,
-          volume: seaRatesTracking.volume,
-        },
-      }
-
+    } catch (error) {
+      console.error("Error tracking with SeaRates:", error)
       return {
-        success: true,
-        data: transformedData,
-        source: "SeaRates API",
-        isLiveData: true,
-        scrapedAt: transformedData.lastUpdated,
+        success: false,
+        error: `Failed to connect to SeaRates service: ${error instanceof Error ? error.message : "Unknown error"}`,
+        source: "SeaRates",
       }
-    } catch (error: any) {
-      console.error("[SeaRatesService] Error tracking with SeaRates:", error)
-      return { success: false, error: error.message || "Failed to track with SeaRates", source: "SeaRates" }
+    }
+  }
+
+  private transformSeaRatesData(seaRatesData: any): TrackingData {
+    const locationsMap = new Map<number, any>()
+    seaRatesData.locations?.forEach((loc: any) => locationsMap.set(loc.id, loc))
+
+    const facilitiesMap = new Map<number, any>()
+    seaRatesData.facilities?.forEach((fac: any) => facilitiesMap.set(fac.id, fac))
+
+    const vesselsMap = new Map<number, any>()
+    seaRatesData.vessels?.forEach((vessel: any) => vesselsMap.set(vessel.id, vessel))
+
+    const containers = seaRatesData.containers || []
+    const firstContainer = containers[0] || {}
+
+    const timeline: Array<{ location: string; terminal?: string; events: TrackingEvent[] }> = []
+    const groupedEvents = new Map<string, TrackingEvent[]>()
+
+    let lastLocationName = "N/A"
+
+    containers.forEach((container: any) => {
+      container.events?.forEach((event: any) => {
+        const location = locationsMap.get(event.location)
+        const facility = facilitiesMap.get(event.facility)
+        const vessel = vesselsMap.get(event.vessel)
+
+        const eventLocationName = location?.name || "Unknown Location"
+        const eventTerminalName = facility?.name || undefined
+
+        const eventDate = event.date ? new Date(event.date) : new Date()
+        const formattedDate = eventDate.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+        const formattedTime = eventDate.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+
+        let eventType: TrackingEvent["type"] = "event"
+        switch (event.event_code) {
+          case "DEPA":
+            eventType = event.type === "sea" ? "vessel-departure" : "event"
+            break
+          case "ARRI":
+            eventType = event.type === "sea" ? "vessel-arrival" : "event"
+            break
+          case "GTOT":
+          case "GTIN":
+            eventType = "gate"
+            break
+          case "LOAD":
+            eventType = "load"
+            break
+          case "RECE":
+            eventType = "cargo-received"
+            break
+          case "CUSR":
+            eventType = "customs-cleared"
+            break
+          case "DISC":
+            eventType = "event" // Discharge could be cargo-received or other, keeping general
+            break
+          default:
+            eventType = "event"
+        }
+
+        const transformedEvent: TrackingEvent = {
+          type: eventType,
+          status: event.description || event.status || "Unknown Status",
+          location: eventLocationName,
+          timestamp: event.date || new Date().toISOString(),
+          date: formattedDate,
+          time: formattedTime,
+          description: event.description,
+          vessel: vessel?.name,
+          voyage: event.voyage,
+          // SeaRates API doesn't provide pieces, volume, weight per event directly in this structure
+        }
+
+        if (!groupedEvents.has(eventLocationName)) {
+          groupedEvents.set(eventLocationName, [])
+        }
+        groupedEvents.get(eventLocationName)?.push(transformedEvent)
+      })
+    })
+
+    // Sort events within each location group by timestamp
+    groupedEvents.forEach((events, locationName) => {
+      events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      timeline.push({
+        location: locationName,
+        terminal: events[0]?.description?.includes("Terminal") ? events[0].description : undefined, // Simple heuristic for terminal
+        events: events,
+      })
+    })
+
+    // Sort location groups by the timestamp of their first event
+    timeline.sort((a, b) => {
+      const firstEventA = a.events[0] ? new Date(a.events[0].timestamp).getTime() : 0
+      const firstEventB = b.events[0] ? new Date(b.events[0].timestamp).getTime() : 0
+      return firstEventA - firstEventB
+    })
+
+    // Determine last location from the latest event in the sorted timeline
+    if (timeline.length > 0) {
+      const lastGroup = timeline[timeline.length - 1]
+      if (lastGroup.events.length > 0) {
+        lastLocationName = lastGroup.events[lastGroup.events.length - 1].location
+      }
+    }
+
+    const polLocation = locationsMap.get(seaRatesData.route?.pol?.location)
+    const podLocation = locationsMap.get(seaRatesData.route?.pod?.location)
+    const originLocation = locationsMap.get(seaRatesData.route?.prepol?.location)
+    const destinationLocation = locationsMap.get(seaRatesData.route?.postpod?.location)
+
+    return {
+      shipmentNumber: seaRatesData.metadata?.number || "N/A",
+      status: seaRatesData.metadata?.status || "UNKNOWN",
+      containerNumber: firstContainer.number || seaRatesData.metadata?.number || "N/A",
+      containerType: firstContainer.size_type || "N/A",
+      weight: "N/A", // Not directly available in the provided JSON structure
+      origin: originLocation?.name || "N/A",
+      destination: destinationLocation?.name || "N/A",
+      pol: polLocation?.name || "N/A",
+      pod: podLocation?.name || "N/A",
+      estimatedArrival: seaRatesData.route?.pod?.date || seaRatesData.route?.pod?.predictive_eta || "N/A",
+      lastLocation: lastLocationName,
+      timeline: timeline,
+      documents: [], // Not available in the provided JSON structure
+      details: {
+        packages: "N/A", // Not available
+        specialInstructions: "N/A", // Not available
+        dimensions: "N/A", // Not available
+        shipmentType: seaRatesData.metadata?.type || "N/A",
+        pieces: undefined, // Not available
+        volume: undefined, // Not available
+      },
+      raw: seaRatesData,
     }
   }
 }

@@ -1,10 +1,14 @@
+import type { CarrierSuggestion } from "@/types/tracking"
+
+export type ShipmentType = "ocean" | "air" | "lcl" | "unknown"
+
 export interface CarrierDetails {
   name: string
   code: string // e.g., MAERSK, ETHIOPIAN_AIRLINES
   trackingUrl: string
   apiSupported: boolean
   prefixes: string[] // Combined container/BL/AWB prefixes
-  type: "ocean" | "air" | "lcl" | "unknown"
+  type: ShipmentType
   color: string
 }
 
@@ -183,6 +187,42 @@ const carriers: Record<string, CarrierDetails> = {
   },
 }
 
+// Define known carrier prefixes and AWB patterns
+const OCEAN_PREFIXES: Record<string, string> = {
+  MSKU: "Maersk",
+  MAEU: "Maersk",
+  MSCU: "MSC",
+  CMAU: "CMA-CGM",
+}
+
+const AIR_PREFIXES: Record<string, string> = {
+  "071": "Ethiopian",
+  "176": "Emirates",
+  "014": "American Airlines",
+}
+
+const KNOWN_CARRIERS: CarrierSuggestion[] = [
+  { name: "Maersk", code: "MAERSK", type: "ocean" },
+  { name: "MSC", code: "MSC", type: "ocean" },
+  { name: "CMA CGM", code: "CMA_CGM", type: "ocean" },
+  { name: "Hapag-Lloyd", code: "HAPAG_LLOYD", type: "ocean" },
+  { name: "COSCO", code: "COSCO", type: "ocean" },
+  { name: "Evergreen", code: "EVERGREEN", type: "ocean" },
+  { name: "OOCL", code: "OOCL", type: "ocean" },
+  { name: "ONE (Ocean Network Express)", code: "ONE", type: "ocean" },
+  { name: "Yang Ming", code: "YANG MING", type: "ocean" },
+  { name: "PIL (Pacific International Lines)", code: "PIL", type: "ocean" },
+  { name: "ZIM", code: "ZIM", type: "ocean" },
+  { name: "American Airlines", code: "AA", type: "air" },
+  { name: "United Airlines", code: "UA", type: "air" },
+  { name: "Lufthansa Cargo", code: "LH", type: "air" },
+  { name: "Emirates SkyCargo", code: "EK", type: "air" },
+  { name: "FedEx", code: "FX", type: "air" },
+  { name: "UPS", code: "UPS", type: "air" },
+  { name: "DHL Express", code: "DHL", type: "air" },
+  // Add more carriers as needed
+]
+
 // Function to get a carrier by any of its prefixes
 function getCarrierByPrefix(prefix: string): CarrierDetails | undefined {
   for (const carrierCode in carriers) {
@@ -285,11 +325,40 @@ export function getCarrierInfoByName(name: string): CarrierDetails | null {
   return null
 }
 
-// Alias wrappers for backward-compat imports -----------------
-export function detectContainerInfo(trackingNumber: string) {
-  return detectShipmentTrackingInfo(trackingNumber)
+export function detectShipmentInfo(input: string): {
+  type: ShipmentType
+  carrierHint?: string
+} {
+  const clean = input.trim().toUpperCase().replace(/[\s-]/g, "")
+
+  // ----- Ocean / LCL (container) -----
+  if (clean.length >= 4) {
+    const oceanPrefix = clean.slice(0, 4)
+    if (oceanPrefix in OCEAN_PREFIXES) {
+      return { type: "ocean", carrierHint: OCEAN_PREFIXES[oceanPrefix] }
+    }
+  }
+
+  // ----- Air (AWB) -----
+  if (clean.length >= 3) {
+    const airPrefix = clean.slice(0, 3)
+    if (airPrefix in AIR_PREFIXES) {
+      return { type: "air", carrierHint: AIR_PREFIXES[airPrefix] }
+    }
+  }
+
+  return { type: "unknown" }
 }
 
-export function getShippingLineInfo(name: string) {
-  return getCarrierInfoByName(name)
+export function getCarrierSuggestions(text: string): CarrierSuggestion[] {
+  const term = text.toUpperCase()
+  const ocean = Object.entries(OCEAN_PREFIXES)
+    .filter(([code, name]) => code.startsWith(term) || name.toUpperCase().includes(term))
+    .map(([code, name]) => ({ code, name, type: "ocean" }))
+
+  const air = Object.entries(AIR_PREFIXES)
+    .filter(([code, name]) => code.startsWith(term) || name.toUpperCase().includes(term))
+    .map(([code, name]) => ({ code, name, type: "air" }))
+
+  return [...ocean, ...air].slice(0, 6)
 }

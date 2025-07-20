@@ -1,55 +1,75 @@
-export interface TrackingEvent {
-  status: string // e.g., "In Transit", "Delivered", "Departed"
-  location: string // e.g., "Port of Shanghai", "Los Angeles"
-  timestamp: string // ISO 8601 format, e.g., "2023-10-26T10:00:00Z"
-  description?: string // Detailed description of the event
-  carrierEvent?: string // Raw event string from carrier if available
-  vesselName?: string
+export type TrackingEvent = {
+  type: "event" | "vessel-arrival" | "vessel-departure" | "gate" | "load" | "cargo-received" | "customs-cleared"
+  status: string
+  location: string
+  timestamp: string // ISO 8601 string
+  date: string // Formatted date
+  time: string // Formatted time
+  description?: string
+  vessel?: string
   voyage?: string
-  imoNumber?: string
-  mode?: string // e.g., "ocean", "air", "road"
-  plannedDate?: string // YYYY-MM-DD
-  actualDate?: string // YYYY-MM-DD
+  pieces?: number
+  volume?: number
+  weight?: number
 }
 
-export interface TrackingData {
+export type TrackingData = {
   shipmentNumber: string
   status: string
   containerNumber?: string
-  mblOrAwbNumber?: string // Master Bill of Lading or Air Waybill
-  carrier: string
-  vesselName?: string
-  voyage?: string
-  location?: string // Current location of the shipment
-  estimatedArrival?: string // ISO 8601 format
-  events: TrackingEvent[] // Detailed timeline of events
-  source: string // e.g., "SeaRates", "Gocomet", "Web Scraping"
-  isLiveData: boolean // True if data is from a live API, false if cached or scraped
-  lastUpdated?: string // ISO 8601 format of when this data was last updated
-  polName?: string // Port of Loading Name
-  podName?: string // Port of Discharge Name
-  referenceNo?: string // Customer reference number
-  containerType?: string // e.g., "20GP", "40HC"
-  containerSize?: string // e.g., "20", "40"
-  aisData?: {
-    currentVessel?: string
-    speed?: number
-    latLon?: [number, number] // [latitude, longitude]
-    lastUpdated?: string // ISO 8601
-    imoNumber?: string
+  containerType?: string
+  weight?: string
+  origin: string
+  destination: string
+  pol?: string // Port of Loading
+  pod?: string // Port of Discharge
+  estimatedArrival?: string // ISO 8601 string or date string
+  lastLocation?: string
+  timeline: Array<{
+    location: string
+    terminal?: string
+    events: TrackingEvent[]
+  }>
+  documents?: Array<{
+    type: string
+    url: string
+    description?: string
+  }>
+  details?: {
+    packages?: string
+    specialInstructions?: string
+    dimensions?: string
+    shipmentType?: string
+    pieces?: number
+    volume?: number
   }
-  trackingLink?: string // Direct link to carrier's tracking page
-  archived?: boolean
-  otherData?: Record<string, any> // Any other relevant data not directly mapped
-  shipmentRemark?: string
+  raw?: any // Raw data from the API
 }
 
-export interface TrackingResult {
-  success: boolean
-  data?: TrackingData
-  error?: string
-  source: string
-  isLiveData?: boolean
-  scrapedAt?: string // Timestamp for scraped data
-  fallbackOptions?: string[] // Suggestions for alternative tracking methods
+export type TrackingResult =
+  | {
+      success: true
+      data: TrackingData
+      source: string
+      isLiveData: boolean
+      scrapedAt?: string
+    }
+  | {
+      success: false
+      error: string
+      source: string
+      fallbackOptions?: string[]
+    }
+
+export type ShipmentType = "ocean" | "air" | "lcl" | "unknown"
+
+export type DetectedShipmentInfo = {
+  type: ShipmentType
+  carrierHint?: string
+}
+
+export type CarrierSuggestion = {
+  name: string
+  code: string
+  type: ShipmentType
 }
