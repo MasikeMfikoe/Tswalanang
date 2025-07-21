@@ -1,58 +1,32 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { MultiProviderTrackingService } from "@/lib/services/multi-provider-tracking-service"
-import { detectShipmentInfo } from "@/lib/services/container-detection-service"
+import type { ShipmentType } from "@/types/tracking"
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const { trackingNumber } = await request.json()
+    const { trackingNumber, bookingType, carrierHint, gocometToken } = await request.json()
 
     if (!trackingNumber) {
-      return NextResponse.json({ success: false, error: "Tracking number is required" }, { status: 400 })
+      return NextResponse.json({ error: "Tracking number is required" }, { status: 400 })
     }
 
-    // Auto-detect shipment type and carrier hint
-    const detectedInfo = detectShipmentInfo(trackingNumber)
-    const shipmentType = detectedInfo.type
-    const carrierHint = detectedInfo.carrierHint
+    // Initialize the multi-provider service with the GoComet token
+    const trackingService = new MultiProviderTrackingService(gocometToken)
 
-    console.log(
-      `[API/Track] Received request for: ${trackingNumber}, Detected Type: ${shipmentType}, Carrier Hint: ${carrierHint}`,
-    )
-
-    const multiProviderTrackingService = new MultiProviderTrackingService()
-    const result = await multiProviderTrackingService.trackShipment(trackingNumber, {
-      shipmentType,
-      carrierHint,
-      // preferScraping: false, // As per the prompt, we are focusing on API first
+    // Attempt to track using the multi-provider service
+    const result = await trackingService.trackShipment(trackingNumber, {
+      shipmentType: bookingType as ShipmentType,
+      carrierHint: carrierHint,
     })
 
     if (result.success) {
-      console.log(`[API/Track] Tracking successful for ${trackingNumber}. Source: ${result.source}`)
-      return NextResponse.json({
-        success: true,
-        data: result.data,
-        source: result.source,
-        isLiveData: result.isLiveData,
-        scrapedAt: result.scrapedAt,
-      })
+      return NextResponse.json(result)
     } else {
-      console.error(`[API/Track] Tracking failed for ${trackingNumber}. Error: ${result.error}`)
-      return NextResponse.json({
-        success: false,
-        error: result.error,
-        source: result.source,
-        fallbackOptions: result.fallbackOptions,
-      })
+      // If tracking failed, return the error and any fallback options
+      return NextResponse.json(result, { status: 200 }) // Still 200 if it's a valid fallback/no data found scenario
     }
   } catch (error: any) {
-    console.error("[API/Track] Uncaught API error:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Internal server error during tracking.",
-        details: error.message || "Unknown error",
-      },
-      { status: 500 },
-    )
+    console.error("Error in /api/track route:", error)
+    return NextResponse.json({ success: false, error: error.message || "Internal server error" }, { status: 500 })
   }
 }

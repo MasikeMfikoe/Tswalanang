@@ -16,7 +16,7 @@ export function ServiceWorkerRegistration() {
             toast({
               title: "Offline Support Ready",
               description: "The application is now available offline.",
-              variant: "success",
+              duration: 3000,
             })
           })
           .catch((error) => {
@@ -25,6 +25,7 @@ export function ServiceWorkerRegistration() {
               title: "Offline Support Failed",
               description: "Could not register service worker for offline capabilities.",
               variant: "destructive",
+              duration: 5000,
             })
           })
       })

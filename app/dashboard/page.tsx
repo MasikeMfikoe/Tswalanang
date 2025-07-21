@@ -1,12 +1,5 @@
-"use client"
-
-import ProtectedRoute from "@/components/ProtectedRoute"
-import DashboardContent from "@/components/DashboardContent"
+import DashboardContent from "@/components/DashboardContent" // Ensure this is a named export
 
 export default function DashboardPage() {
-  return (
-    <ProtectedRoute requiredPermission={{ module: "dashboard", action: "view" }}>
-      <DashboardContent />
-    </ProtectedRoute>
-  )
+  return <DashboardContent />
 }

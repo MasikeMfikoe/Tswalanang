@@ -1,36 +1,19 @@
-import { PageHeader } from "@/components/ui/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function EstimatesLoading() {
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <PageHeader title="Estimates" description="Manage and generate shipping cost estimates." />
-
-      <div className="flex justify-between items-center mb-4">
+    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-gray-950 p-6">
+      <div className="flex items-center justify-between mb-6">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-10 w-32" />
       </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <Card key={i}>
-            <CardHeader>
-              <CardTitle>
-                <Skeleton className="h-6 w-3/4" />
-              </CardTitle>
-              <Skeleton className="h-4 w-1/2" />
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-2/3" />
-              <div className="flex justify-end mt-4">
-                <Skeleton className="h-9 w-24" />
-              </div>
-            </CardContent>
-          </Card>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-[150px] w-full" />
         ))}
+      </div>
+      <div className="mt-8">
+        <Skeleton className="h-[400px] w-full" />
       </div>
     </div>
   )

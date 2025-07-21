@@ -1,249 +1,219 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { Loader2, Filter, RefreshCw } from "lucide-react"
-import { format } from "date-fns"
+import { Search, Filter, Loader2 } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
 
 interface AuditLog {
   id: string
   timestamp: string
   user: string
   action: string
-  resourceType: string
-  resourceId: string
+  entityType: string
+  entityId: string
   details: string
+  status: "success" | "failure" | "info" | "warning"
 }
-
-// Mock data for audit logs
-const mockAuditLogs: AuditLog[] = [
-  {
-    id: "log_001",
-    timestamp: "2024-07-19T10:00:00Z",
-    user: "admin@example.com",
-    action: "CREATE",
-    resourceType: "Order",
-    resourceId: "ORD001",
-    details: "New order ORD001 created by admin.",
-  },
-  {
-    id: "log_002",
-    timestamp: "2024-07-19T10:05:30Z",
-    user: "john.doe@example.com",
-    action: "UPDATE",
-    resourceType: "Customer",
-    resourceId: "CUST005",
-    details: "Customer CUST005 contact info updated.",
-  },
-  {
-    id: "log_003",
-    timestamp: "2024-07-19T10:15:00Z",
-    user: "system",
-    action: "AUTOMATED",
-    resourceType: "Tracking",
-    resourceId: "TRK98765",
-    details: "Tracking status updated for TRK98765 to 'In Transit'.",
-  },
-  {
-    id: "log_004",
-    timestamp: "2024-07-19T11:00:00Z",
-    user: "admin@example.com",
-    action: "DELETE",
-    resourceType: "Document",
-    resourceId: "DOC123",
-    details: "Document DOC123 deleted by admin.",
-  },
-  {
-    id: "log_005",
-    timestamp: "2024-07-19T11:30:00Z",
-    user: "jane.smith@example.com",
-    action: "LOGIN",
-    resourceType: "Auth",
-    resourceId: "jane.smith@example.com",
-    details: "User jane.smith@example.com logged in successfully.",
-  },
-  {
-    id: "log_006",
-    timestamp: "2024-07-19T12:00:00Z",
-    user: "admin@example.com",
-    action: "UPDATE",
-    resourceType: "User Group",
-    resourceId: "GRP002",
-    details: "Permissions for 'Sales Team' group updated.",
-  },
-]
 
 export function AuditTrailContent() {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [filterUser, setFilterUser] = useState("all")
-  const [filterAction, setFilterAction] = useState("all")
-  const [filterResourceType, setFilterResourceType] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterStatus, setFilterStatus] = useState<string>("all")
+  const { toast } = useToast()
+
+  useEffect(() => {
+    fetchAuditLogs()
+  }, [])
 
   const fetchAuditLogs = async () => {
     setLoading(true)
-    setError(null)
     try {
-      // In a real application, you would fetch logs from your backend API
-      // For now, simulate API call with mock data
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      let filteredLogs = mockAuditLogs
-
-      if (filterUser !== "all") {
-        filteredLogs = filteredLogs.filter((log) => log.user.toLowerCase().includes(filterUser.toLowerCase()))
-      }
-      if (filterAction !== "all") {
-        filteredLogs = filteredLogs.filter((log) => log.action.toLowerCase() === filterAction.toLowerCase())
-      }
-      if (filterResourceType !== "all") {
-        filteredLogs = filteredLogs.filter((log) => log.resourceType.toLowerCase() === filterResourceType.toLowerCase())
-      }
-      if (searchQuery) {
-        const lowerCaseQuery = searchQuery.toLowerCase()
-        filteredLogs = filteredLogs.filter(
-          (log) =>
-            log.user.toLowerCase().includes(lowerCaseQuery) ||
-            log.action.toLowerCase().includes(lowerCaseQuery) ||
-            log.resourceType.toLowerCase().includes(lowerCaseQuery) ||
-            log.resourceId.toLowerCase().includes(lowerCaseQuery) ||
-            log.details.toLowerCase().includes(lowerCaseQuery),
-        )
-      }
-
-      setLogs(filteredLogs)
-    } catch (err) {
-      setError("Failed to fetch audit logs.")
-      console.error("Error fetching audit logs:", err)
+      // In a real application, you would fetch from your backend API
+      // For now, using mock data
+      const mockLogs: AuditLog[] = [
+        {
+          id: "log1",
+          timestamp: "2024-07-20T14:30:00Z",
+          user: "admin@example.com",
+          action: "User Login",
+          entityType: "User",
+          entityId: "user123",
+          details: "Successful login from IP: 192.168.1.1",
+          status: "success",
+        },
+        {
+          id: "log2",
+          timestamp: "2024-07-20T14:25:00Z",
+          user: "ops@example.com",
+          action: "Order Status Update",
+          entityType: "Order",
+          entityId: "ORD001",
+          details: "Status changed from 'Pending' to 'In Transit'",
+          status: "info",
+        },
+        {
+          id: "log3",
+          timestamp: "2024-07-20T14:20:00Z",
+          user: "finance@example.com",
+          action: "View Financial Report",
+          entityType: "Report",
+          entityId: "FIN005",
+          details: "Accessed Q2 2024 Revenue Report",
+          status: "success",
+        },
+        {
+          id: "log4",
+          timestamp: "2024-07-20T14:10:00Z",
+          user: "admin@example.com",
+          action: "User Creation",
+          entityType: "User",
+          entityId: "user124",
+          details: "New user 'Jane Doe' created",
+          status: "success",
+        },
+        {
+          id: "log5",
+          timestamp: "2024-07-20T14:05:00Z",
+          user: "ops@example.com",
+          action: "Document Upload",
+          entityType: "Document",
+          entityId: "DOC007",
+          details: "Uploaded Bill of Lading for ORD002",
+          status: "success",
+        },
+        {
+          id: "log6",
+          timestamp: "2024-07-20T13:50:00Z",
+          user: "admin@example.com",
+          action: "API Key Generation",
+          entityType: "API Key",
+          entityId: "key_abc",
+          details: "Generated new API key for GoComet integration",
+          status: "success",
+        },
+        {
+          id: "log7",
+          timestamp: "2024-07-20T13:45:00Z",
+          user: "unknown",
+          action: "Failed Login Attempt",
+          entityType: "User",
+          entityId: "user123",
+          details: "Incorrect password for user 'user123' from IP: 203.0.113.45",
+          status: "failure",
+        },
+      ]
+      setLogs(mockLogs)
+    } catch (error: any) {
+      console.error("Error fetching audit logs:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load audit logs.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => {
-    fetchAuditLogs()
-  }, [filterUser, filterAction, filterResourceType, searchQuery])
+  const filteredLogs = logs.filter((log) => {
+    const matchesSearch =
+      log.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.entityType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.entityId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.details.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesStatus = filterStatus === "all" || log.status === filterStatus
+    return matchesSearch && matchesStatus
+  })
 
-  const uniqueUsers = Array.from(new Set(mockAuditLogs.map((log) => log.user)))
-  const uniqueActions = Array.from(new Set(mockAuditLogs.map((log) => log.action)))
-  const uniqueResourceTypes = Array.from(new Set(mockAuditLogs.map((log) => log.resourceType)))
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-2">Loading audit logs...</p>
+      </div>
+    )
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Audit Log Entries</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1">
           <Input
-            placeholder="Search by user, ID, or details..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="col-span-full lg:col-span-2"
+            placeholder="Search logs..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pr-10"
           />
-          <Select value={filterUser} onValueChange={setFilterUser}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by User" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Users</SelectItem>
-              {uniqueUsers.map((user) => (
-                <SelectItem key={user} value={user}>
-                  {user}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterAction} onValueChange={setFilterAction}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by Action" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Actions</SelectItem>
-              {uniqueActions.map((action) => (
-                <SelectItem key={action} value={action}>
-                  {action}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterResourceType} onValueChange={setFilterResourceType}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by Resource Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Resource Types</SelectItem>
-              {uniqueResourceTypes.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {type}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            onClick={() => {
-              setFilterUser("all")
-              setFilterAction("all")
-              setFilterResourceType("all")
-              setSearchQuery("")
-            }}
-            variant="outline"
-            className="col-span-full md:col-span-1"
-          >
-            <Filter className="mr-2 h-4 w-4" /> Clear Filters
-          </Button>
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
         </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center h-40">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-            <p className="ml-2 text-gray-600">Loading audit logs...</p>
-          </div>
-        ) : error ? (
-          <div className="text-red-500 text-center py-10">
-            <p>{error}</p>
-            <Button onClick={fetchAuditLogs} className="mt-4">
-              <RefreshCw className="mr-2 h-4 w-4" /> Retry
-            </Button>
-          </div>
-        ) : logs.length === 0 ? (
-          <div className="text-gray-500 text-center py-10">No audit logs found for the current filters.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Resource Type</TableHead>
-                  <TableHead>Resource ID</TableHead>
-                  <TableHead>Details</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="whitespace-nowrap">
-                      {format(new Date(log.timestamp), "MMM dd, yyyy HH:mm:ss")}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">{log.user}</TableCell>
-                    <TableCell className="whitespace-nowrap">{log.action}</TableCell>
-                    <TableCell className="whitespace-nowrap">{log.resourceType}</TableCell>
-                    <TableCell className="whitespace-nowrap font-mono text-sm">{log.resourceId}</TableCell>
-                    <TableCell className="max-w-xs truncate">{log.details}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-[180px]">
+            <Filter className="mr-2 h-4 w-4" />
+            <SelectValue placeholder="Filter by Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="success">Success</SelectItem>
+            <SelectItem value="failure">Failure</SelectItem>
+            <SelectItem value="info">Info</SelectItem>
+            <SelectItem value="warning">Warning</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Timestamp</TableHead>
+            <TableHead>User</TableHead>
+            <TableHead>Action</TableHead>
+            <TableHead>Entity</TableHead>
+            <TableHead>Details</TableHead>
+            <TableHead>Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filteredLogs.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center text-gray-500 py-4">
+                No audit logs found matching your criteria.
+              </TableCell>
+            </TableRow>
+          ) : (
+            filteredLogs.map((log) => (
+              <TableRow key={log.id}>
+                <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+                <TableCell className="font-medium">{log.user}</TableCell>
+                <TableCell>{log.action}</TableCell>
+                <TableCell>
+                  {log.entityType} ({log.entityId})
+                </TableCell>
+                <TableCell className="text-sm text-gray-600">{log.details}</TableCell>
+                <TableCell>
+                  <Badge
+                    variant={
+                      log.status === "success"
+                        ? "success"
+                        : log.status === "failure"
+                          ? "destructive"
+                          : log.status === "warning"
+                            ? "outline" // Using outline for warning, you might want a custom yellow
+                            : "secondary"
+                    }
+                  >
+                    {log.status}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

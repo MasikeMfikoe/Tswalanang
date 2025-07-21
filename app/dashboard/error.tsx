@@ -1,9 +1,8 @@
-"use client" // Error components must be Client Components
+"use client" // Error boundaries must be Client Components
 
 import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle } from "lucide-react"
 
 export default function Error({
   error,
@@ -14,25 +13,18 @@ export default function Error({
 }) {
   useEffect(() => {
     // Log the error to an error reporting service
-    console.error(error)
+    console.error("Dashboard Error:", error)
   }, [error])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950 p-4">
       <Card className="w-full max-w-md text-center">
-        <CardHeader className="flex flex-col items-center">
-          <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-          <CardTitle className="text-2xl font-bold text-red-600">Something went wrong!</CardTitle>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-red-600">Dashboard Error</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-gray-700">We're sorry, but an unexpected error occurred. Please try again.</p>
-          {process.env.NODE_ENV === "development" && (
-            <div className="text-left p-3 bg-gray-50 rounded-md border border-gray-200 text-sm text-gray-600">
-              <p className="font-semibold">Error Details:</p>
-              <pre className="whitespace-pre-wrap break-all">{error.message}</pre>
-              {error.digest && <p className="mt-2">Digest: {error.digest}</p>}
-            </div>
-          )}
+          <p className="text-gray-700 dark:text-gray-300">Something went wrong while loading the dashboard.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{error.message || "An unexpected error occurred."}</p>
           <Button onClick={() => reset()}>Try again</Button>
         </CardContent>
       </Card>

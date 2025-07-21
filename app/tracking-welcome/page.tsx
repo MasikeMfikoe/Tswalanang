@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
@@ -6,27 +5,36 @@ import Link from "next/link"
 
 export default function TrackingWelcomePage() {
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 bg-gray-50">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold">Track Your Shipment</CardTitle>
-          <p className="text-muted-foreground">Enter your tracking number below.</p>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="relative">
-            <Input type="text" placeholder="Enter tracking number" className="w-full pr-10" />
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          </div>
-          <Button className="w-full">Track Shipment</Button>
-          <div className="text-center text-sm text-muted-foreground">
-            Or{" "}
-            <Link href="/login" className="text-blue-600 hover:underline">
-              Login
-            </Link>{" "}
-            for more options.
-          </div>
-        </CardContent>
-      </Card>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950 p-4">
+      <div className="text-center space-y-6">
+        <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-50">Welcome to Smartlog Tracking</h1>
+        <p className="text-xl text-gray-600 dark:text-gray-400">
+          Track your shipments with ease and get real-time updates.
+        </p>
+        <div className="relative w-full max-w-md mx-auto">
+          <Input
+            type="text"
+            placeholder="Enter your tracking number"
+            className="w-full py-3 pl-4 pr-12 rounded-full bg-white shadow-md"
+          />
+          <Button
+            type="submit"
+            size="icon"
+            variant="ghost"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full hover:bg-gray-200"
+            aria-label="search"
+          >
+            <Search className="h-6 w-6 text-gray-700" />
+          </Button>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Or{" "}
+          <Link href="/login" className="text-blue-600 hover:underline dark:text-blue-400">
+            log in
+          </Link>{" "}
+          to view your dashboard.
+        </p>
+      </div>
     </div>
   )
 }

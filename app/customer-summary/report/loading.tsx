@@ -1,14 +1,13 @@
-import { PageHeader } from "@/components/ui/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function CustomerSummaryReportLoading() {
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <PageHeader
-        title="Customer Summary Report"
-        description="Detailed financial and operational summary for customers."
-      />
+    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-gray-950 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-10 w-24" />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Customer Info */}
@@ -47,28 +46,14 @@ export default function CustomerSummaryReportLoading() {
       </div>
 
       {/* Charts */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <Skeleton className="h-6 w-48" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-64 w-full" />
-        </CardContent>
-      </Card>
+      <div className="mt-6">
+        <Skeleton className="h-[400px] w-full" />
+      </div>
 
       {/* Recent Orders */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <Skeleton className="h-6 w-48" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-48 w-full" />
-        </CardContent>
-      </Card>
+      <div className="mt-6">
+        <Skeleton className="h-[300px] w-full" />
+      </div>
     </div>
   )
 }

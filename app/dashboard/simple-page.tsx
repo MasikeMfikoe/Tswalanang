@@ -1,72 +1,54 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DollarSign, Package, Truck, Users } from "lucide-react"
 
 export default function SimplePage() {
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <h1 className="text-3xl font-bold">Simple Page Example</h1>
-      <p className="text-lg text-muted-foreground">This is a basic page demonstrating common UI components.</p>
-
-      {/* Card with Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Contact Form</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" placeholder="Your Name" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="your@example.com" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="subject">Subject</Label>
-            <Input id="subject" placeholder="Subject of your message" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="message">Message</Label>
-            <Textarea id="message" placeholder="Your message here..." rows={5} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="priority">Priority</Label>
-            <Select>
-              <SelectTrigger id="priority">
-                <SelectValue placeholder="Select priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button className="w-full">Submit</Button>
-        </CardContent>
-      </Card>
-
-      {/* Another Card with just text */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Information Section</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>
-            This section can be used to display important information, announcements, or static content. It demonstrates
-            how cards can be used to group related content visually.
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            You can customize the content and layout of these cards to fit your application's needs.
-          </p>
-        </CardContent>
-      </Card>
+    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-gray-950">
+      <header className="bg-white dark:bg-gray-900 shadow-sm py-4 px-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Dashboard</h1>
+      </header>
+      <main className="flex-1 p-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <Package className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">2,350</div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">+20.1% from last month</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">$45,231.89</div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">+15.5% from last month</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Deliveries Completed</CardTitle>
+            <Truck className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">1,890</div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">+18.2% from last month</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
+            <Users className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">120</div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">+5% from last month</p>
+          </CardContent>
+        </Card>
+      </main>
     </div>
   )
 }

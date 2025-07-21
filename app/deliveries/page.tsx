@@ -1,118 +1,124 @@
-import { PageHeader } from "@/components/ui/page-header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowRight } from "lucide-react"
-import Link from "next/link"
-
-// Mock data for deliveries
-const mockDeliveries = [
-  {
-    id: "DEL001",
-    orderId: "ORD001",
-    status: "Out for Delivery",
-    driver: "John Doe",
-    eta: "2024-07-20 14:00",
-    origin: "Warehouse A",
-    destination: "Customer X",
-  },
-  {
-    id: "DEL002",
-    orderId: "ORD002",
-    status: "Delivered",
-    driver: "Jane Smith",
-    eta: "2024-07-19 10:30",
-    origin: "Warehouse B",
-    destination: "Customer Y",
-  },
-  {
-    id: "DEL003",
-    orderId: "ORD003",
-    status: "Pending Pickup",
-    driver: "Mike Johnson",
-    eta: "2024-07-21 09:00",
-    origin: "Supplier C",
-    destination: "Warehouse A",
-  },
-  {
-    id: "DEL004",
-    orderId: "ORD004",
-    status: "In Transit",
-    driver: "Sarah Lee",
-    eta: "2024-07-20 18:00",
-    origin: "Port of LA",
-    destination: "Distribution Center",
-  },
-  {
-    id: "DEL005",
-    orderId: "ORD005",
-    status: "Delivered",
-    driver: "John Doe",
-    eta: "2024-07-18 16:00",
-    origin: "Warehouse A",
-    destination: "Customer Z",
-  },
-]
+import { CalendarDays } from "lucide-react"
 
 export default function DeliveriesPage() {
-  return (
-    <div className="flex flex-col gap-6 p-6">
-      <PageHeader title="Deliveries" description="Monitor and manage all ongoing and completed deliveries." />
+  const deliveries = [
+    {
+      id: "DEL001",
+      orderId: "ORD001",
+      status: "Delivered",
+      origin: "Shanghai",
+      destination: "Rotterdam",
+      eta: "2024-07-20",
+      actualDelivery: "2024-07-19",
+      carrier: "Maersk",
+      trackingNumber: "MAEU1234567",
+    },
+    {
+      id: "DEL002",
+      orderId: "ORD002",
+      status: "In Transit",
+      origin: "New York",
+      destination: "London",
+      eta: "2024-07-25",
+      actualDelivery: "-",
+      carrier: "DHL",
+      trackingNumber: "DHL987654321",
+    },
+    {
+      id: "DEL003",
+      orderId: "ORD003",
+      status: "Pending",
+      origin: "Dubai",
+      destination: "Singapore",
+      eta: "2024-07-30",
+      actualDelivery: "-",
+      carrier: "Emirates SkyCargo",
+      trackingNumber: "EK654321",
+    },
+    {
+      id: "DEL004",
+      orderId: "ORD004",
+      status: "Delivered",
+      origin: "Hamburg",
+      destination: "Cape Town",
+      eta: "2024-07-10",
+      actualDelivery: "2024-07-10",
+      carrier: "MSC",
+      trackingNumber: "MSCU7890123",
+    },
+  ]
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Deliveries</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Delivery ID</TableHead>
-                <TableHead>Order ID</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Driver</TableHead>
-                <TableHead>ETA</TableHead>
-                <TableHead>Origin</TableHead>
-                <TableHead>Destination</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockDeliveries.map((delivery) => (
-                <TableRow key={delivery.id}>
-                  <TableCell className="font-medium">{delivery.id}</TableCell>
-                  <TableCell>{delivery.orderId}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        delivery.status === "Delivered"
-                          ? "success"
-                          : delivery.status === "Out for Delivery"
-                            ? "default"
-                            : "secondary"
-                      }
-                    >
-                      {delivery.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{delivery.driver}</TableCell>
-                  <TableCell>{delivery.eta}</TableCell>
-                  <TableCell>{delivery.origin}</TableCell>
-                  <TableCell>{delivery.destination}</TableCell>
-                  <TableCell className="text-right">
-                    <Link href={`/delivery-confirmation/${delivery.id}`}>
-                      <Button variant="ghost" size="sm">
-                        View <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </TableCell>
+  return (
+    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-gray-950">
+      <header className="bg-white dark:bg-gray-900 shadow-sm py-4 px-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Deliveries</h1>
+        <Button>Add New Delivery</Button>
+      </header>
+      <main className="flex-1 p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>All Deliveries</CardTitle>
+            <CardDescription>Overview of all shipments and their current status.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Delivery ID</TableHead>
+                  <TableHead>Order ID</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Origin</TableHead>
+                  <TableHead>Destination</TableHead>
+                  <TableHead>ETA</TableHead>
+                  <TableHead>Actual Delivery</TableHead>
+                  <TableHead>Carrier</TableHead>
+                  <TableHead>Tracking Number</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {deliveries.map((delivery) => (
+                  <TableRow key={delivery.id}>
+                    <TableCell className="font-medium">{delivery.id}</TableCell>
+                    <TableCell>{delivery.orderId}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          delivery.status === "Delivered"
+                            ? "success"
+                            : delivery.status === "In Transit"
+                              ? "secondary"
+                              : "outline"
+                        }
+                      >
+                        {delivery.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{delivery.origin}</TableCell>
+                    <TableCell>{delivery.destination}</TableCell>
+                    <TableCell className="flex items-center gap-1">
+                      <CalendarDays className="h-4 w-4 text-gray-500" />
+                      {delivery.eta}
+                    </TableCell>
+                    <TableCell>{delivery.actualDelivery}</TableCell>
+                    <TableCell>{delivery.carrier}</TableCell>
+                    <TableCell>{delivery.trackingNumber}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm">
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </main>
     </div>
   )
 }

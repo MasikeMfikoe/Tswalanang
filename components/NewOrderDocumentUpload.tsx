@@ -3,157 +3,132 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, UploadCloud, FileText, XCircle } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Upload, Loader2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
-interface Document {
-  id: string
-  name: string
-  file: File
-  status: "pending" | "uploading" | "uploaded" | "failed"
-  progress: number
+interface NewOrderDocumentUploadProps {
+  orderId: string
+  onUploadSuccess: (doc: { id: string; name: string; type: string; url: string }) => void
 }
 
-export function NewOrderDocumentUpload() {
-  const [documents, setDocuments] = useState<Document[]>([])
-  const [uploading, setUploading] = useState(false)
+export function NewOrderDocumentUpload({ orderId, onUploadSuccess }: NewOrderDocumentUploadProps) {
+  const [fileName, setFileName] = useState("")
+  const [documentType, setDocumentType] = useState("")
+  const [file, setFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
   const { toast } = useToast()
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      const newFiles = Array.from(event.target.files).map((file) => ({
-        id: URL.createObjectURL(file), // Temporary ID
-        name: file.name,
-        file,
-        status: "pending",
-        progress: 0,
-      }))
-      setDocuments((prev) => [...prev, ...newFiles])
+    if (event.target.files && event.target.files[0]) {
+      setFile(event.target.files[0])
+      setFileName(event.target.files[0].name)
+    } else {
+      setFile(null)
+      setFileName("")
     }
   }
 
-  const handleRemoveDocument = (id: string) => {
-    setDocuments((prev) => prev.filter((doc) => doc.id !== id))
-  }
-
-  const handleUploadAll = async () => {
-    setUploading(true)
-    let allSuccess = true
-
-    for (const doc of documents) {
-      if (doc.status === "uploaded") continue // Skip already uploaded
-
-      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "uploading", progress: 0 } : d)))
-
-      try {
-        // Simulate file upload to an API endpoint
-        // In a real application, you'd use FormData and a fetch/axios call
-        // const formData = new FormData();
-        // formData.append('file', doc.file);
-        // const response = await fetch('/api/upload-document', { method: 'POST', body: formData });
-        // if (!response.ok) throw new Error('Upload failed');
-
-        // Simulate progress
-        for (let i = 0; i <= 100; i += 10) {
-          await new Promise((resolve) => setTimeout(resolve, 100))
-          setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, progress: i } : d)))
-        }
-
-        setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "uploaded", progress: 100 } : d)))
-        toast({
-          title: "Upload Success",
-          description: `${doc.name} uploaded successfully.`,
-          variant: "success",
-        })
-      } catch (error) {
-        console.error("Upload error for", doc.name, error)
-        setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "failed", progress: 0 } : d)))
-        toast({
-          title: "Upload Failed",
-          description: `Failed to upload ${doc.name}.`,
-          variant: "destructive",
-        })
-        allSuccess = false
-      }
-    }
-    setUploading(false)
-    if (allSuccess) {
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!file || !fileName.trim() || !documentType) {
       toast({
-        title: "All Uploads Complete",
-        description: "All selected documents have been uploaded.",
+        title: "Missing Information",
+        description: "Please provide a file, document name, and type.",
+        variant: "destructive",
       })
+      return
+    }
+
+    setIsUploading(true)
+    toast({
+      title: "Uploading Document",
+      description: `Uploading ${fileName} for Order ${orderId}...`,
+      duration: 3000,
+    })
+
+    try {
+      // Simulate file upload to a storage service (e.g., Vercel Blob, S3)
+      // In a real application, you'd send the file to an API route that handles storage
+      await new Promise((resolve) => setTimeout(resolve, 2000)) // Simulate network delay
+
+      const mockDocumentId = `doc_${Date.now()}`
+      const mockDocumentUrl = `/placeholder.pdf?name=${encodeURIComponent(fileName)}` // Placeholder URL
+
+      onUploadSuccess({
+        id: mockDocumentId,
+        name: fileName,
+        type: documentType,
+        url: mockDocumentUrl,
+      })
+
+      toast({
+        title: "Upload Successful",
+        description: `${fileName} has been uploaded for Order ${orderId}.`,
+      })
+
+      // Reset form
+      setFileName("")
+      setDocumentType("")
+      setFile(null)
+    } catch (error) {
+      console.error("Upload error:", error)
+      toast({
+        title: "Upload Failed",
+        description: "There was an error uploading your document. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
     }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Document Upload</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-6">
-        <div className="space-y-2">
-          <Label htmlFor="document-upload">Upload Supporting Documents</Label>
-          <Input
-            id="document-upload"
-            type="file"
-            multiple
-            onChange={handleFileChange}
-            className="file:text-blue-600 file:bg-blue-50 file:border-blue-200"
-          />
-          <p className="text-sm text-muted-foreground">Max file size: 10MB. Supported formats: PDF, JPG, PNG.</p>
-        </div>
-
-        {documents.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="font-semibold">Selected Documents:</h3>
-            <div className="grid gap-3">
-              {documents.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between rounded-md border p-3">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">{doc.name}</p>
-                      {doc.status === "uploading" && (
-                        <p className="text-sm text-blue-600">Uploading... {doc.progress}%</p>
-                      )}
-                      {doc.status === "uploaded" && <p className="text-sm text-green-600">Uploaded</p>}
-                      {doc.status === "failed" && <p className="text-sm text-red-600">Upload Failed</p>}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveDocument(doc.id)}
-                    disabled={uploading}
-                    aria-label={`Remove ${doc.name}`}
-                  >
-                    <XCircle className="h-5 w-5 text-red-500" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-            <Button
-              onClick={handleUploadAll}
-              disabled={uploading || documents.every((d) => d.status === "uploaded")}
-              className="w-full"
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading All...
-                </>
-              ) : (
-                <>
-                  <UploadCloud className="mr-2 h-4 w-4" /> Upload All
-                </>
-              )}
-            </Button>
-          </div>
+    <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-md bg-gray-50">
+      <h3 className="text-lg font-semibold">Upload Documents for Order {orderId}</h3>
+      <div className="space-y-2">
+        <Label htmlFor="file">File</Label>
+        <Input id="file" type="file" onChange={handleFileChange} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="fileName">Document Name</Label>
+        <Input
+          id="fileName"
+          value={fileName}
+          onChange={(e) => setFileName(e.target.value)}
+          placeholder={`e.g., Bill of Lading for ${orderId}`}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="documentType">Document Type</Label>
+        <Select value={documentType} onValueChange={setDocumentType}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select document type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Bill of Lading">Bill of Lading</SelectItem>
+            <SelectItem value="Commercial Invoice">Commercial Invoice</SelectItem>
+            <SelectItem value="Packing List">Packing List</SelectItem>
+            <SelectItem value="Customs Declaration">Customs Declaration</SelectItem>
+            <SelectItem value="Proof of Delivery">Proof of Delivery</SelectItem>
+            <SelectItem value="Other">Other</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <Button type="submit" className="w-full" disabled={isUploading}>
+        {isUploading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...
+          </>
+        ) : (
+          <>
+            <Upload className="mr-2 h-4 w-4" /> Upload Document
+          </>
         )}
-      </CardContent>
-    </Card>
+      </Button>
+    </form>
   )
 }

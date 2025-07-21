@@ -1,83 +1,84 @@
 # Deployment Checklist
 
-This checklist outlines the steps required to successfully deploy the TSW Smartlog application.
+This checklist outlines key considerations and steps for deploying the TSW Smartlog application.
 
-## Pre-Deployment
+## Code Quality & Best Practices
+- [ ] All code adheres to established coding standards (ESLint, Prettier).
+- [ ] Type safety is enforced (TypeScript errors resolved).
+- [ ] No `any` types are used without justification.
+- [ ] Sensitive information (API keys, secrets) are stored in environment variables, not hardcoded.
+- [ ] Unused imports, variables, and dead code are removed.
+- [ ] Code is well-commented where necessary, especially for complex logic.
 
-- [ ] **Environment Variables:**
-  - [ ] `SUPABASE_URL`: Supabase project URL.
-  - [ ] `SUPABASE_ANON_KEY`: Supabase public anon key.
-  - [ ] `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key (for server-side operations).
-  - [ ] `MAERSK_CLIENT_ID`: Maersk API client ID.
-  - [ ] `MAERSK_CLIENT_SECRET`: Maersk API client secret.
-  - [ ] `MAERSK_API_URL`: Maersk API base URL.
-  - [ ] `SEARATES_API_KEY`: SeaRates API key.
-  - [ ] `GOCOMET_EMAIL`: Gocomet API login email.
-  - [ ] `GOCOMET_PASSWORD`: Gocomet API login password.
-  - [ ] `GOCOMET_API_URL`: Gocomet API base URL (if different from default).
-  - [ ] `TRACKSHIP_API_KEY`: TrackShip API key.
-  - [ ] `TRACKSHIP_API_URL`: TrackShip API base URL.
-  - [ ] `NEXT_PUBLIC_SUPABASE_URL`: Public Supabase URL for client-side.
-  - [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Public Supabase anon key for client-side.
-  - [ ] `NEXT_PUBLIC_API_URL`: Public API URL if your backend is separate.
+## Testing
+- [ ] Unit tests are written for critical components and functions.
+- [ ] Integration tests cover key user flows and API interactions.
+- [ ] All tests pass successfully.
+- [ ] Test coverage meets defined thresholds (if applicable).
+- [ ] End-to-end tests are implemented for core functionalities.
 
-- [ ] **Database Setup:**
-  - [ ] Ensure Supabase project is initialized.
-  - [ ] Run all necessary SQL migration scripts (`supabase/migrations/*.sql`) in order.
-  - [ ] Verify Row Level Security (RLS) policies are correctly configured for production.
-  - [ ] Seed initial data if required (e. ] `scripts/populate_mock_users_to_supabase.sql`).
+## Feature-Specific Checks
+### User Management
+- [ ] User creation, editing, and deletion workflows are functional.
+- [ ] Role-based access control (RBAC) is correctly implemented and tested.
+- [ ] Client user linking to customers is working as expected.
+- [ ] User authentication (login/logout) is secure and robust.
 
-- [ ] **Authentication:**
-  - [ ] Confirm Supabase Auth is enabled and configured (e.g., email/password, social logins).
-  - [ ] Test user registration and login flows.
+### Order Management
+- [ ] New order creation process is smooth and validates input correctly.
+- [ ] Order details viewing and editing are functional.
+- [ ] Order status updates are reflected accurately.
+- [ ] Financial columns (cost, price, profit) are correctly calculated and displayed.
 
-- [ ] **API Endpoints:**
-  - [ ] Verify all `/api` routes are functional and secure.
-  - [ ] Test external API integrations (Maersk, SeaRates, Gocomet, TrackShip).
+### Document Management
+- [ ] Document upload and processing (OCR) is working.
+- [ ] Document viewing and deletion are functional.
+- [ ] Client pack generation is accurate.
 
-- [ ] **Error Handling & Monitoring:**
-  - [ ] Ensure error logging and monitoring are set up (e.g., Vercel's built-in logs, external services).
-  - [ ] Test `error.tsx` and `not-found.tsx` pages.
+### Shipment Tracking
+- [ ] Auto-detection of shipping lines/airlines is accurate.
+- [ ] Integration with GoComet, SeaRates, Maersk, etc., is functional.
+- [ ] Live tracking updates are displayed correctly.
+- [ ] Milestone achievement logic (green ticks) is accurate based on dates/times.
+- [ ] Manual tracking updates are possible if needed.
 
-- [ ] **Performance Optimization:**
-  - [ ] Review Next.js caching strategies (ISR, SSG, SSR).
-  - [ ] Optimize image loading (e.g., `next/image`).
-  - [ ] Minify CSS/JS.
+### Estimates & Rate Cards
+- [ ] Estimate generation and editing are functional.
+- [ ] Customer-specific rate cards are applied correctly.
+- [ ] API connection for estimates is stable.
 
-- [ ] **Accessibility:**
-  - [ ] Conduct an accessibility audit.
-  - [ ] Ensure all interactive elements have proper ARIA attributes.
+### Dashboard & Reporting
+- [ ] Dashboard KPIs and charts display accurate, live data.
+- [ ] Customer summary reports generate correctly.
+- [ ] Audit trail logs relevant actions.
 
-- [ ] **Testing:**
-  - [ ] Run all unit and integration tests.
-  - [ ] Perform end-to-end testing for critical user flows.
+### API Endpoints
+- [ ] All API routes are tested and return expected responses.
+- [ ] API authentication and authorization are enforced.
+- [ ] Error handling for API routes is robust.
+- [ ] Webhooks (e.g., for shipping updates) are configured and tested.
 
-## Deployment Steps (Vercel)
+## Performance
+- [ ] Page load times are optimized (e.g., image optimization, lazy loading).
+- [ ] Data fetching is efficient (e.g., server components, caching strategies).
+- [ ] Bundle size is minimized.
+- [ ] Lighthouse scores are acceptable.
 
-1.  **Link Git Repository:** Ensure your Vercel project is linked to the correct GitHub/GitLab/Bitbucket repository and branch (e.g., `main`).
-2.  **Configure Build Settings:**
-    -   **Build Command:** `pnpm build` (or `npm run build`, `yarn build` depending on your package manager).
-    -   **Install Command:** `pnpm install` (or `npm install`, `yarn install`).
-    -   **Root Directory:** Ensure it's set correctly if your project is in a monorepo or subdirectory.
-3.  **Add Environment Variables:** Add all required environment variables (listed above) in the Vercel project settings. Mark sensitive variables as "Secret".
-4.  **Deploy:** Trigger a new deployment from the Vercel dashboard or by pushing to the linked branch.
-5.  **Monitor Deployment Logs:** Check the build and runtime logs for any errors or warnings.
+## Security
+- [ ] All dependencies are up-to-date and free of known vulnerabilities.
+- [ ] Input validation is performed on both client and server sides.
+- [ ] Protection against common web vulnerabilities (XSS, CSRF, SQL injection).
+- [ ] Environment variables are securely managed.
 
-## Post-Deployment Verification
+## Infrastructure & Deployment
+- [ ] Vercel project is correctly configured.
+- [ ] Environment variables are set in Vercel.
+- [ ] Supabase database is configured and accessible.
+- [ ] Database migrations are applied successfully.
+- [ ] Monitoring and logging are set up.
+- [ ] Backup and recovery procedures are in place.
 
-- [ ] **Application Access:**
-  - [ ] Access the deployed application URL.
-  - [ ] Verify all main pages load correctly.
-- [ ] **Core Functionality:**
-  - [ ] Test user login/logout.
-  - [ ] Create/view/edit orders, customers, estimates.
-  - [ ] Verify shipment tracking functionality.
-  - [ ] Check document management.
-- [ ] **Data Integrity:**
-  - [ ] Confirm data is being fetched and displayed correctly from Supabase.
-  - [ ] Test data submission forms.
-- [ ] **Responsive Design:**
-  - [ ] Check application layout on various screen sizes (desktop, tablet, mobile).
-- [ ] **Security:**
-  - [ ] Verify RLS is enforced for different user roles.
-  - [ ] Check for any exposed API keys or sensitive information in the browser console/network tab.
+## Post-Deployment
+- [ ] Monitor application performance and errors.
+- [ ] Gather user feedback.
+- [ ] Plan for future iterations and improvements.

@@ -1,28 +1,31 @@
-"use client"
-
-import { useRouter, useSearchParams } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { CheckCircle } from "lucide-react"
+import Link from "next/link"
 
 export default function DeliverySuccessPage() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const deliveryId = searchParams.get("id")
-
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950 p-4">
       <Card className="w-full max-w-md text-center">
         <CardHeader>
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-          <CardTitle className="text-2xl font-bold text-green-600">Delivery Confirmed!</CardTitle>
+          <CardTitle className="text-3xl font-bold text-green-600">Delivery Confirmed!</CardTitle>
+          <CardDescription>Shipment #XYZ789 has been successfully marked as delivered.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-gray-700">
-            Delivery {deliveryId && <strong>#{deliveryId}</strong>} has been successfully confirmed.
+          <p className="text-gray-700 dark:text-gray-300">
+            Thank you for confirming the delivery. The system has been updated.
           </p>
-          <p className="text-sm text-muted-foreground">Thank you for completing the delivery.</p>
-          <Button onClick={() => router.push("/deliveries")}>Back to Deliveries</Button>
+          <div className="flex flex-col gap-2">
+            <Link href="/dashboard" passHref>
+              <Button className="w-full">Go to Dashboard</Button>
+            </Link>
+            <Link href="/deliveries" passHref>
+              <Button variant="outline" className="w-full bg-transparent">
+                View All Deliveries
+              </Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

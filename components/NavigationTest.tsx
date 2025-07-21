@@ -1,83 +1,42 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function NavigationTest() {
   const router = useRouter()
 
+  const navigateTo = (path: string) => {
+    router.push(path)
+  }
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Next.js Link Component</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          <Link href="/dashboard">
-            <Button variant="outline" className="w-full bg-transparent">
-              Go to Dashboard
-            </Button>
-          </Link>
-          <Link href="/orders">
-            <Button variant="outline" className="w-full bg-transparent">
-              Go to Orders List
-            </Button>
-          </Link>
-          <Link href="/customers">
-            <Button variant="outline" className="w-full bg-transparent">
-              Go to Customers List
-            </Button>
-          </Link>
-          <Link href="/estimates/new">
-            <Button variant="outline" className="w-full bg-transparent">
-              Create New Estimate
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Next.js useRouter Hook</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          <Button variant="outline" className="w-full bg-transparent" onClick={() => router.push("/dashboard")}>
-            Push to Dashboard
-          </Button>
-          <Button variant="outline" className="w-full bg-transparent" onClick={() => router.replace("/orders")}>
-            Replace to Orders List
-          </Button>
-          <Button variant="outline" className="w-full bg-transparent" onClick={() => router.back()}>
-            Go Back
-          </Button>
-          <Button variant="outline" className="w-full bg-transparent" onClick={() => router.forward()}>
-            Go Forward
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Dynamic Routes & External Links</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          <Link href="/orders/ORD123" passHref>
-            <Button variant="outline" className="w-full bg-transparent">
-              View Dynamic Order
-            </Button>
-          </Link>
-          <Link href="https://vercel.com" target="_blank" rel="noopener noreferrer">
-            <Button variant="outline" className="w-full bg-transparent">
-              Open Vercel (External)
-            </Button>
-          </Link>
-          <Button variant="outline" className="w-full bg-transparent" onClick={() => router.push("/non-existent-page")}>
-            Go to 404 Page
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+    <Card className="w-full max-w-md text-center">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold">Navigation Test</CardTitle>
+        <CardDescription>Test different navigation paths within the application.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Button onClick={() => navigateTo("/dashboard")} className="w-full">
+          Go to Dashboard
+        </Button>
+        <Button onClick={() => navigateTo("/orders")} className="w-full">
+          Go to Orders
+        </Button>
+        <Button onClick={() => navigateTo("/customers")} className="w-full">
+          Go to Customers
+        </Button>
+        <Button onClick={() => navigateTo("/admin/users")} className="w-full">
+          Go to Admin Users
+        </Button>
+        <Button onClick={() => navigateTo("/non-existent-page")} className="w-full" variant="outline">
+          Go to Non-Existent Page (404)
+        </Button>
+        <Button onClick={() => navigateTo("/dashboard/error")} className="w-full" variant="destructive">
+          Trigger Dashboard Error
+        </Button>
+      </CardContent>
+    </Card>
   )
 }

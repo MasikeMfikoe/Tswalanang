@@ -1,29 +1,45 @@
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
-  const { documentId, action } = await request.json()
+  const { documentId, imageUrl } = await request.json()
 
-  // Simulate document processing based on the action
-  console.log(`Processing document ${documentId} with action: ${action}`)
-
-  let status = "processing"
-  let message = `Document ${documentId} is being processed for ${action}.`
-
-  if (action === "ocr") {
-    status = "completed"
-    message = `OCR completed for document ${documentId}. Text extracted.`
-  } else if (action === "archive") {
-    status = "archived"
-    message = `Document ${documentId} has been archived.`
-  } else if (action === "validate") {
-    status = "completed"
-    message = `Document ${documentId} validated successfully.`
+  if (!documentId || !imageUrl) {
+    return NextResponse.json({ error: "documentId and imageUrl are required" }, { status: 400 })
   }
 
-  return NextResponse.json({
+  console.log(`Processing document ${documentId} from URL: ${imageUrl}`)
+
+  // Simulate OCR processing
+  await new Promise((resolve) => setTimeout(resolve, 2000)) // Simulate delay
+
+  const mockProcessedData = {
     documentId,
-    status,
-    message,
-    timestamp: new Date().toISOString(),
-  })
+    extractedText: `This is mock extracted text for document ${documentId}. It contains details about a shipment, including:
+      - Consignee: John Doe
+      - Shipper: Acme Corp
+      - Goods: Electronics
+      - Quantity: 10 cartons
+      - Weight: 500 kg
+      - Dimensions: 2x2x2 meters
+      - Tracking Number: ABC123XYZ
+      - Date: 2024-07-20
+      - Status: In Transit
+    `,
+    extractedFields: {
+      consignee: "John Doe",
+      shipper: "Acme Corp",
+      goods: "Electronics",
+      quantity: "10 cartons",
+      weight: "500 kg",
+      dimensions: "2x2x2 meters",
+      trackingNumber: "ABC123XYZ",
+      date: "2024-07-20",
+      status: "In Transit",
+    },
+    processingStatus: "completed",
+    processedAt: new Date().toISOString(),
+  }
+
+  // In a real application, you would save this processed data back to your database
+  return NextResponse.json(mockProcessedData, { status: 200 })
 }

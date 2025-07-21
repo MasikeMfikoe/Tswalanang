@@ -3,197 +3,272 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Loader2, UploadCloud, FileText, CheckCircle, XCircle } from "lucide-react"
+import { Upload, Eye, Download, CheckCircle, XCircle, Loader2, Trash2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { Badge } from "@/components/ui/badge"
 
-interface PODDocument {
+interface ProofOfDelivery {
   id: string
-  name: string
-  file: File
-  status: "pending" | "uploading" | "uploaded" | "failed"
-  progress: number
+  shipmentId: string
+  recipientName: string
+  deliveryDate: string
+  status: "Confirmed" | "Pending" | "Disputed"
+  imageUrl: string
+  notes?: string
 }
 
-interface PODManagementProps {
-  orderId: string
-}
-
-export function PODManagement({ orderId }: PODManagementProps) {
-  const [podDocuments, setPodDocuments] = useState<PODDocument[]>([])
-  const [notes, setNotes] = useState("")
-  const [uploading, setUploading] = useState(false)
+export function PODManagement() {
+  const [pods, setPods] = useState<ProofOfDelivery[]>([
+    {
+      id: "pod1",
+      shipmentId: "SHP001",
+      recipientName: "John Doe",
+      deliveryDate: "2024-07-19",
+      status: "Confirmed",
+      imageUrl: "/placeholder.svg?height=200&width=300",
+      notes: "Delivered to front desk.",
+    },
+    {
+      id: "pod2",
+      shipmentId: "SHP002",
+      recipientName: "Jane Smith",
+      deliveryDate: "2024-07-18",
+      status: "Pending",
+      imageUrl: "/placeholder.svg?height=200&width=300",
+      notes: "Waiting for recipient signature.",
+    },
+    {
+      id: "pod3",
+      shipmentId: "SHP003",
+      recipientName: "Bob Johnson",
+      deliveryDate: "2024-07-17",
+      status: "Disputed",
+      imageUrl: "/placeholder.svg?height=200&width=300",
+      notes: "Recipient claims missing items.",
+    },
+  ])
+  const [newPodShipmentId, setNewPodShipmentId] = useState("")
+  const [newPodRecipientName, setNewPodRecipientName] = useState("")
+  const [newPodFile, setNewPodFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
   const { toast } = useToast()
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      const newFiles = Array.from(event.target.files).map((file) => ({
-        id: URL.createObjectURL(file), // Temporary ID
-        name: file.name,
-        file,
-        status: "pending",
-        progress: 0,
-      }))
-      setPodDocuments((prev) => [...prev, ...newFiles])
+    if (event.target.files && event.target.files[0]) {
+      setNewPodFile(event.target.files[0])
+    } else {
+      setNewPodFile(null)
     }
   }
 
-  const handleRemoveDocument = (id: string) => {
-    setPodDocuments((prev) => prev.filter((doc) => doc.id !== id))
-  }
-
-  const handleSubmitPOD = async () => {
-    if (podDocuments.length === 0) {
+  const handleUploadPod = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newPodShipmentId.trim() || !newPodRecipientName.trim() || !newPodFile) {
       toast({
-        title: "No Documents",
-        description: "Please upload at least one Proof of Delivery document.",
+        title: "Missing Information",
+        description: "Please fill in all fields and select a file.",
         variant: "destructive",
       })
       return
     }
 
-    setUploading(true)
-    let allSuccess = true
+    setIsUploading(true)
+    toast({
+      title: "Uploading POD",
+      description: `Uploading POD for shipment ${newPodShipmentId}...`,
+      duration: 3000,
+    })
 
-    for (const doc of podDocuments) {
-      if (doc.status === "uploaded") continue
+    try {
+      // Simulate file upload and POD creation
+      await new Promise((resolve) => setTimeout(resolve, 2000))
 
-      setPodDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "uploading", progress: 0 } : d)))
-
-      try {
-        // Simulate file upload to an API endpoint
-        // In a real application, you'd use FormData and a fetch/axios call
-        // const formData = new FormData();
-        // formData.append('file', doc.file);
-        // formData.append('orderId', orderId);
-        // formData.append('notes', notes);
-        // const response = await fetch('/api/upload-pod', { method: 'POST', body: formData });
-        // if (!response.ok) throw new Error('POD upload failed');
-
-        // Simulate progress
-        for (let i = 0; i <= 100; i += 10) {
-          await new Promise((resolve) => setTimeout(resolve, 100))
-          setPodDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, progress: i } : d)))
-        }
-
-        setPodDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "uploaded", progress: 100 } : d)))
-        toast({
-          title: "Upload Success",
-          description: `${doc.name} uploaded for POD.`,
-          variant: "success",
-        })
-      } catch (error) {
-        console.error("POD upload error for", doc.name, error)
-        setPodDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, status: "failed", progress: 0 } : d)))
-        toast({
-          title: "Upload Failed",
-          description: `Failed to upload ${doc.name} for POD.`,
-          variant: "destructive",
-        })
-        allSuccess = false
+      const newPod: ProofOfDelivery = {
+        id: `pod_${Date.now()}`,
+        shipmentId: newPodShipmentId,
+        recipientName: newPodRecipientName,
+        deliveryDate: new Date().toISOString().split("T")[0],
+        status: "Confirmed", // Assuming new uploads are confirmed
+        imageUrl: URL.createObjectURL(newPodFile), // Use blob URL for preview
+        notes: "",
       }
-    }
 
-    setUploading(false)
-    if (allSuccess) {
+      setPods((prevPods) => [...prevPods, newPod])
+      setNewPodShipmentId("")
+      setNewPodRecipientName("")
+      setNewPodFile(null)
       toast({
-        title: "POD Submitted",
-        description: `Proof of Delivery for Order ${orderId} submitted successfully.`,
-        variant: "success",
+        title: "POD Uploaded",
+        description: `Proof of Delivery for shipment ${newPodShipmentId} uploaded successfully.`,
       })
-      setPodDocuments([]) // Clear documents after successful submission
-      setNotes("")
+    } catch (error) {
+      console.error("Error uploading POD:", error)
+      toast({
+        title: "Upload Failed",
+        description: "There was an error uploading the POD. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
     }
+  }
+
+  const handleDeletePod = (idToDelete: string) => {
+    if (confirm("Are you sure you want to delete this Proof of Delivery?")) {
+      setPods((prevPods) => prevPods.filter((pod) => pod.id !== idToDelete))
+      toast({
+        title: "POD Deleted",
+        description: "The Proof of Delivery has been removed.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleUpdatePodStatus = (idToUpdate: string, newStatus: ProofOfDelivery["status"]) => {
+    setPods((prevPods) => prevPods.map((pod) => (pod.id === idToUpdate ? { ...pod, status: newStatus } : pod)))
+    toast({
+      title: "POD Status Updated",
+      description: `Status for POD ${idToUpdate} changed to ${newStatus}.`,
+    })
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Proof of Delivery (POD) Management for Order {orderId}</CardTitle>
+        <CardTitle>Proof of Delivery (POD) Management</CardTitle>
+        <CardDescription>Manage and upload proof of delivery documents.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-6">
-        <div className="space-y-2">
-          <Label htmlFor="pod-document-upload">Upload POD Documents</Label>
-          <Input
-            id="pod-document-upload"
-            type="file"
-            multiple
-            onChange={handleFileChange}
-            className="file:text-blue-600 file:bg-blue-50 file:border-blue-200"
-          />
-          <p className="text-sm text-muted-foreground">Max file size: 10MB. Supported formats: PDF, JPG, PNG.</p>
-        </div>
-
-        {podDocuments.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="font-semibold">Uploaded Documents:</h3>
-            <div className="grid gap-3">
-              {podDocuments.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between rounded-md border p-3">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">{doc.name}</p>
-                      {doc.status === "uploading" && (
-                        <p className="text-sm text-blue-600">Uploading... {doc.progress}%</p>
-                      )}
-                      {doc.status === "uploaded" && (
-                        <p className="text-sm text-green-600 flex items-center">
-                          <CheckCircle className="h-4 w-4 mr-1" /> Uploaded
-                        </p>
-                      )}
-                      {doc.status === "failed" && (
-                        <p className="text-sm text-red-600 flex items-center">
-                          <XCircle className="h-4 w-4 mr-1" /> Failed
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveDocument(doc.id)}
-                    disabled={uploading}
-                    aria-label={`Remove ${doc.name}`}
-                  >
-                    <XCircle className="h-5 w-5 text-red-500" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+      <CardContent className="space-y-6">
+        <form onSubmit={handleUploadPod} className="grid gap-4 md:grid-cols-2 border p-4 rounded-md bg-gray-50">
+          <h3 className="col-span-full text-lg font-semibold">Upload New POD</h3>
+          <div className="space-y-2">
+            <Label htmlFor="shipment-id">Shipment ID</Label>
+            <Input
+              id="shipment-id"
+              placeholder="e.g., SHP001"
+              value={newPodShipmentId}
+              onChange={(e) => setNewPodShipmentId(e.target.value)}
+            />
           </div>
-        )}
+          <div className="space-y-2">
+            <Label htmlFor="recipient-name">Recipient Name</Label>
+            <Input
+              id="recipient-name"
+              placeholder="e.g., John Doe"
+              value={newPodRecipientName}
+              onChange={(e) => setNewPodRecipientName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2 col-span-full">
+            <Label htmlFor="pod-file">POD Document (Image/PDF)</Label>
+            <Input id="pod-file" type="file" onChange={handleFileChange} />
+          </div>
+          <Button type="submit" className="col-span-full" disabled={isUploading}>
+            {isUploading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" /> Upload POD
+              </>
+            )}
+          </Button>
+        </form>
 
-        <div className="space-y-2">
-          <Label htmlFor="pod-notes">Notes (Optional)</Label>
-          <Textarea
-            id="pod-notes"
-            placeholder="Add any relevant notes for the Proof of Delivery"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-          />
-        </div>
-
-        <Button
-          onClick={handleSubmitPOD}
-          disabled={uploading || podDocuments.length === 0 || podDocuments.some((d) => d.status === "failed")}
-          className="w-full"
-        >
-          {uploading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting POD...
-            </>
-          ) : (
-            <>
-              <UploadCloud className="mr-2 h-4 w-4" /> Submit Proof of Delivery
-            </>
-          )}
-        </Button>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Shipment ID</TableHead>
+              <TableHead>Recipient</TableHead>
+              <TableHead>Delivery Date</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pods.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-gray-500 py-4">
+                  No PODs found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              pods.map((pod) => (
+                <TableRow key={pod.id}>
+                  <TableCell className="font-medium">{pod.shipmentId}</TableCell>
+                  <TableCell>{pod.recipientName}</TableCell>
+                  <TableCell>{pod.deliveryDate}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        pod.status === "Confirmed" ? "success" : pod.status === "Pending" ? "secondary" : "destructive"
+                      }
+                    >
+                      {pod.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="icon" asChild>
+                        <a
+                          href={pod.imageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`View POD for ${pod.shipmentId}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </a>
+                      </Button>
+                      <Button variant="ghost" size="icon" asChild>
+                        <a
+                          href={pod.imageUrl}
+                          download={`POD_${pod.shipmentId}.png`}
+                          aria-label={`Download POD for ${pod.shipmentId}`}
+                        >
+                          <Download className="h-4 w-4" />
+                        </a>
+                      </Button>
+                      {pod.status !== "Confirmed" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleUpdatePodStatus(pod.id, "Confirmed")}
+                          aria-label={`Mark POD for ${pod.shipmentId} as Confirmed`}
+                        >
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        </Button>
+                      )}
+                      {pod.status !== "Disputed" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleUpdatePodStatus(pod.id, "Disputed")}
+                          aria-label={`Mark POD for ${pod.shipmentId} as Disputed`}
+                        >
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeletePod(pod.id)}
+                        aria-label={`Delete POD for ${pod.shipmentId}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   )

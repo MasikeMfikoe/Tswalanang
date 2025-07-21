@@ -97,6 +97,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       updateData = {
         custom_notification_sent_at: new Date().toISOString(),
       }
+    } else {
+      // Handle general notification type
+      console.log(`Sending notification for Courier Order ${orderId}:`)
+      console.log(`Type: ${notificationType || "General"}`)
+      console.log(`Message: ${message}`)
+
+      // Simulate a successful send
+      emailSent = true
+      updateData = {
+        general_notification_sent_at: new Date().toISOString(),
+      }
     }
 
     if (!emailSent) {

@@ -10,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
 
 interface ConfirmationDialogProps {
   isOpen: boolean
@@ -17,9 +18,19 @@ interface ConfirmationDialogProps {
   onCancel: () => void
   title: string
   description: string
+  confirmText?: string
+  cancelText?: string
 }
 
-export function ConfirmationDialog({ isOpen, onConfirm, onCancel, title, description }: ConfirmationDialogProps) {
+export function ConfirmationDialog({
+  isOpen,
+  onConfirm,
+  onCancel,
+  title,
+  description,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
+}: ConfirmationDialogProps) {
   return (
     <AlertDialog open={isOpen} onOpenChange={onCancel}>
       <AlertDialogContent>
@@ -28,8 +39,14 @@ export function ConfirmationDialog({ isOpen, onConfirm, onCancel, title, descrip
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>Confirm</AlertDialogAction>
+          <AlertDialogCancel asChild>
+            <Button variant="outline" onClick={onCancel}>
+              {cancelText}
+            </Button>
+          </AlertDialogCancel>
+          <AlertDialogAction asChild>
+            <Button onClick={onConfirm}>{confirmText}</Button>
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

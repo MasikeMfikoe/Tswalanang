@@ -1,186 +1,117 @@
-export interface TrackShipCredentials {
-  apiKey: string
-  baseUrl: string
-}
-
-export interface TrackShipResponse {
-  success: boolean
-  data?: {
-    tracking_number: string
-    carrier: string
-    status: string
-    status_detail: string
-    location: string
-    estimated_delivery: string
-    events: Array<{
-      status: string
-      location: string
-      timestamp: string
-      description: string
-    }>
-    shipment_info: {
-      origin: string
-      destination: string
-      service_type: string
-      weight?: string
-      dimensions?: string
-    }
-  }
-  error?: string
-  message?: string
-}
+import type { TrackingResult, ShipmentType, TrackingData, TrackingEvent } from "@/types/tracking"
 
 export class TrackShipService {
-  private credentials: TrackShipCredentials
+  private gocometToken: string | null
 
-  constructor() {
-    this.credentials = {
-      apiKey: process.env.TRACKSHIP_API_KEY || "",
-      baseUrl: process.env.TRACKSHIP_API_URL || "https://api.trackship.com/v1",
-    }
+  constructor(gocometToken: string | null = null) {
+    this.gocometToken = gocometToken
   }
 
-  async trackShipment(trackingNumber: string, carrier?: string): Promise<TrackShipResponse> {
-    try {
-      if (!this.credentials.apiKey) {
-        return {
-          success: false,
-          error: "TrackShip API key not configured",
-        }
-      }
+  /**
+   * Mocks tracking information from the TrackShip API.
+   * In a real scenario, this would make an actual API call.
+   * @param trackingNumber The tracking number to query.
+   * @returns A formatted TrackingResult.
+   */
+  async trackShipment(
+    trackingNumber: string,
+    options?: { shipmentType?: ShipmentType; carrierHint?: string },
+  ): Promise<TrackingResult> {
+    console.log(`[TrackShipService] Mocking tracking for: ${trackingNumber}`)
 
-      const url = `${this.credentials.baseUrl}/track`
-      const payload = {
-        tracking_number: trackingNumber,
-        carrier: carrier || "auto-detect", // Let TrackShip auto-detect carrier
-      }
+    // Simulate API call delay
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.credentials.apiKey}`,
-          "User-Agent": "TSW-SmartLog/1.0",
+    const now = new Date().toISOString()
+    const mockEvents: TrackingEvent[] = [
+      {
+        timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        location: "Shanghai, China",
+        description: "Container received at origin port",
+        status: "Received",
+        type: "cargo-received",
+      },
+      {
+        timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+        location: "Shanghai, China",
+        description: "Loaded on vessel",
+        status: "Loaded",
+        type: "load",
+        vessel: "Mock Vessel A",
+        voyage: "V001",
+      },
+      {
+        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        location: "Pacific Ocean",
+        description: "In transit",
+        status: "In Transit",
+        type: "event",
+        vessel: "Mock Vessel A",
+        voyage: "V001",
+      },
+      {
+        timestamp: now,
+        location: "Long Beach, USA",
+        description: "Estimated arrival at destination port",
+        status: "Estimated Arrival",
+        type: "vessel-arrival",
+      },
+    ]
+
+    const mockData: TrackingData = {
+      shipmentNumber: trackingNumber,
+      status: "In Transit",
+      carrier: options?.carrierHint || "Mock Carrier",
+      containerNumber: "MOCK1234567",
+      containerType: "40' HC",
+      weight: "10,000 KGS",
+      origin: "Shanghai, China",
+      destination: "Long Beach, USA",
+      pol: "CNSHA",
+      pod: "USLGB",
+      eta: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // Mock ETA 3 days from now
+      etd: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // Mock ETD 5 days ago
+      lastLocation: "Pacific Ocean",
+      timeline: [
+        {
+          location: "Shanghai, China",
+          events: mockEvents.slice(0, 2),
         },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        return {
-          success: false,
-          error: `TrackShip API error: ${response.status}`,
-          message: errorData.message || "Unknown error",
-        }
-      }
-
-      const data = await response.json()
-
-      // Transform TrackShip response to our standard format
-      return {
-        success: true,
-        data: this.transformTrackShipData(data),
-      }
-    } catch (error) {
-      console.error("TrackShip service error:", error)
-      return {
-        success: false,
-        error: "Failed to connect to TrackShip service",
-        message: error instanceof Error ? error.message : "Unknown error",
-      }
-    }
-  }
-
-  async trackMultipleShipments(trackingNumbers: string[]): Promise<TrackShipResponse[]> {
-    try {
-      const url = `${this.credentials.baseUrl}/track/batch`
-      const payload = {
-        tracking_numbers: trackingNumbers,
-      }
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.credentials.apiKey}`,
+        {
+          location: "Pacific Ocean",
+          events: mockEvents.slice(2, 3),
         },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error(`TrackShip batch API error: ${response.status}`)
-      }
-
-      const data = await response.json()
-      return data.results.map((result: any) => ({
-        success: result.success,
-        data: result.success ? this.transformTrackShipData(result.data) : undefined,
-        error: result.error,
-      }))
-    } catch (error) {
-      console.error("TrackShip batch service error:", error)
-      return trackingNumbers.map(() => ({
-        success: false,
-        error: "Batch tracking failed",
-      }))
-    }
-  }
-
-  async getSupportedCarriers(): Promise<string[]> {
-    try {
-      const response = await fetch(`${this.credentials.baseUrl}/carriers`, {
-        headers: {
-          Authorization: `Bearer ${this.credentials.apiKey}`,
+        {
+          location: "Long Beach, USA",
+          events: mockEvents.slice(3, 4),
         },
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to get carriers: ${response.status}`)
-      }
-
-      const data = await response.json()
-      return data.carriers || []
-    } catch (error) {
-      console.error("Error getting supported carriers:", error)
-      return []
-    }
-  }
-
-  private transformTrackShipData(trackShipData: any) {
-    return {
-      tracking_number: trackShipData.tracking_number,
-      carrier: trackShipData.carrier?.name || "Unknown",
-      status: this.normalizeStatus(trackShipData.status),
-      status_detail: trackShipData.status_detail || "",
-      location: trackShipData.location || "Unknown",
-      estimated_delivery: trackShipData.estimated_delivery,
-      events: (trackShipData.events || []).map((event: any) => ({
-        status: event.status,
-        location: event.location,
-        timestamp: event.timestamp,
-        description: event.description || event.status,
-      })),
-      shipment_info: {
-        origin: trackShipData.origin || "Unknown",
-        destination: trackShipData.destination || "Unknown",
-        service_type: trackShipData.service_type || "Standard",
-        weight: trackShipData.weight,
-        dimensions: trackShipData.dimensions,
+      ],
+      documents: [
+        {
+          type: "Bill of Lading",
+          url: "/placeholder.svg?height=200&width=150",
+          description: "Original Bill of Lading",
+        },
+        {
+          type: "Commercial Invoice",
+          url: "/placeholder.svg?height=200&width=150",
+          description: "Commercial Invoice for customs",
+        },
+      ],
+      details: {
+        packages: "20 cartons",
+        dimensions: "20 CBM",
+        specialInstructions: "Handle with care",
+        shipmentType: options?.shipmentType || "ocean",
+        freeDaysBeforeDemurrage: 7, // Mock free days
       },
     }
-  }
 
-  private normalizeStatus(status: string): string {
-    // Map TrackShip statuses to your internal status system
-    const statusMap: Record<string, string> = {
-      in_transit: "in-transit",
-      out_for_delivery: "out-for-delivery",
-      delivered: "delivered",
-      exception: "exception",
-      pending: "pending",
-      pre_transit: "pre-transit",
+    return {
+      success: true,
+      data: mockData,
+      source: "TrackShip Mock API",
+      isLiveData: false, // Indicate this is mock data
     }
-
-    return statusMap[status.toLowerCase()] || status
   }
 }

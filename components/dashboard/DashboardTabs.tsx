@@ -1,71 +1,80 @@
-"use client"
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { KPISummaryCards } from "./KPISummaryCards"
-import { OrderStatistics } from "./OrderStatistics"
-import { CustomerStatistics } from "./CustomerStatistics"
-import { PerformanceCharts } from "./PerformanceCharts"
-import { OrderStatusCharts } from "./OrderStatusCharts"
-import { RecentOrdersList } from "./RecentOrdersList"
-import { PerformanceMetrics } from "./PerformanceMetrics"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DollarSign, Package, Truck, Users } from "lucide-react"
 
 export function DashboardTabs() {
   return (
     <Tabs defaultValue="overview" className="w-full">
-      <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 lg:grid-cols-8">
+      <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="orders">Orders</TabsTrigger>
-        <TabsTrigger value="customers">Customers</TabsTrigger>
-        <TabsTrigger value="performance">Performance</TabsTrigger>
-        <TabsTrigger value="status">Status</TabsTrigger>
-        <TabsTrigger value="metrics">Metrics</TabsTrigger>
-        <TabsTrigger value="recent">Recent</TabsTrigger>
-        <TabsTrigger value="all-charts">All Charts</TabsTrigger>
+        <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        <TabsTrigger value="reports">Reports</TabsTrigger>
       </TabsList>
-      <TabsContent value="overview" className="mt-6">
-        <KPISummaryCards />
-        <div className="grid gap-6 md:grid-cols-2 mt-6">
-          <OrderStatistics />
-          <CustomerStatistics />
+      <TabsContent value="overview" className="mt-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+              <Package className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">2,350</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">+20.1% from last month</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+              <DollarSign className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">$45,231.89</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">+15.5% from last month</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Deliveries Completed</CardTitle>
+              <Truck className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">1,890</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">+18.2% from last month</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
+              <Users className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">120</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">+5% from last month</p>
+            </CardContent>
+          </Card>
         </div>
-        <div className="mt-6">
-          <RecentOrdersList />
-        </div>
       </TabsContent>
-      <TabsContent value="orders" className="mt-6">
-        <OrderStatistics />
-        <div className="mt-6">
-          <RecentOrdersList />
-        </div>
+      <TabsContent value="analytics" className="mt-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Analytics Data</CardTitle>
+            <CardDescription>Detailed analytics and trends.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>Analytics content goes here.</p>
+          </CardContent>
+        </Card>
       </TabsContent>
-      <TabsContent value="customers" className="mt-6">
-        <CustomerStatistics />
-        <div className="mt-6">
-          <RecentOrdersList />
-        </div>
-      </TabsContent>
-      <TabsContent value="performance" className="mt-6">
-        <PerformanceCharts />
-        <div className="mt-6">
-          <PerformanceMetrics />
-        </div>
-      </TabsContent>
-      <TabsContent value="status" className="mt-6">
-        <OrderStatusCharts />
-      </TabsContent>
-      <TabsContent value="metrics" className="mt-6">
-        <PerformanceMetrics />
-      </TabsContent>
-      <TabsContent value="recent" className="mt-6">
-        <RecentOrdersList />
-      </TabsContent>
-      <TabsContent value="all-charts" className="mt-6">
-        <div className="grid gap-6 md:grid-cols-2">
-          <OrderStatistics />
-          <CustomerStatistics />
-          <PerformanceCharts />
-          <OrderStatusCharts />
-        </div>
+      <TabsContent value="reports" className="mt-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Reports</CardTitle>
+            <CardDescription>Generate and view various reports.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>Reports content goes here.</p>
+          </CardContent>
+        </Card>
       </TabsContent>
     </Tabs>
   )

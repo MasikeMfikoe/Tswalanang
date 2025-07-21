@@ -1,6 +1,6 @@
 "use client"
 
-import { Search, Calendar, Bell, Sun, Moon, ChevronDown } from "lucide-react"
+import { Search, CalendarDays, Bell, Sun, Moon, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -82,7 +82,7 @@ export function DashboardHeader({
               variant="outline"
               className={`flex items-center gap-2 ${isDarkMode ? "bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700" : "bg-white hover:bg-gray-100"}`}
             >
-              <Calendar className="h-4 w-4" />
+              <CalendarDays className="h-4 w-4" />
               <span className="hidden sm:inline">
                 {periodOptions.find((opt) => opt.value === selectedPeriod)?.label || "Select Period"}
               </span>
@@ -214,6 +214,16 @@ export function DashboardHeader({
         >
           {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
+
+        {/* Additional Buttons */}
+        <div className="absolute top-4 right-4 z-20 flex gap-2">
+          <Button variant="ghost" className="text-white hover:bg-white/20">
+            <Bell className="h-5 w-5 mr-1" /> Notifications
+          </Button>
+          <Button variant="ghost" className="text-white hover:bg-white/20">
+            <CalendarDays className="h-5 w-5 mr-1" /> Calendar
+          </Button>
+        </div>
       </div>
     </div>
   )

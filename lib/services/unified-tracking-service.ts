@@ -104,3 +104,14 @@ export class UnifiedTrackingService {
     }
   }
 }
+
+/**
+ * Convenience helper used by UI pages/components.
+ *
+ * Example usage:
+ *   const { success, data, error } = await getUnifiedTracking("MSKU1234567")
+ */
+export async function getUnifiedTracking(trackingNumber: string) {
+  const service = new UnifiedTrackingService()
+  return service.trackShipment(trackingNumber)
+}

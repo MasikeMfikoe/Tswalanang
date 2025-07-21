@@ -1,20 +1,18 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-
-const topCustomers = [
-  { id: "1", name: "Acme Corp", email: "contact@acmecorp.com", orders: 120, revenue: 150000 },
-  { id: "2", name: "Globex Inc", email: "info@globex.com", orders: 90, revenue: 120000 },
-  { id: "3", name: "Stark Industries", email: "sales@stark.com", orders: 75, revenue: 90000 },
-  { id: "4", name: "Wayne Enterprises", email: "support@wayne.com", orders: 60, revenue: 80000 },
-  { id: "5", name: "Cyberdyne Systems", email: "hr@cyberdyne.com", orders: 50, revenue: 70000 },
-]
+import { Users } from "lucide-react"
 
 export function TopCustomers() {
+  const topCustomers = [
+    { name: "Acme Corp", orders: 120, revenue: 50000 },
+    { name: "Global Logistics", orders: 90, revenue: 45000 },
+    { name: "Tech Solutions", orders: 75, revenue: 30000 },
+  ]
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Top 5 Customers</CardTitle>
+        <CardTitle>Top Customers</CardTitle>
       </CardHeader>
       <CardContent>
         <Table>
@@ -26,19 +24,11 @@ export function TopCustomers() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {topCustomers.map((customer) => (
-              <TableRow key={customer.id}>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${customer.name}`} />
-                      <AvatarFallback>{customer.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-medium">{customer.name}</div>
-                      <div className="text-sm text-muted-foreground">{customer.email}</div>
-                    </div>
-                  </div>
+            {topCustomers.map((customer, index) => (
+              <TableRow key={index}>
+                <TableCell className="font-medium flex items-center gap-2">
+                  <Users className="h-4 w-4 text-gray-500" />
+                  {customer.name}
                 </TableCell>
                 <TableCell>{customer.orders}</TableCell>
                 <TableCell className="text-right">${customer.revenue.toLocaleString()}</TableCell>

@@ -1,5 +1,5 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { TriangleAlert } from "lucide-react"
 
 interface ErrorDisplayProps {
   message: string
@@ -9,7 +9,7 @@ interface ErrorDisplayProps {
 export function ErrorDisplay({ message, title = "Error" }: ErrorDisplayProps) {
   return (
     <Alert variant="destructive">
-      <AlertCircle className="h-4 w-4" />
+      <TriangleAlert className="h-4 w-4" />
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
     </Alert>

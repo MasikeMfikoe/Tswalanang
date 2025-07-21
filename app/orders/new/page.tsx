@@ -1,79 +1,47 @@
-import { PageHeader } from "@/components/ui/page-header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
 
 export default function NewOrderPage() {
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <PageHeader title="Create New Order" description="Fill in the details to create a new logistics order." />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Order Details</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="customerName">Customer Name</Label>
-              <Input id="customerName" placeholder="e.g., Acme Corp" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="orderType">Order Type</Label>
-              <Select>
-                <SelectTrigger id="orderType">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="air">Air Freight</SelectItem>
-                  <SelectItem value="sea">Sea Freight</SelectItem>
-                  <SelectItem value="road">Road Freight</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="origin">Origin</Label>
-              <Input id="origin" placeholder="e.g., Shanghai, China" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="destination">Destination</Label>
-              <Input id="destination" placeholder="e.g., New York, USA" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="weight">Weight (kg)</Label>
-              <Input id="weight" type="number" placeholder="e.g., 500" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="volume">Volume (CBM)</Label>
-              <Input id="volume" type="number" placeholder="e.g., 2.5" />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Goods Description</Label>
-            <Textarea id="description" placeholder="e.g., Electronics, Textiles, etc." rows={3} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="specialInstructions">Special Instructions</Label>
-            <Textarea id="specialInstructions" placeholder="Any specific handling or delivery notes" rows={3} />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline">Cancel</Button>
-            <Button>Create Order</Button>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold">Step 1: Basic Information</h2>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="customer">Customer</Label>
+          <Select>
+            <SelectTrigger id="customer">
+              <SelectValue placeholder="Select customer" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="acme">Acme Corp</SelectItem>
+              <SelectItem value="global">Global Logistics</SelectItem>
+              <SelectItem value="tech">Tech Solutions</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="order-date">Order Date</Label>
+          <Input id="order-date" type="date" defaultValue={new Date().toISOString().split("T")[0]} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="origin">Origin</Label>
+          <Input id="origin" placeholder="e.g., Shanghai, China" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="destination">Destination</Label>
+          <Input id="destination" placeholder="e.g., Rotterdam, Netherlands" />
+        </div>
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="description">Goods Description</Label>
+          <Textarea id="description" placeholder="e.g., Electronics, Machinery parts" rows={3} />
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Button>Next Step</Button>
+      </div>
     </div>
   )
 }

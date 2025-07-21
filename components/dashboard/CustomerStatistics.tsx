@@ -1,32 +1,60 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { Users, TrendingUp, TrendingDown } from "lucide-react"
+import type { Customer } from "@/types/models" // Assuming Customer type is defined here
+import { Charts } from "@/components/Charts" // Assuming Charts component is available
 
-const customerData = [
-  { name: "Acme Corp", orders: 120, revenue: 150000 },
-  { name: "Globex Inc", orders: 90, revenue: 120000 },
-  { name: "Stark Ind.", orders: 75, revenue: 90000 },
-  { name: "Wayne Ent.", orders: 60, revenue: 80000 },
-  { name: "Cyberdyne", orders: 50, revenue: 70000 },
-]
+interface CustomerStatisticsProps {
+  customers: Customer[]
+}
 
-export function CustomerStatistics() {
+export function CustomerStatistics({ customers }: CustomerStatisticsProps) {
+  const activeCustomers = customers.length
+  // Mock data for customer growth, replace with actual data if available
+  const customerGrowthData = [
+    { month: "Jan", newCustomers: 10 },
+    { month: "Feb", newCustomers: 12 },
+    { month: "Mar", newCustomers: 8 },
+    { month: "Apr", newCustomers: 15 },
+    { month: "May", newCustomers: 11 },
+    { month: "Jun", newCustomers: 13 },
+  ]
+
+  const totalNewCustomersLastMonth = customerGrowthData[customerGrowthData.length - 1]?.newCustomers || 0
+  const totalNewCustomersPreviousMonth = customerGrowthData[customerGrowthData.length - 2]?.newCustomers || 0
+  const growthPercentage =
+    totalNewCustomersPreviousMonth > 0
+      ? ((totalNewCustomersLastMonth - totalNewCustomersPreviousMonth) / totalNewCustomersPreviousMonth) * 100
+      : totalNewCustomersLastMonth > 0
+        ? 100
+        : 0
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Top Customers by Orders</CardTitle>
+    <Card className="lg:col-span-1">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
+        <Users className="h-4 w-4 text-gray-500 dark:text-gray-400" />
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={customerData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="orders" fill="#8884d8" name="Orders" />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="text-2xl font-bold">{activeCustomers}</div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+          {growthPercentage >= 0 ? (
+            <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
+          ) : (
+            <TrendingDown className="h-4 w-4 text-red-500 mr-1" />
+          )}
+          {growthPercentage.toFixed(1)}% from last month
+        </p>
+        <div className="h-[150px] mt-4">
+          <Charts
+            type="line"
+            title=""
+            data={customerGrowthData}
+            xAxisDataKey="month"
+            series={[{ dataKey: "newCustomers", color: "#8884d8", name: "New Customers" }]}
+          />
+        </div>
       </CardContent>
     </Card>
   )

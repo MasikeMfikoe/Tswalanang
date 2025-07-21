@@ -3,43 +3,53 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
 import { Loader2, DollarSign } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+
+interface EstimateResult {
+  estimatedCost: number
+  estimatedPrice: number
+  currency: string
+  details: string
+}
 
 export function EstimateGeneration() {
   const [origin, setOrigin] = useState("")
   const [destination, setDestination] = useState("")
   const [weight, setWeight] = useState("")
   const [volume, setVolume] = useState("")
-  const [shipmentType, setShipmentType] = useState("")
-  const [description, setDescription] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [estimate, setEstimate] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [freightType, setFreightType] = useState("")
+  const [customer, setCustomer] = useState("")
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [estimate, setEstimate] = useState<EstimateResult | null>(null)
   const { toast } = useToast()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleGenerateEstimate = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    setEstimate(null)
-    setError(null)
-
-    if (!origin || !destination || !weight || !volume || !shipmentType) {
-      setError("Please fill in all required fields.")
-      setLoading(false)
+    if (!origin || !destination || (!weight && !volume) || !freightType || !customer) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields (Origin, Destination, Weight/Volume, Freight Type, Customer).",
+        variant: "destructive",
+      })
       return
     }
 
+    setIsGenerating(true)
+    setEstimate(null)
+    toast({
+      title: "Generating Estimate",
+      description: "Calculating your shipment estimate...",
+      duration: 3000,
+    })
+
     try {
-      // Simulate API call to generate estimate
-      // In a real application, this would call your backend API
-      // which would then integrate with external pricing APIs (e.g., SeaRates, Maersk)
+      // Simulate API call to a backend service for estimate generation
       const response = await fetch("/api/estimates", {
         method: "POST",
         headers: {
@@ -48,10 +58,10 @@ export function EstimateGeneration() {
         body: JSON.stringify({
           origin,
           destination,
-          weight: Number.parseFloat(weight),
-          volume: Number.parseFloat(volume),
-          shipmentType,
-          description,
+          weight: Number.parseFloat(weight) || 0,
+          volume: Number.parseFloat(volume) || 0,
+          freightType,
+          customer,
         }),
       })
 
@@ -60,128 +70,127 @@ export function EstimateGeneration() {
         throw new Error(errorData.message || "Failed to generate estimate.")
       }
 
-      const data = await response.json()
-      setEstimate(data.estimatedCost)
+      const data: EstimateResult = await response.json()
+      setEstimate(data)
       toast({
-        title: "Estimate Generated",
-        description: `Estimated cost: $${data.estimatedCost.toFixed(2)}`,
-        variant: "success",
+        title: "Estimate Generated!",
+        description: "Your shipment estimate is ready.",
       })
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.")
+    } catch (error: any) {
+      console.error("Error generating estimate:", error)
       toast({
-        title: "Error",
-        description: err.message || "Failed to generate estimate.",
+        title: "Estimate Generation Failed",
+        description: error.message || "There was an error generating the estimate. Please try again.",
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setIsGenerating(false)
     }
   }
 
   return (
-    <Card>
+    <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle>Generate New Estimate</CardTitle>
+        <CardTitle>Generate Shipment Estimate</CardTitle>
+        <CardDescription>Get an estimated cost and price for your shipment.</CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="grid gap-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="origin">Origin</Label>
-              <Input
-                id="origin"
-                placeholder="e.g., Shanghai, China"
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="destination">Destination</Label>
-              <Input
-                id="destination"
-                placeholder="e.g., New York, USA"
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="weight">Weight (kg)</Label>
-              <Input
-                id="weight"
-                type="number"
-                placeholder="e.g., 500"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                required
-                min="0"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="volume">Volume (CBM)</Label>
-              <Input
-                id="volume"
-                type="number"
-                placeholder="e.g., 2.5"
-                value={volume}
-                onChange={(e) => setVolume(e.target.value)}
-                required
-                min="0"
-              />
-            </div>
-          </div>
-
+      <CardContent className="space-y-6">
+        <form onSubmit={handleGenerateEstimate} className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="shipmentType">Shipment Type</Label>
-            <Select value={shipmentType} onValueChange={setShipmentType} required>
-              <SelectTrigger id="shipmentType">
-                <SelectValue placeholder="Select type" />
+            <Label htmlFor="origin">Origin</Label>
+            <Input
+              id="origin"
+              placeholder="e.g., Shanghai"
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="destination">Destination</Label>
+            <Input
+              id="destination"
+              placeholder="e.g., Rotterdam"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="weight">Weight (kg)</Label>
+            <Input
+              id="weight"
+              type="number"
+              placeholder="e.g., 500"
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="volume">Volume (CBM)</Label>
+            <Input
+              id="volume"
+              type="number"
+              placeholder="e.g., 2.5"
+              value={volume}
+              onChange={(e) => setVolume(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="freight-type">Freight Type</Label>
+            <Select value={freightType} onValueChange={setFreightType}>
+              <SelectTrigger id="freight-type">
+                <SelectValue placeholder="Select freight type" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="air">Air Freight</SelectItem>
                 <SelectItem value="ocean">Ocean Freight</SelectItem>
                 <SelectItem value="road">Road Freight</SelectItem>
-                <SelectItem value="rail">Rail Freight</SelectItem>
               </SelectContent>
             </Select>
           </div>
-
           <div className="space-y-2">
-            <Label htmlFor="description">Goods Description (Optional)</Label>
-            <Textarea
-              id="description"
-              placeholder="e.g., Electronics, Textiles, etc."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-            />
+            <Label htmlFor="customer">Customer</Label>
+            <Select value={customer} onValueChange={setCustomer}>
+              <SelectTrigger id="customer">
+                <SelectValue placeholder="Select customer" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="acme">Acme Corp</SelectItem>
+                <SelectItem value="global">Global Logistics</SelectItem>
+                <SelectItem value="tech">Tech Solutions</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-
-          <Button type="submit" disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...
-              </>
-            ) : (
-              <>
-                <DollarSign className="mr-2 h-4 w-4" /> Generate Estimate
-              </>
-            )}
-          </Button>
+          <div className="md:col-span-2">
+            <Button type="submit" className="w-full" disabled={isGenerating}>
+              {isGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...
+                </>
+              ) : (
+                "Generate Estimate"
+              )}
+            </Button>
+          </div>
         </form>
 
-        {estimate !== null && (
-          <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-md text-center">
-            <h3 className="text-lg font-semibold text-green-800">Estimated Cost:</h3>
-            <p className="text-3xl font-bold text-green-700">${estimate.toFixed(2)}</p>
-            <p className="text-sm text-green-600">This is an estimate and may vary.</p>
+        {estimate && (
+          <div className="mt-6 p-4 border rounded-md bg-gray-50 dark:bg-gray-800 space-y-3">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-600" /> Estimated Costs
+            </h3>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="font-medium">Estimated Cost:</span> {estimate.currency}{" "}
+                {estimate.estimatedCost.toFixed(2)}
+              </div>
+              <div>
+                <span className="font-medium">Estimated Price:</span> {estimate.currency}{" "}
+                {estimate.estimatedPrice.toFixed(2)}
+              </div>
+              <div className="col-span-2">
+                <span className="font-medium">Details:</span> {estimate.details}
+              </div>
+            </div>
           </div>
         )}
       </CardContent>

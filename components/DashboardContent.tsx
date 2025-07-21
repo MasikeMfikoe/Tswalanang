@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { format, subDays, startOfDay, endOfDay } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader"
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs"
 import { RecentOrdersList } from "@/components/dashboard/RecentOrdersList"
@@ -15,6 +15,9 @@ import { PerformanceCharts } from "@/components/dashboard/PerformanceCharts"
 import { ErrorDisplay } from "@/components/ErrorDisplay"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { toast } from "@/lib/toast"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { KPISummaryCards } from "@/components/dashboard/KPISummaryCards"
+import type { Order, Customer } from "@/types/models" // Adjust path as necessary
 
 type DateRange = {
   startDate: Date | null
@@ -40,9 +43,9 @@ export default function DashboardContent() {
   const [startDate, setStartDate] = useState<string>("")
   const [endDate, setEndDate] = useState<string>("")
   const [showCustomDateRange, setShowCustomDateRange] = useState(false)
-  const [filteredOrders, setFilteredOrders] = useState<any[]>([])
-  const [allOrders, setAllOrders] = useState<any[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
+  const [allOrders, setAllOrders] = useState<Order[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null])
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -423,6 +426,17 @@ export default function DashboardContent() {
     return <ErrorDisplay title="Error" message={errorMessage} />
   }
 
+  // Calculate KPIs
+  const totalOrders = allOrders.length
+  const totalRevenue = allOrders.reduce((sum, order) => sum + (order.totalValue || 0), 0)
+  const completedOrdersCount = allOrders.filter((order) => order.status === "Delivered").length
+  const inTransitOrdersCount = allOrders.filter((order) => order.status === "In Transit").length
+  const activeCustomersCount = customers.length
+
+  // Mock data for now, replace with actual calculations
+  const avgDeliveryTime = "3.5 days"
+  const onTimeDeliveryRate = "95%"
+
   return (
     <div className={`min-h-screen h-full overflow-y-auto ${isDarkMode ? "bg-zinc-950" : "bg-gray-50"}`}>
       <div className="p-6">
@@ -465,57 +479,77 @@ export default function DashboardContent() {
         )}
 
         {/* Dashboard Tabs */}
-        <DashboardTabs
-          isDarkMode={isDarkMode}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          isLoading={isLoading}
-          renderSkeleton={renderSkeleton}
-          filteredOrders={filteredOrders}
-          totalOrderValue={totalOrderValue}
-          completedOrders={completedOrders}
-          customers={customers}
-          orderStatusData={orderStatusData}
-          monthlyOrderTrendData={monthlyOrderTrendData}
-          activeOrders={activeOrders}
-          pendingOrders={pendingOrders}
-        >
-          {/* Orders Tab Content */}
-          <TabsContent value="orders" className="mt-4">
-            {isLoading ? (
-              renderSkeleton()
-            ) : (
-              <>
-                <RecentOrdersList isDarkMode={isDarkMode} recentOrders={recentOrders} />
-                <OrderStatistics isDarkMode={isDarkMode} />
-              </>
-            )}
-          </TabsContent>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <DashboardTabs
+            isDarkMode={isDarkMode}
+            activeTab={activeTab}
+            isLoading={isLoading}
+            renderSkeleton={renderSkeleton}
+            filteredOrders={filteredOrders}
+            totalOrderValue={totalOrderValue}
+            completedOrders={completedOrders}
+            customers={customers}
+            orderStatusData={orderStatusData}
+            monthlyOrderTrendData={monthlyOrderTrendData}
+            activeOrders={activeOrders}
+            pendingOrders={pendingOrders}
+          >
+            {/* Orders Tab Content */}
+            <TabsContent value="orders" className="mt-4">
+              {isLoading ? (
+                renderSkeleton()
+              ) : (
+                <>
+                  <RecentOrdersList isDarkMode={isDarkMode} recentOrders={recentOrders} />
+                  <OrderStatistics isDarkMode={isDarkMode} />
+                </>
+              )}
+            </TabsContent>
 
-          {/* Customers Tab Content */}
-          <TabsContent value="customers" className="mt-4">
-            {isLoading ? (
-              renderSkeleton()
-            ) : (
-              <>
-                <TopCustomers isDarkMode={isDarkMode} topCustomers={topCustomers} />
-                <CustomerStatistics isDarkMode={isDarkMode} />
-              </>
-            )}
-          </TabsContent>
+            {/* Customers Tab Content */}
+            <TabsContent value="customers" className="mt-4">
+              {isLoading ? (
+                renderSkeleton()
+              ) : (
+                <>
+                  <TopCustomers isDarkMode={isDarkMode} topCustomers={topCustomers} />
+                  <CustomerStatistics isDarkMode={isDarkMode} />
+                </>
+              )}
+            </TabsContent>
 
-          {/* Performance Tab Content */}
-          <TabsContent value="performance" className="mt-4">
-            {isLoading ? (
-              renderSkeleton()
-            ) : (
-              <>
-                <PerformanceMetrics isDarkMode={isDarkMode} performanceMetrics={performanceMetrics} />
-                <PerformanceCharts isDarkMode={isDarkMode} />
-              </>
-            )}
-          </TabsContent>
-        </DashboardTabs>
+            {/* Performance Tab Content */}
+            <TabsContent value="performance" className="mt-4">
+              {isLoading ? (
+                renderSkeleton()
+              ) : (
+                <>
+                  <PerformanceMetrics isDarkMode={isDarkMode} performanceMetrics={performanceMetrics} />
+                  <PerformanceCharts isDarkMode={isDarkMode} />
+                </>
+              )}
+            </TabsContent>
+          </DashboardTabs>
+        </Tabs>
+
+        {/* KPI Summary Cards */}
+        <KPISummaryCards
+          totalOrders={totalOrders}
+          totalRevenue={totalRevenue}
+          avgDeliveryTime={avgDeliveryTime}
+          onTimeDeliveryRate={onTimeDeliveryRate}
+        />
+
+        {/* Recent Orders Card */}
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>Recent Orders</CardTitle>
+            <CardDescription>Latest activities in your logistics operations.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RecentOrdersList recentOrders={allOrders.slice(0, 5)} /> {/* Display top 5 recent orders */}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

@@ -1,9 +1,6 @@
-"use client"
+"use client" // Error boundaries must be Client Components
 
 import { useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertTriangle } from "lucide-react"
 
 export default function GlobalError({
   error,
@@ -18,28 +15,26 @@ export default function GlobalError({
   }, [error])
 
   return (
+    // global-error must include html and body tags
     <html>
       <body>
-        <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
-          <Card className="w-full max-w-md text-center">
-            <CardHeader className="flex flex-col items-center">
-              <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
-              <CardTitle className="text-2xl font-bold text-red-600">Application Error!</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-gray-700">
-                Something critical went wrong across the application. We're working to fix it.
-              </p>
-              {process.env.NODE_ENV === "development" && (
-                <div className="text-left p-3 bg-gray-50 rounded-md border border-gray-200 text-sm text-gray-600">
-                  <p className="font-semibold">Error Details:</p>
-                  <pre className="whitespace-pre-wrap break-all">{error.message}</pre>
-                  {error.digest && <p className="mt-2">Digest: {error.digest}</p>}
-                </div>
-              )}
-              <Button onClick={() => reset()}>Reload Application</Button>
-            </CardContent>
-          </Card>
+        <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950 p-4">
+          <div className="w-full max-w-md text-center bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 space-y-4">
+            <h2 className="text-3xl font-bold text-red-600">Oops! Something went wrong.</h2>
+            <p className="text-gray-700 dark:text-gray-300">We're sorry, but an unexpected error occurred.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {error.message || "Please try again or contact support if the issue persists."}
+            </p>
+            <button
+              onClick={
+                // Attempt to recover by trying to re-render the segment
+                () => reset()
+              }
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+            >
+              Try again
+            </button>
+          </div>
         </div>
       </body>
     </html>

@@ -29,6 +29,16 @@ const permissionCategories = {
   Tracking: ["canViewTracking", "canInitiateTracking"],
 }
 
+const permissionLabels: Record<string, string> = {
+  canViewDashboard: "View Dashboard",
+  canManageUsers: "Manage Users",
+  canEditSettings: "Edit Settings",
+  canViewDocuments: "View Documents",
+  canManageOrders: "Manage Orders",
+  canViewFinancials: "View Financials",
+  // Add more permissions as needed
+}
+
 // Navigation structure for the app
 const navigationStructure = [
   {
@@ -138,7 +148,7 @@ export default function PermissionsEditor({
   }
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">
           {group.isDefault ? (
@@ -167,6 +177,7 @@ export default function PermissionsEditor({
             <TabsTrigger value="permissions">Navigation Permissions</TabsTrigger>
             <TabsTrigger value="users">Assign Users</TabsTrigger>
             <TabsTrigger value="preview">Live Preview</TabsTrigger>
+            <TabsTrigger value="categories">Permission Categories</TabsTrigger>
           </TabsList>
 
           <TabsContent value="permissions" className="space-y-4">
@@ -180,34 +191,34 @@ export default function PermissionsEditor({
           <TabsContent value="preview">
             <LivePreviewSection navigationStructure={navigationStructure} permissions={permissions} />
           </TabsContent>
-        </Tabs>
 
-        {/* New code for permission categories */}
-        <TabsContent value="categories" className="space-y-4">
-          {Object.entries(permissionCategories).map(([category, perms]) => (
-            <div key={category} className="space-y-2">
-              <h3 className="font-semibold text-md mb-2">{category}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {perms.map((permission) => (
-                  <div key={permission} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={permission}
-                      checked={permissions.some((p) => p.pagePath === permission) || false}
-                      onCheckedChange={(checked) => handlePermissionChange(permission, !!checked)}
-                    />
-                    <Label htmlFor={permission}>
-                      {permission
-                        .replace(/([A-Z])/g, " $1")
-                        .replace("can", "")
-                        .trim()}
-                    </Label>
-                  </div>
-                ))}
+          <TabsContent value="categories" className="space-y-4">
+            {Object.entries(permissionCategories).map(([category, perms]) => (
+              <div key={category} className="space-y-2">
+                <h3 className="font-semibold text-md mb-2">{category}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {perms.map((permission) => (
+                    <div key={permission} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={permission}
+                        checked={permissions.some((p) => p.pagePath === permission) || false}
+                        onCheckedChange={(checked) => handlePermissionChange(permission, !!checked)}
+                      />
+                      <Label htmlFor={permission}>
+                        {permissionLabels[permission] ||
+                          permission
+                            .replace(/([A-Z])/g, " $1")
+                            .replace("can", "")
+                            .trim()}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <hr className="my-2" />
               </div>
-              <hr className="my-2" />
-            </div>
-          ))}
-        </TabsContent>
+            ))}
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   )

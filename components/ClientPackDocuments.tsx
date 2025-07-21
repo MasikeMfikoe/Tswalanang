@@ -1,12 +1,14 @@
 "use client"
 
+import { Badge } from "@/components/ui/badge"
+
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, FileText, Download, Mail, Share2 } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Download, FileText, Loader2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 interface Document {
@@ -14,175 +16,138 @@ interface Document {
   name: string
   type: string
   url: string
+  status: "Processed" | "Pending" | "Failed"
 }
 
 interface ClientPackDocumentsProps {
   orderId: string
-  availableDocuments: Document[]
+  documents: Document[]
 }
 
-export function ClientPackDocuments({ orderId, availableDocuments }: ClientPackDocumentsProps) {
-  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([])
-  const [recipientEmail, setRecipientEmail] = useState("")
-  const [loading, setLoading] = useState(false)
+export function ClientPackDocuments({ orderId, documents }: ClientPackDocumentsProps) {
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
+  const [isGenerating, setIsGenerating] = useState(false)
   const { toast } = useToast()
 
   const handleCheckboxChange = (docId: string, checked: boolean) => {
-    setSelectedDocuments((prev) => (checked ? [...prev, docId] : prev.filter((id) => id !== docId)))
+    setSelectedDocuments((prev) => {
+      const newSet = new Set(prev)
+      if (checked) {
+        newSet.add(docId)
+      } else {
+        newSet.delete(docId)
+      }
+      return newSet
+    })
   }
 
-  const handleGeneratePack = async () => {
-    if (selectedDocuments.length === 0) {
+  const handleGenerateClientPack = async () => {
+    if (selectedDocuments.size === 0) {
       toast({
         title: "No Documents Selected",
-        description: "Please select at least one document to generate the client pack.",
+        description: "Please select at least one document to include in the client pack.",
         variant: "destructive",
       })
       return
     }
 
-    setLoading(true)
-    try {
-      // Simulate generating a combined document or a shareable link
-      await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate API call
+    setIsGenerating(true)
+    toast({
+      title: "Generating Client Pack",
+      description: "Your client pack is being prepared...",
+      duration: 3000,
+    })
 
-      const selectedDocNames = availableDocuments
-        .filter((doc) => selectedDocuments.includes(doc.id))
-        .map((doc) => doc.name)
+    try {
+      // Simulate API call to generate client pack
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      const selectedDocDetails = documents.filter((doc) => selectedDocuments.has(doc.id))
+      console.log(`Generating client pack for order ${orderId} with documents:`, selectedDocDetails)
+
+      // In a real application, this would trigger a backend process
+      // that combines documents and returns a downloadable URL.
+      const mockDownloadUrl = `/api/client-pack/download?orderId=${orderId}&docs=${Array.from(selectedDocuments).join(
+        ",",
+      )}`
 
       toast({
-        title: "Client Pack Generated",
-        description: `Pack with ${selectedDocNames.join(", ")} ready.`,
-        variant: "success",
+        title: "Client Pack Ready!",
+        description: "Your client pack has been successfully generated.",
+        action: (
+          <Button asChild variant="outline">
+            <a href={mockDownloadUrl} download>
+              <Download className="mr-2 h-4 w-4" /> Download
+            </a>
+          </Button>
+        ),
+        duration: 5000,
       })
-      // In a real app, you'd get a URL for the generated pack
-      console.log("Generated client pack for:", selectedDocNames)
     } catch (error) {
       console.error("Error generating client pack:", error)
       toast({
-        title: "Error",
-        description: "Failed to generate client pack.",
+        title: "Generation Failed",
+        description: "There was an error generating the client pack. Please try again.",
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setIsGenerating(false)
     }
   }
 
-  const handleShareByEmail = async () => {
-    if (selectedDocuments.length === 0) {
-      toast({
-        title: "No Documents Selected",
-        description: "Please select at least one document to share.",
-        variant: "destructive",
-      })
-      return
-    }
-    if (!recipientEmail.trim() || !recipientEmail.includes("@")) {
-      toast({
-        title: "Invalid Email",
-        description: "Please enter a valid recipient email address.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setLoading(true)
-    try {
-      // Simulate sending email with document links
-      await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate API call
-
-      const selectedDocNames = availableDocuments
-        .filter((doc) => selectedDocuments.includes(doc.id))
-        .map((doc) => doc.name)
-
-      toast({
-        title: "Documents Shared",
-        description: `Selected documents sent to ${recipientEmail}.`,
-        variant: "success",
-      })
-      console.log(`Shared ${selectedDocNames.join(", ")} with ${recipientEmail}`)
-    } catch (error) {
-      console.error("Error sharing documents:", error)
-      toast({
-        title: "Error",
-        description: "Failed to share documents.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
+  const processedDocuments = documents.filter((doc) => doc.status === "Processed")
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Client Pack & Document Sharing for Order {orderId}</CardTitle>
+        <CardTitle>Client Pack Documents</CardTitle>
+        <CardDescription>Select documents to include in the client-facing pack.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-6">
-        <div>
-          <h3 className="font-semibold mb-2">Available Documents:</h3>
-          {availableDocuments.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No documents available for this order.</p>
-          ) : (
-            <div className="grid gap-3">
-              {availableDocuments.map((doc) => (
+      <CardContent className="space-y-4">
+        {processedDocuments.length === 0 ? (
+          <p className="text-center text-gray-500">No processed documents available for this order.</p>
+        ) : (
+          <ScrollArea className="h-48 border rounded-md p-4">
+            <div className="space-y-3">
+              {processedDocuments.map((doc) => (
                 <div key={doc.id} className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id={`doc-${doc.id}`}
-                      checked={selectedDocuments.includes(doc.id)}
-                      onCheckedChange={(checked) => handleCheckboxChange(doc.id, !!checked)}
+                      checked={selectedDocuments.has(doc.id)}
+                      onCheckedChange={(checked) => handleCheckboxChange(doc.id, checked as boolean)}
                     />
-                    <Label htmlFor={`doc-${doc.id}`} className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      {doc.name} ({doc.type})
+                    <Label htmlFor={`doc-${doc.id}`} className="flex items-center gap-2 cursor-pointer">
+                      <FileText className="h-4 w-4 text-gray-500" />
+                      <span>{doc.name}</span>
+                      <Badge variant="secondary">{doc.type}</Badge>
                     </Label>
                   </div>
                   <Button variant="ghost" size="sm" asChild>
                     <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                      <Download className="h-4 w-4 mr-1" /> View
+                      View
                     </a>
                   </Button>
                 </div>
               ))}
             </div>
+          </ScrollArea>
+        )}
+        <Button
+          onClick={handleGenerateClientPack}
+          className="w-full"
+          disabled={isGenerating || processedDocuments.length === 0}
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...
+            </>
+          ) : (
+            <>
+              <Download className="mr-2 h-4 w-4" /> Generate Client Pack
+            </>
           )}
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Button onClick={handleGeneratePack} disabled={selectedDocuments.length === 0 || loading} className="flex-1">
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...
-              </>
-            ) : (
-              <>
-                <Share2 className="mr-2 h-4 w-4" /> Generate Client Pack
-              </>
-            )}
-          </Button>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="recipientEmail">Share via Email</Label>
-          <div className="flex gap-2">
-            <Input
-              id="recipientEmail"
-              type="email"
-              placeholder="recipient@example.com"
-              value={recipientEmail}
-              onChange={(e) => setRecipientEmail(e.target.value)}
-              className="flex-1"
-            />
-            <Button
-              onClick={handleShareByEmail}
-              disabled={selectedDocuments.length === 0 || !recipientEmail.includes("@") || loading}
-            >
-              <Mail className="mr-2 h-4 w-4" /> Send
-            </Button>
-          </div>
-        </div>
+        </Button>
       </CardContent>
     </Card>
   )

@@ -1,213 +1,61 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import type { User } from "@/types/auth"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Check, ChevronsUpDown, UserPlus, X } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { UserIcon } from "lucide-react"
+import { useState } from "react"
 
 interface UserAssignmentSectionProps {
-  groupId: string
-  isDefaultGroup: boolean
-  allUsers: { value: string; label: string }[]
-  assignedUsers: string[]
-  onAssignedUsersChange: (users: string[]) => void
+  allUsers: { id: string; name: string; email: string }[]
+  assignedUserIds: Set<string>
+  onUserAssignmentChange: (userId: string, isAssigned: boolean) => void
 }
 
-// Mock users for development
-const mockUsers: User[] = [
-  { id: "1", username: "john.doe", name: "John", surname: "Doe", role: "admin", department: "IT", pageAccess: [] },
-  {
-    id: "2",
-    username: "jane.smith",
-    name: "Jane",
-    surname: "Smith",
-    role: "manager",
-    department: "Sales",
-    pageAccess: [],
-  },
-  {
-    id: "3",
-    username: "bob.johnson",
-    name: "Bob",
-    surname: "Johnson",
-    role: "employee",
-    department: "Support",
-    pageAccess: [],
-  },
-  {
-    id: "4",
-    username: "alice.williams",
-    name: "Alice",
-    surname: "Williams",
-    role: "manager",
-    department: "HR",
-    pageAccess: [],
-  },
-  {
-    id: "5",
-    username: "charlie.brown",
-    name: "Charlie",
-    surname: "Brown",
-    role: "employee",
-    department: "Marketing",
-    pageAccess: [],
-  },
-  {
-    id: "6",
-    username: "diana.prince",
-    name: "Diana",
-    surname: "Prince",
-    role: "manager",
-    department: "Operations",
-    pageAccess: [],
-  },
-  {
-    id: "7",
-    username: "edward.stark",
-    name: "Edward",
-    surname: "Stark",
-    role: "employee",
-    department: "Finance",
-    pageAccess: [],
-  },
-]
-
-export default function UserAssignmentSection({
-  groupId,
-  isDefaultGroup,
+export function UserAssignmentSection({
   allUsers,
-  assignedUsers,
-  onAssignedUsersChange,
+  assignedUserIds,
+  onUserAssignmentChange,
 }: UserAssignmentSectionProps) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState("")
-  const [availableUsers, setAvailableUsers] = useState<User[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
 
-  useEffect(() => {
-    // In a real app, this would fetch from API
-    // For now, we'll use mock data
-    setAvailableUsers(mockUsers.filter((user) => !assignedUsers.includes(user.id)))
-  }, [groupId, assignedUsers])
-
-  const handleAssignUser = (user: User) => {
-    onAssignedUsersChange([...assignedUsers, user.id])
-  }
-
-  const handleRemoveUser = (userId: string) => {
-    onAssignedUsersChange(assignedUsers.filter((id) => id !== userId))
-  }
-
-  const filteredUsers = availableUsers.filter(
+  const filteredUsers = allUsers.filter(
     (user) =>
-      user.username.toLowerCase().includes(search.toLowerCase()) ||
-      `${user.name} ${user.surname}`.toLowerCase().includes(search.toLowerCase()) ||
-      user.department.toLowerCase().includes(search.toLowerCase()),
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
         <CardTitle>Assign Users</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="assign-users">Assign Users to Group</Label>
-            <div className="flex mt-1.5">
-              <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={open}
-                    className="justify-between bg-transparent"
-                    disabled={isDefaultGroup}
-                  >
-                    <span>Select users...</span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="p-0"
-                  align="start"
-                  side="bottom"
-                  sideOffset={5}
-                  alignOffset={0}
-                  avoidCollisions={false}
-                >
-                  <Command>
-                    <CommandInput placeholder="Search users..." value={search} onValueChange={setSearch} />
-                    <CommandList>
-                      <CommandEmpty>No users found.</CommandEmpty>
-                      <CommandGroup>
-                        <ScrollArea className="h-72">
-                          {filteredUsers.map((user) => (
-                            <CommandItem key={user.id} value={user.id} onSelect={() => handleAssignUser(user)}>
-                              <div className="flex flex-col">
-                                <span>
-                                  {user.name} {user.surname}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  @{user.username} • {user.department}
-                                </span>
-                              </div>
-                              <Check className="ml-auto h-4 w-4 opacity-0" />
-                            </CommandItem>
-                          ))}
-                        </ScrollArea>
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-
-          <div>
-            <Label>Assigned Users</Label>
-            <div className="mt-1.5 border rounded-md p-2 min-h-[100px]">
-              {assignedUsers.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-24 text-muted-foreground">
-                  <UserPlus className="h-8 w-8 mb-2" />
-                  <p>No users assigned to this group</p>
+      <CardContent className="space-y-4">
+        <Input placeholder="Search users..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <ScrollArea className="h-64 border rounded-md p-2">
+          {filteredUsers.length === 0 ? (
+            <p className="text-center text-gray-500 py-4">No users found.</p>
+          ) : (
+            <div className="space-y-2">
+              {filteredUsers.map((user) => (
+                <div key={user.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md">
+                  <div className="flex items-center gap-2">
+                    <UserIcon className="h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="font-medium">{user.name}</p>
+                      <p className="text-sm text-gray-500">{user.email}</p>
+                    </div>
+                  </div>
+                  <Checkbox
+                    checked={assignedUserIds.has(user.id)}
+                    onCheckedChange={(checked) => onUserAssignmentChange(user.id, checked as boolean)}
+                  />
                 </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {assignedUsers.map((userId) => {
-                    const user = mockUsers.find((u) => u.id === userId)
-                    if (!user) return null
-                    return (
-                      <Badge key={user.id} variant="secondary" className="flex items-center gap-1">
-                        {user.name} {user.surname}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-4 w-4 p-0 ml-1"
-                          onClick={() => handleRemoveUser(user.id)}
-                          disabled={isDefaultGroup}
-                        >
-                          <X className="h-3 w-3" />
-                          <span className="sr-only">Remove</span>
-                        </Button>
-                      </Badge>
-                    )
-                  })}
-                </div>
-              )}
+              ))}
             </div>
-            {isDefaultGroup && (
-              <p className="text-sm text-muted-foreground mt-2">
-                Default groups automatically assign permissions based on user roles. Manual user assignment is disabled.
-              </p>
-            )}
-          </div>
-        </div>
+          )}
+        </ScrollArea>
       </CardContent>
     </Card>
   )
