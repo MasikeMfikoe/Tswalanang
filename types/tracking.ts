@@ -55,7 +55,6 @@ export interface TrackingData {
     dimensions?: string
     specialInstructions?: string
     shipmentType?: ShipmentType
-    freeDaysBeforeDemurrage?: number // Added this field
   }
 }
 

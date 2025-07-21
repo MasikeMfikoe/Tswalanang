@@ -1,5 +1,9 @@
-import type { TrackingResult, ShipmentType, TrackingData, TrackingEvent } from "@/types/tracking"
+import type { TrackingResult, TrackingData, ShipmentType } from "@/types/tracking"
 
+/**
+ * A **minimal mock** TrackShip service.
+ * Replace this with real API client logic when ready.
+ */
 export class TrackShipService {
   private gocometToken: string | null
 
@@ -7,111 +11,80 @@ export class TrackShipService {
     this.gocometToken = gocometToken
   }
 
-  /**
-   * Mocks tracking information from the TrackShip API.
-   * In a real scenario, this would make an actual API call.
-   * @param trackingNumber The tracking number to query.
-   * @returns A formatted TrackingResult.
-   */
   async trackShipment(
     trackingNumber: string,
     options?: { shipmentType?: ShipmentType; carrierHint?: string },
   ): Promise<TrackingResult> {
-    console.log(`[TrackShipService] Mocking tracking for: ${trackingNumber}`)
+    console.log(`[TrackShipService] Attempting to track ${trackingNumber} with mock service.`)
 
     // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 500))
 
-    const now = new Date().toISOString()
-    const mockEvents: TrackingEvent[] = [
-      {
-        timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        location: "Shanghai, China",
-        description: "Container received at origin port",
-        status: "Received",
-        type: "cargo-received",
-      },
-      {
-        timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-        location: "Shanghai, China",
-        description: "Loaded on vessel",
-        status: "Loaded",
-        type: "load",
-        vessel: "Mock Vessel A",
-        voyage: "V001",
-      },
-      {
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        location: "Pacific Ocean",
-        description: "In transit",
-        status: "In Transit",
-        type: "event",
-        vessel: "Mock Vessel A",
-        voyage: "V001",
-      },
-      {
-        timestamp: now,
-        location: "Long Beach, USA",
-        description: "Estimated arrival at destination port",
-        status: "Estimated Arrival",
-        type: "vessel-arrival",
-      },
-    ]
-
-    const mockData: TrackingData = {
-      shipmentNumber: trackingNumber,
-      status: "In Transit",
-      carrier: options?.carrierHint || "Mock Carrier",
-      containerNumber: "MOCK1234567",
-      containerType: "40' HC",
-      weight: "10,000 KGS",
-      origin: "Shanghai, China",
-      destination: "Long Beach, USA",
-      pol: "CNSHA",
-      pod: "USLGB",
-      eta: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // Mock ETA 3 days from now
-      etd: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // Mock ETD 5 days ago
-      lastLocation: "Pacific Ocean",
-      timeline: [
-        {
-          location: "Shanghai, China",
-          events: mockEvents.slice(0, 2),
-        },
-        {
-          location: "Pacific Ocean",
-          events: mockEvents.slice(2, 3),
-        },
-        {
-          location: "Long Beach, USA",
-          events: mockEvents.slice(3, 4),
-        },
-      ],
-      documents: [
-        {
-          type: "Bill of Lading",
-          url: "/placeholder.svg?height=200&width=150",
-          description: "Original Bill of Lading",
-        },
-        {
-          type: "Commercial Invoice",
-          url: "/placeholder.svg?height=200&width=150",
-          description: "Commercial Invoice for customs",
-        },
-      ],
-      details: {
-        packages: "20 cartons",
-        dimensions: "20 CBM",
-        specialInstructions: "Handle with care",
-        shipmentType: options?.shipmentType || "ocean",
-        freeDaysBeforeDemurrage: 7, // Mock free days
-      },
-    }
-
-    return {
-      success: true,
-      data: mockData,
-      source: "TrackShip Mock API",
-      isLiveData: false, // Indicate this is mock data
+    // This is a mock implementation.
+    // In a real scenario, you would make an actual API call to TrackShip.
+    // For now, it will only "succeed" for a specific mock number.
+    if (trackingNumber === "MOCKTRACK123") {
+      const mockData: TrackingData = {
+        shipmentNumber: trackingNumber,
+        status: "Delivered (Mock)",
+        carrier: options?.carrierHint || "Mock Carrier",
+        containerNumber: "MOCKCONTAINER",
+        origin: "Mock Origin Port",
+        destination: "Mock Destination Port",
+        eta: "2025-08-01",
+        timeline: [
+          {
+            location: "Mock Origin Port",
+            events: [
+              {
+                timestamp: "2025-07-15T10:00:00Z",
+                description: "Shipment received at origin (Mock)",
+                status: "Received",
+                type: "cargo-received",
+              },
+            ],
+          },
+          {
+            location: "Mock Transit Hub",
+            events: [
+              {
+                timestamp: "2025-07-18T14:30:00Z",
+                description: "Departed transit hub (Mock)",
+                status: "In Transit",
+                type: "vessel-departure",
+              },
+            ],
+          },
+          {
+            location: "Mock Destination Port",
+            events: [
+              {
+                timestamp: "2025-07-25T09:00:00Z",
+                description: "Arrived at destination (Mock)",
+                status: "Arrived",
+                type: "vessel-arrival",
+              },
+              {
+                timestamp: "2025-07-26T11:00:00Z",
+                description: "Delivered (Mock)",
+                status: "Delivered",
+                type: "event",
+              },
+            ],
+          },
+        ],
+      }
+      return { success: true, data: mockData, source: "TrackShip Mock", isLiveData: false }
+    } else {
+      return { success: false, error: "TrackShip mock could not find this tracking number.", source: "TrackShip Mock" }
     }
   }
+}
+
+// This function is kept for backward compatibility if other parts of the app
+// directly call getTrackShipTracking instead of using the service class.
+export async function getTrackShipTracking(trackingNumber: string): Promise<TrackingResult | null> {
+  const service = new TrackShipService()
+  const result = await service.trackShipment(trackingNumber)
+  return result.success ? result : null
 }

@@ -19,12 +19,9 @@ export interface DetectedTrackingInfo {
 }
 
 export interface DetectedShipmentInfo {
+  type: ShipmentType
+  carrierHint?: string
   isValid: boolean
-  trackingNumber: string
-  shipmentType: ShipmentType
-  carrier?: string
-  carrierCode?: string
-  suggestions?: CarrierSuggestion[]
 }
 
 const carriers: Record<string, CarrierDetails> = {
@@ -191,24 +188,6 @@ const carriers: Record<string, CarrierDetails> = {
     prefixes: ["001"],
     type: "air",
     color: "#002060",
-  },
-  "074": {
-    name: "KLM Cargo",
-    code: "KLM",
-    trackingUrl: "https://www.klm.com/tracking",
-    apiSupported: false,
-    prefixes: ["074"],
-    type: "air",
-    color: "#ff5733",
-  },
-  "180": {
-    name: "United Cargo",
-    code: "UNITED",
-    trackingUrl: "https://www.unitedcargo.com/track",
-    apiSupported: false,
-    prefixes: ["180"],
-    type: "air",
-    color: "#3333ff",
   },
 }
 

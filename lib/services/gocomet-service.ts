@@ -6,7 +6,6 @@ interface GoCometTrackingResponse {
   data: {
     tracking_number: string
     current_status: string
-    carrier_name?: string // Added carrier_name
     container_number?: string
     container_type?: string
     weight?: string
@@ -33,12 +32,12 @@ interface GoCometTrackingResponse {
       document_url: string
       document_description?: string
     }>
+    // Assuming GoComet might provide more details under a 'details' object
     details?: {
       packages?: string
       dimensions?: string
       special_instructions?: string
       shipment_type?: string // "Ocean", "Air", "LCL"
-      free_days_before_demurrage?: number // Added for GoComet
     }
   }
 }
@@ -65,7 +64,7 @@ export class GocometService {
     const gocometToken = process.env.GOCOMET_API_KEY // Assuming API key is used as token
 
     if (!gocometToken) {
-      return { success: false, error: "GoComet API key is not configured.", source: "GoComet API", isLiveData: false }
+      return { success: false, error: "GoComet API key is not configured.", source: "GoComet API" }
     }
 
     try {
@@ -88,17 +87,11 @@ export class GocometService {
           success: false,
           error: result.message || "Failed to retrieve tracking information from GoComet.",
           source: "GoComet API",
-          isLiveData: false,
         }
       }
     } catch (error: any) {
       console.error("Error fetching from GoComet API:", error)
-      return {
-        success: false,
-        error: error.message || "Network error with GoComet API.",
-        source: "GoComet API",
-        isLiveData: false,
-      }
+      return { success: false, error: error.message || "Network error with GoComet API.", source: "GoComet API" }
     }
   }
 }
@@ -146,7 +139,6 @@ function transformGocometData(gocometData: GoCometTrackingResponse["data"]): Tra
   return {
     shipmentNumber: gocometData.tracking_number,
     status: gocometData.current_status,
-    carrier: gocometData.carrier_name, // Use carrier_name from GoComet
     containerNumber: gocometData.container_number,
     containerType: gocometData.container_type,
     weight: gocometData.weight,
@@ -154,8 +146,8 @@ function transformGocometData(gocometData: GoCometTrackingResponse["data"]): Tra
     destination: gocometData.destination,
     pol: gocometData.pol,
     pod: gocometData.pod,
-    eta: gocometData.eta,
-    etd: gocometData.etd,
+    estimatedArrival: gocometData.eta,
+    estimatedDeparture: gocometData.etd,
     lastLocation: gocometData.last_location,
     timeline: timeline,
     documents: gocometData.documents?.map((doc) => ({
@@ -169,7 +161,6 @@ function transformGocometData(gocometData: GoCometTrackingResponse["data"]): Tra
           dimensions: gocometData.details.dimensions,
           specialInstructions: gocometData.details.special_instructions,
           shipmentType: gocometData.details.shipment_type?.toLowerCase() as ShipmentType,
-          freeDaysBeforeDemurrage: gocometData.details.free_days_before_demurrage,
         }
       : undefined,
   }

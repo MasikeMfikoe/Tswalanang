@@ -1,34 +1,56 @@
 import { NextResponse } from "next/server"
 
-export async function POST(request: Request) {
-  const { email, password } = await request.json()
-
-  if (!email || !password) {
-    return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
-  }
-
+/**
+ * POST /api/gocomet-auth
+ *
+ * Returns:
+ *   { success: true, token: string }  – when authentication succeeds
+ *   { success: false, error: string } – when something goes wrong
+ *
+ * Notes:
+ *  • No request body is required; credentials are read from env vars.
+ *  • Falls back to NEXT_PUBLIC_ vars for local testing but you should store
+ *    GOCOMET_EMAIL and GOCOMET_PASSWORD *without* NEXT_PUBLIC_ in production.
+ */
+export async function POST() {
   try {
-    const response = await fetch("https://api.gocomet.com/api/v1/integrations/generate-token-number", {
+    // -----------------------------------------------------------------------
+    // 1. Read credentials from environment variables
+    // -----------------------------------------------------------------------
+    const email = process.env.GOCOMET_EMAIL || process.env.NEXT_PUBLIC_GOCOMET_EMAIL
+    const password = process.env.GOCOMET_PASSWORD || process.env.NEXT_PUBLIC_GOCOMET_PASSWORD
+
+    if (!email || !password) {
+      return NextResponse.json({ success: false, error: "GoComet credentials are not configured." }, { status: 500 })
+    }
+
+    // -----------------------------------------------------------------------
+    // 2. Forward the login request to GoComet
+    //    Using the previously working endpoint for token generation.
+    // -----------------------------------------------------------------------
+    const resp = await fetch("https://login.gocomet.com/api/v1/integrations/generate-token-number", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     })
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      console.error("GoComet API error:", response.status, errorData)
-      return NextResponse.json(
-        { error: `GoComet login failed with status ${response.status}: ${JSON.stringify(errorData)}` },
-        { status: response.status },
-      )
+    // GoComet sometimes returns non-JSON on error; guard against that:
+    const text = await resp.text()
+    let data: any = {}
+    try {
+      data = JSON.parse(text)
+    } catch {
+      // leave data as {}
     }
 
-    const data = await response.json()
-    return NextResponse.json({ token: data.data.token })
-  } catch (error: any) {
-    console.error("Error during GoComet authentication:", error)
-    return NextResponse.json({ error: `Authentication error: ${error.message}` }, { status: 500 })
+    if (resp.ok && data.token) {
+      return NextResponse.json({ success: true, token: data.token })
+    }
+
+    const message = data?.message || data?.error || `GoComet auth failed with status ${resp.status}`
+    return NextResponse.json({ success: false, error: message }, { status: resp.status || 500 })
+  } catch (err: any) {
+    console.error("GoComet auth route error:", err)
+    return NextResponse.json({ success: false, error: "Internal server error during GoComet auth." }, { status: 500 })
   }
 }

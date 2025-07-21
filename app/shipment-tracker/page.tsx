@@ -5,20 +5,22 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Search } from "lucide-react"
 import ShipmentTrackingResults from "@/components/ShipmentTrackingResults"
-import { Loader2, Search } from "lucide-react"
+import { detectShipmentInfo } from "@/lib/services/container-detection-service"
 import type { ShipmentType } from "@/types/tracking"
+import Image from "next/image"
 
 export default function ShipmentTrackerPage() {
-  const [trackingNumberInput, setTrackingNumberInput] = useState("")
   const [trackingNumber, setTrackingNumber] = useState("")
-  const [bookingType, setBookingType] = useState<ShipmentType>("unknown")
-  const [carrierHint, setCarrierHint] = useState<string | undefined>(undefined)
+  const [displayTrackingResults, setDisplayTrackingResults] = useState(false)
+  const [detectedShipmentType, setDetectedShipmentType] = useState<ShipmentType>("unknown")
+  const [detectedCarrierHint, setDetectedCarrierHint] = useState<string | undefined>(undefined)
   const [gocometToken, setGocometToken] = useState<string | null>(null)
-  const [authLoading, setAuthLoading] = useState(true)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
 
+  // Automatic GoComet Authentication on component mount
   useEffect(() => {
     const authenticateGocomet = async () => {
       setAuthLoading(true)
@@ -29,86 +31,126 @@ export default function ShipmentTrackerPage() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            email: process.env.NEXT_PUBLIC_GOCOMET_EMAIL,
-            password: process.env.NEXT_PUBLIC_GOCOMET_PASSWORD,
-          }),
         })
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || "Failed to authenticate with GoComet")
+          throw new Error(errorData.error || "Failed to authenticate with GoComet.")
         }
 
         const data = await response.json()
-        setGocometToken(data.token)
-      } catch (err: any) {
-        console.error("GoComet authentication error:", err)
-        setAuthError(`Authentication error: ${err.message}`)
+        if (data.success && data.token) {
+          setGocometToken(data.token)
+          console.log("GoComet authentication successful.")
+        } else {
+          throw new Error(data.error || "GoComet authentication failed: No token received.")
+        }
+      } catch (error: any) {
+        console.error("Authentication error:", error)
+        setAuthError(`Authentication error: ${error.message}`)
       } finally {
         setAuthLoading(false)
       }
     }
 
     authenticateGocomet()
-  }, [])
+  }, []) // Run only once on mount
 
-  const handleTrack = (e: React.FormEvent) => {
-    e.preventDefault()
-    setTrackingNumber(trackingNumberInput)
-    // In a real app, you might detect bookingType and carrierHint here
-    // For now, we'll let the backend handle initial detection or use defaults
-    setBookingType("unknown")
-    setCarrierHint(undefined)
+  const handleSearch = () => {
+    if (trackingNumber.trim()) {
+      const detectedInfo = detectShipmentInfo(trackingNumber)
+      setDetectedShipmentType(detectedInfo.type)
+      setDetectedCarrierHint(detectedInfo.carrierHint)
+      setDisplayTrackingResults(true)
+    }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setTrackingNumber(value)
+    if (!value.trim()) {
+      setDisplayTrackingResults(false)
+      setDetectedShipmentType("unknown")
+      setDetectedCarrierHint(undefined)
+    } else {
+      const detectedInfo = detectShipmentInfo(value)
+      setDetectedShipmentType(detectedInfo.type)
+      setDetectedCarrierHint(detectedInfo.carrierHint)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSearch()
+    }
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <Card className="max-w-2xl mx-auto bg-white/90 backdrop-blur-sm shadow-xl">
-        <CardHeader>
-          <CardTitle className="text-3xl font-bold text-center text-gray-800">Shipment Tracker</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleTrack} className="flex flex-col gap-4">
-            <Input
-              type="text"
-              placeholder="Enter tracking number (e.g., MEDU9445622)"
-              value={trackingNumberInput}
-              onChange={(e) => setTrackingNumberInput(e.target.value)}
-              className="p-3 text-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+    <div className="relative min-h-screen flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
+      <Image
+        src="/images/world-map.jpg"
+        alt="World Map Background"
+        layout="fill"
+        objectFit="cover"
+        quality={100}
+        className="absolute inset-0 z-0 opacity-20 dark:opacity-10"
+      />
+      <div className="relative z-10 w-full max-w-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-lg shadow-xl p-8">
+        <h1 className="text-3xl font-bold text-center text-gray-800 dark:text-white mb-6">Track Your Shipment</h1>
+
+        {authLoading && (
+          <div className="text-center text-gray-600 dark:text-gray-400 mb-4">Authenticating GoComet...</div>
+        )}
+        {authError && (
+          <div className="text-center text-red-600 dark:text-red-400 mb-4 p-2 border border-red-500 rounded">
+            {authError}
+          </div>
+        )}
+        {!authLoading && !gocometToken && !authError && (
+          <div className="text-center text-yellow-600 dark:text-yellow-400 mb-4 p-2 border border-yellow-500 rounded">
+            GoComet authentication failed or token not available. Tracking might be limited.
+          </div>
+        )}
+
+        <div className="flex space-x-2 mb-4">
+          <Input
+            type="text"
+            placeholder="Enter tracking number (e.g., MEDU9445622)"
+            className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+            value={trackingNumber}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+          />
+          <Button
+            onClick={handleSearch}
+            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-md flex items-center gap-2"
+          >
+            <Search className="h-5 w-5" />
+            Track
+          </Button>
+        </div>
+
+        {trackingNumber.trim() && detectedShipmentType !== "unknown" && (
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Detected: <span className="font-semibold">{detectedShipmentType.toUpperCase()}</span>
+            {detectedCarrierHint && <span className="ml-1">({detectedCarrierHint})</span>}
+          </p>
+        )}
+        {trackingNumber.trim() && detectedShipmentType === "unknown" && (
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Detected: Unknown shipment type.</p>
+        )}
+
+        {displayTrackingResults && (
+          <div className="mt-8">
+            <ShipmentTrackingResults
+              trackingNumber={trackingNumber}
+              bookingType={detectedShipmentType}
+              carrierHint={detectedCarrierHint}
+              gocometToken={gocometToken} // Pass the obtained token
             />
-            <Button type="submit" className="w-full p-3 text-lg" disabled={authLoading || !gocometToken}>
-              {authLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Authenticating...
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 h-5 w-5" /> Track Shipment
-                </>
-              )}
-            </Button>
-          </form>
-
-          {authError && (
-            <div className="mt-4 text-red-600 text-center">
-              <p>{authError}</p>
-              <p className="text-sm text-gray-500">Please check your GoComet API credentials.</p>
-            </div>
-          )}
-
-          {trackingNumber && gocometToken && (
-            <div className="mt-8">
-              <ShipmentTrackingResults
-                trackingNumber={trackingNumber}
-                bookingType={bookingType}
-                carrierHint={carrierHint}
-                gocometToken={gocometToken}
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
