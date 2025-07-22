@@ -1,71 +1,56 @@
 "use client"
 
-import { useRef, useState, type PointerEvent } from "react"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { useRef, useEffect } from "react"
 
-interface SignaturePadProps {
-  /** Called with a base64-PNG each time the user lifts the pointer */
-  onSave?: (dataUrl: string) => void
-  className?: string
-  height?: number
-  width?: number
-}
+export default function SignaturePad({ width = 300, height = 120 }: { width?: number; height?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
 
-export function SignaturePad({ onSave, className, height = 200, width = 500 }: SignaturePadProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const [drawing, setDrawing] = useState(false)
-
-  const getCtx = () => canvasRef.current?.getContext("2d")
-
-  const start = (e: PointerEvent<HTMLCanvasElement>) => {
-    const ctx = getCtx()
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
     if (!ctx) return
-    ctx.lineWidth = 2
-    ctx.lineCap = "round"
-    ctx.strokeStyle = "black"
-    ctx.beginPath()
-    ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY)
-    setDrawing(true)
-  }
 
-  const draw = (e: PointerEvent<HTMLCanvasElement>) => {
-    if (!drawing) return
-    const ctx = getCtx()
-    if (!ctx) return
-    ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY)
-    ctx.stroke()
-  }
+    let drawing = false
 
-  const end = () => {
-    if (!drawing) return
-    setDrawing(false)
-    const dataUrl = canvasRef.current?.toDataURL("image/png")
-    if (dataUrl && onSave) onSave(dataUrl)
-  }
+    const start = (e: MouseEvent | TouchEvent) => {
+      drawing = true
+      ctx.beginPath()
+      ctx.moveTo(getX(e), getY(e))
+    }
 
-  const clear = () => {
-    const ctx = getCtx()
-    if (!ctx) return
-    ctx.clearRect(0, 0, width, height)
-    onSave?.("") // reset signature
-  }
+    const draw = (e: MouseEvent | TouchEvent) => {
+      if (!drawing) return
+      ctx.lineTo(getX(e), getY(e))
+      ctx.strokeStyle = "black"
+      ctx.lineWidth = 2
+      ctx.lineCap = "round"
+      ctx.stroke()
+    }
 
-  return (
-    <div className={cn("space-y-2", className)}>
-      <canvas
-        ref={canvasRef}
-        width={width}
-        height={height}
-        className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 touch-none"
-        onPointerDown={start}
-        onPointerMove={draw}
-        onPointerUp={end}
-        onPointerLeave={end}
-      />
-      <Button type="button" variant="outline" size="sm" onClick={clear}>
-        Clear
-      </Button>
-    </div>
-  )
+    const end = () => (drawing = false)
+
+    const getX = (e: any) => (e.touches ? e.touches[0].clientX : e.clientX) - canvas.getBoundingClientRect().left
+    const getY = (e: any) => (e.touches ? e.touches[0].clientY : e.clientY) - canvas.getBoundingClientRect().top
+
+    canvas.addEventListener("mousedown", start)
+    canvas.addEventListener("mousemove", draw)
+    canvas.addEventListener("mouseup", end)
+    canvas.addEventListener("mouseleave", end)
+    canvas.addEventListener("touchstart", start)
+    canvas.addEventListener("touchmove", draw)
+    canvas.addEventListener("touchend", end)
+
+    return () => {
+      canvas.removeEventListener("mousedown", start)
+      canvas.removeEventListener("mousemove", draw)
+      canvas.removeEventListener("mouseup", end)
+      canvas.removeEventListener("mouseleave", end)
+      canvas.removeEventListener("touchstart", start)
+      canvas.removeEventListener("touchmove", draw)
+      canvas.removeEventListener("touchend", end)
+    }
+  }, [])
+
+  return <canvas ref={canvasRef} width={width} height={height} className="border rounded-md bg-white" />
 }
