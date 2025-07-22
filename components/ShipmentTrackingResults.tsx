@@ -177,7 +177,7 @@ export default function ShipmentTrackingResults({
 
   return (
     <Card className="w-full bg-white/90 dark:bg-gray-800/90 shadow-lg">
-      <CardHeader className="border-b border-gray-200 dark:border-gray-700 p-6">
+      <CardHeader className="border-b border-gray-200 dark:border-700 p-6">
         <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
           Shipment Details: {data.shipmentNumber}
         </CardTitle>
@@ -221,16 +221,16 @@ export default function ShipmentTrackingResults({
               </span>
             </div>
           )}
-          {data.estimatedArrival && (
+          {data.eta && (
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-blue-500" />
-              <span>ETA: {data.estimatedArrival}</span>
+              <span>ETA: {data.eta}</span>
             </div>
           )}
-          {data.estimatedDeparture && (
+          {data.etd && (
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-blue-500" />
-              <span>ETD: {data.estimatedDeparture}</span>
+              <span>ETD: {data.etd}</span>
             </div>
           )}
           {data.containerNumber && (
@@ -245,6 +245,12 @@ export default function ShipmentTrackingResults({
             <div className="flex items-center gap-2">
               <Info className="h-5 w-5 text-blue-500" />
               <span>Weight: {data.weight}</span>
+            </div>
+          )}
+          {data.details?.freeDaysBeforeDemurrage !== undefined && (
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-orange-500" />
+              <span>Free Days Before Demurrage: {data.details.freeDaysBeforeDemurrage}</span>
             </div>
           )}
           {data.lastLocation && (

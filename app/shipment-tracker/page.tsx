@@ -12,8 +12,8 @@ import type { ShipmentType } from "@/types/tracking"
 import Image from "next/image"
 
 export default function ShipmentTrackerPage() {
+  const [trackingNumberInput, setTrackingNumberInput] = useState("")
   const [trackingNumber, setTrackingNumber] = useState("")
-  const [displayTrackingResults, setDisplayTrackingResults] = useState(false)
   const [detectedShipmentType, setDetectedShipmentType] = useState<ShipmentType>("unknown")
   const [detectedCarrierHint, setDetectedCarrierHint] = useState<string | undefined>(undefined)
   const [gocometToken, setGocometToken] = useState<string | null>(null)
@@ -31,6 +31,7 @@ export default function ShipmentTrackerPage() {
           headers: {
             "Content-Type": "application/json",
           },
+          // No body needed, credentials are read from env vars on the server
         })
 
         if (!response.ok) {
@@ -57,19 +58,19 @@ export default function ShipmentTrackerPage() {
   }, []) // Run only once on mount
 
   const handleSearch = () => {
-    if (trackingNumber.trim()) {
-      const detectedInfo = detectShipmentInfo(trackingNumber)
+    if (trackingNumberInput.trim()) {
+      setTrackingNumber(trackingNumberInput) // Set the tracking number to trigger results display
+      const detectedInfo = detectShipmentInfo(trackingNumberInput)
       setDetectedShipmentType(detectedInfo.type)
       setDetectedCarrierHint(detectedInfo.carrierHint)
-      setDisplayTrackingResults(true)
     }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    setTrackingNumber(value)
+    setTrackingNumberInput(value)
     if (!value.trim()) {
-      setDisplayTrackingResults(false)
+      setTrackingNumber("") // Clear tracking number to hide results
       setDetectedShipmentType("unknown")
       setDetectedCarrierHint(undefined)
     } else {
@@ -117,30 +118,31 @@ export default function ShipmentTrackerPage() {
             type="text"
             placeholder="Enter tracking number (e.g., MEDU9445622)"
             className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-            value={trackingNumber}
+            value={trackingNumberInput}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
           />
           <Button
             onClick={handleSearch}
             className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-md flex items-center gap-2"
+            disabled={authLoading || !trackingNumberInput.trim()}
           >
             <Search className="h-5 w-5" />
             Track
           </Button>
         </div>
 
-        {trackingNumber.trim() && detectedShipmentType !== "unknown" && (
+        {trackingNumberInput.trim() && detectedShipmentType !== "unknown" && (
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Detected: <span className="font-semibold">{detectedShipmentType.toUpperCase()}</span>
             {detectedCarrierHint && <span className="ml-1">({detectedCarrierHint})</span>}
           </p>
         )}
-        {trackingNumber.trim() && detectedShipmentType === "unknown" && (
+        {trackingNumberInput.trim() && detectedShipmentType === "unknown" && (
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Detected: Unknown shipment type.</p>
         )}
 
-        {displayTrackingResults && (
+        {trackingNumber && (
           <div className="mt-8">
             <ShipmentTrackingResults
               trackingNumber={trackingNumber}

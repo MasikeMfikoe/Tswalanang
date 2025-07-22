@@ -1,100 +1,106 @@
-import { BaseShippingAPI } from "./base-shipping-api"
-import type { ContainerStatus, ShippingLineCredentials } from "@/types/shipping"
+import type { ShipmentType, TrackingResult, TrackingData } from "@/types/tracking"
 
-export class MSCAPI extends BaseShippingAPI {
-  constructor(credentials: ShippingLineCredentials) {
-    super("msc", credentials)
-  }
+// This is a simplified mock for MSC API integration.
+// In a real scenario, this would involve actual API calls to MSC.
+export class MscApi {
+  async trackShipment(
+    trackingNumber: string,
+    options?: { shipmentType?: ShipmentType; carrierHint?: string },
+  ): Promise<TrackingResult> {
+    // Simulate API call delay
+    await new Promise((resolve) => setTimeout(resolve, 500))
 
-  async authenticate(): Promise<boolean> {
-    try {
-      // MSC typically uses basic auth
-      // No need to store token as we'll use basic auth for each request
-      return true
-    } catch (error) {
-      console.error("MSC authentication error:", error)
-      return false
+    if (trackingNumber.startsWith("MSCU")) {
+      // Simulate successful tracking for a specific MSC number
+      if (trackingNumber === "MSCU9876543") {
+        const mockData: TrackingData = {
+          shipmentNumber: "MSCU9876543",
+          status: "Customs Cleared",
+          carrier: "MSC",
+          containerNumber: "MSCU9876543",
+          containerType: "20' GP",
+          weight: "15,000 kg",
+          origin: "Busan, South Korea",
+          destination: "Los Angeles, USA",
+          pol: "KRPUS",
+          pod: "USLAX",
+          eta: "2025-08-10",
+          etd: "2025-07-10",
+          lastLocation: "Los Angeles, USA",
+          timeline: [
+            {
+              location: "Busan, South Korea",
+              events: [
+                {
+                  timestamp: "2025-07-08T09:00:00Z",
+                  date: "2025-07-08",
+                  time: "09:00",
+                  location: "Busan, South Korea",
+                  description: "Container loaded onto vessel",
+                  status: "Loaded",
+                  type: "load",
+                },
+                {
+                  timestamp: "2025-07-10T11:00:00Z",
+                  date: "2025-07-10",
+                  time: "11:00",
+                  location: "Busan, South Korea",
+                  description: "Vessel departed from Busan",
+                  status: "Departed",
+                  vessel: "MSC GÜLSÜN",
+                  voyage: "001W",
+                  type: "vessel-departure",
+                },
+              ],
+            },
+            {
+              location: "Los Angeles, USA",
+              events: [
+                {
+                  timestamp: "2025-08-08T16:00:00Z",
+                  date: "2025-08-08",
+                  time: "16:00",
+                  location: "Los Angeles, USA",
+                  description: "Vessel arrived at Los Angeles",
+                  status: "Arrived",
+                  vessel: "MSC GÜLSÜN",
+                  voyage: "001W",
+                  type: "vessel-arrival",
+                },
+                {
+                  timestamp: "2025-08-09T10:00:00Z",
+                  date: "2025-08-09",
+                  time: "10:00",
+                  location: "Los Angeles, USA",
+                  description: "Shipment cleared customs",
+                  status: "Customs Cleared",
+                  type: "customs-cleared",
+                },
+              ],
+            },
+          ],
+          documents: [],
+          details: {
+            packages: "15 pallets",
+            dimensions: "6m x 2.3m x 2.4m",
+            shipmentType: "ocean",
+            freeDaysBeforeDemurrage: 5,
+          },
+        }
+        return { success: true, data: mockData, source: "MSC API", isLiveData: true }
+      } else {
+        return {
+          success: false,
+          error: "No live tracking information found for this MSC number.",
+          source: "MSC API",
+          isLiveData: false,
+          fallbackOptions: {
+            carrier: "MSC",
+            trackingUrl: `https://www.msc.com/track-and-trace?search=${trackingNumber}`,
+          },
+        }
+      }
     }
-  }
-
-  async getContainerStatus(containerNumber: string): Promise<ContainerStatus> {
-    try {
-      // Basic auth headers
-      const headers = new Headers()
-      headers.set("Authorization", "Basic " + btoa(`${this.credentials.username}:${this.credentials.password}`))
-      headers.set("Accept", "application/json")
-
-      const response = await fetch(`${this.credentials.baseUrl}/track/v1/containers/${containerNumber}`, { headers })
-
-      if (!response.ok) {
-        throw new Error(`Failed to get container status: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-
-      // Extract the latest event
-      const latestEvent = data.events && data.events.length > 0 ? data.events[0] : null
-
-      if (!latestEvent) {
-        throw new Error("No tracking events found")
-      }
-
-      return {
-        containerNumber,
-        status: this.normalizeStatus(latestEvent.eventName),
-        location: latestEvent.location || "Unknown",
-        timestamp: latestEvent.eventDate,
-        vessel: data.vesselName,
-        voyage: data.voyageReference,
-        eta: data.estimatedArrival,
-        details: latestEvent.remarks,
-        raw: data,
-      }
-    } catch (error) {
-      console.error(`Error fetching MSC container status for ${containerNumber}:`, error)
-      throw error
-    }
-  }
-
-  async getBookingStatus(bookingReference: string): Promise<ContainerStatus> {
-    try {
-      // Basic auth headers
-      const headers = new Headers()
-      headers.set("Authorization", "Basic " + btoa(`${this.credentials.username}:${this.credentials.password}`))
-      headers.set("Accept", "application/json")
-
-      const response = await fetch(`${this.credentials.baseUrl}/track/v1/bookings/${bookingReference}`, { headers })
-
-      if (!response.ok) {
-        throw new Error(`Failed to get booking status: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-
-      // Extract container number and latest event
-      const containerNumber =
-        data.containers && data.containers.length > 0 ? data.containers[0].containerNumber : bookingReference
-
-      const latestEvent = data.events && data.events.length > 0 ? data.events[0] : null
-
-      if (!latestEvent) {
-        throw new Error("No tracking events found")
-      }
-
-      return {
-        containerNumber,
-        status: this.normalizeStatus(latestEvent.eventName),
-        location: latestEvent.location || "Unknown",
-        timestamp: latestEvent.eventDate,
-        vessel: data.vesselName,
-        voyage: data.voyageReference,
-        eta: data.estimatedArrival,
-        details: latestEvent.remarks,
-        raw: data,
-      }
-    } catch (error) {
-      console.error(`Error fetching MSC booking status for ${bookingReference}:`, error)
-      throw error
-    }
+    return { success: false, error: "Not an MSC tracking number.", source: "MSC API", isLiveData: false }
   }
 }

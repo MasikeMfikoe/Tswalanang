@@ -5,21 +5,22 @@ import type { ShipmentType } from "@/types/tracking"
 
 export async function POST(request: Request) {
   try {
-    const { trackingNumber, gocometToken } = await request.json()
+    const { trackingNumber, bookingType, carrierHint, gocometToken } = await request.json() // Receive gocometToken
 
     if (!trackingNumber) {
       return NextResponse.json({ success: false, error: "Tracking number is required." }, { status: 400 })
     }
 
-    // Detect shipment type and carrier hint
+    // Detect shipment type and carrier hint (can be overridden by client-provided bookingType/carrierHint)
     const detectedInfo = detectShipmentInfo(trackingNumber)
-    const shipmentType: ShipmentType = detectedInfo.type
-    const carrierHint: string | undefined = detectedInfo.carrierHint
+    const finalShipmentType: ShipmentType = bookingType || detectedInfo.type
+    const finalCarrierHint: string | undefined = carrierHint || detectedInfo.carrierHint
 
-    const trackingService = new MultiProviderTrackingService(gocometToken)
+    const trackingService = new MultiProviderTrackingService()
     const result = await trackingService.trackShipment(trackingNumber, {
-      shipmentType,
-      carrierHint,
+      shipmentType: finalShipmentType,
+      carrierHint: finalCarrierHint,
+      gocometToken: gocometToken, // Pass the received token
     })
 
     if (result.success) {
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
         isLiveData: result.isLiveData,
       })
     } else {
+      // If tracking failed, return the error and any fallback options
       return NextResponse.json(
         {
           success: false,

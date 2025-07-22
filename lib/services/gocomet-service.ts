@@ -1,46 +1,15 @@
-import type { TrackingData, TrackingEvent, ShipmentType, TrackingResult } from "@/types/tracking"
+import type {
+  GoCometAuthResponse,
+  GoCometLiveTrackingResponse,
+  GoCometLiveTrackingItem,
+  TrackingData,
+  TrackingEvent,
+  ShipmentType,
+  TrackingResult,
+} from "@/types/tracking"
 
-interface GoCometTrackingResponse {
-  status: string
-  message: string
-  data: {
-    tracking_number: string
-    current_status: string
-    container_number?: string
-    container_type?: string
-    weight?: string
-    origin?: string
-    destination?: string
-    pol?: string
-    pod?: string
-    eta?: string // Estimated Time of Arrival
-    etd?: string // Estimated Time of Departure
-    last_location?: string
-    milestones: Array<{
-      event_name: string
-      location: string
-      event_date: string // "YYYY-MM-DD"
-      event_time: string // "HH:MM"
-      description?: string
-      vessel_name?: string
-      flight_number?: string
-      mode?: string // e.g., "Ocean", "Air"
-      voyage_number?: string // Added for GoComet
-    }>
-    documents?: Array<{
-      document_type?: string
-      document_url: string
-      document_description?: string
-    }>
-    // Assuming GoComet might provide more details under a 'details' object
-    details?: {
-      packages?: string
-      dimensions?: string
-      special_instructions?: string
-      shipment_type?: string // "Ocean", "Air", "LCL"
-    }
-  }
-}
+const GOCOMET_AUTH_URL = "https://login.gocomet.com/api/v1/integrations/generate-token-number"
+const GOCOMET_LIVE_TRACKING_URL = "https://tracking.gocomet.com/api/v1/integrations/live-tracking"
 
 // Helper to map GoComet event names to a more standardized type
 const mapGoCometEventType = (eventName: string): TrackingEvent["type"] => {
@@ -53,74 +22,164 @@ const mapGoCometEventType = (eventName: string): TrackingEvent["type"] => {
   if (lowerEventName.includes("load") || lowerEventName.includes("loaded")) return "load"
   if (lowerEventName.includes("received")) return "cargo-received"
   if (lowerEventName.includes("customs cleared")) return "customs-cleared"
+  if (lowerEventName.includes("pickup")) return "pickup"
+  if (lowerEventName.includes("out for delivery")) return "out-for-delivery"
   return "event"
 }
 
 export class GocometService {
-  async trackShipment(
-    trackingNumber: string,
-    options?: { shipmentType?: ShipmentType; carrierHint?: string },
-  ): Promise<TrackingResult> {
-    const gocometToken = process.env.GOCOMET_API_KEY // Assuming API key is used as token
-
-    if (!gocometToken) {
-      return { success: false, error: "GoComet API key is not configured.", source: "GoComet API" }
-    }
-
+  async authenticate(email: string, password: string): Promise<string | null> {
     try {
-      const response = await fetch("https://api.gocomet.com/api/v1/integrations/track-shipment", {
+      const response = await fetch(GOCOMET_AUTH_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${gocometToken}`,
         },
-        body: JSON.stringify({ tracking_number: trackingNumber }),
+        body: JSON.stringify({
+          email: email,
+          password: password,
+        }),
       })
 
-      const result: GoCometTrackingResponse = await response.json()
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`GoComet authentication failed with status ${response.status}: ${errorText}`)
+        throw new Error(`GoComet authentication failed: ${errorText}`)
+      }
 
-      if (response.ok && result.status === "success" && result.data) {
-        const transformedData: TrackingData = transformGocometData(result.data)
+      const data: GoCometAuthResponse = await response.json()
+      return data.token
+    } catch (error) {
+      console.error("Error authenticating with GoComet:", error)
+      return null
+    }
+  }
+
+  async trackShipment(
+    trackingNumber: string,
+    token: string, // Accept the token as a parameter
+    options?: { shipmentType?: ShipmentType; carrierHint?: string },
+  ): Promise<TrackingResult> {
+    if (!token) {
+      return {
+        success: false,
+        error: "GoComet authentication token is missing.",
+        source: "GoComet API",
+        isLiveData: false,
+      }
+    }
+
+    try {
+      const url = new URL(GOCOMET_LIVE_TRACKING_URL)
+      url.searchParams.append("tracking_numbers[]", trackingNumber)
+      url.searchParams.append("token", token) // Use the passed token
+
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (!response.ok) {
+        const errorBody = await response.text()
+        console.error(`GoComet live tracking API returned status ${response.status}: ${errorBody}`)
+        return {
+          success: false,
+          error: `GoComet API error: ${response.status} - ${errorBody || "Unknown error"}`,
+          source: "GoComet API",
+          isLiveData: false,
+        }
+      }
+
+      const result: GoCometLiveTrackingResponse = await response.json()
+
+      if (result.updated_trackings && result.updated_trackings.length > 0) {
+        const gocometData = result.updated_trackings[0]
+        const transformedData: TrackingData = transformGocometData(gocometData)
         return { success: true, data: transformedData, source: "GoComet API", isLiveData: true }
       } else {
         return {
           success: false,
-          error: result.message || "Failed to retrieve tracking information from GoComet.",
+          error: "No live tracking information found for this number from GoComet.",
           source: "GoComet API",
+          isLiveData: false,
         }
       }
     } catch (error: any) {
       console.error("Error fetching from GoComet API:", error)
-      return { success: false, error: error.message || "Network error with GoComet API.", source: "GoComet API" }
+      return {
+        success: false,
+        error: error.message || "Network error with GoComet API.",
+        source: "GoComet API",
+        isLiveData: false,
+      }
     }
   }
 }
 
-function transformGocometData(gocometData: GoCometTrackingResponse["data"]): TrackingData {
+// Helper function to parse DD/MM/YYYY HH:MM:SS to ISO string
+function parseGoCometDateTime(dateStr?: string, timeStr?: string): string | undefined {
+  if (!dateStr) return undefined
+  const [day, month, year] = dateStr.split("/").map(Number)
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return undefined
+
+  let isoString = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+
+  if (timeStr) {
+    const [hours, minutes, seconds] = timeStr.split(":").map(Number)
+    if (!isNaN(hours) && !isNaN(minutes) && !isNaN(seconds)) {
+      isoString += `T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    }
+  } else {
+    isoString += "T00:00:00" // Default time if none provided
+  }
+
+  // GoComet dates are DD/MM/YYYY, so we need to construct a Date object carefully
+  // Using YYYY-MM-DD format for Date constructor is safer
+  try {
+    const date = new Date(isoString)
+    if (isNaN(date.getTime())) {
+      // Fallback for cases where direct ISO string might not work due to timezone or other issues
+      return undefined
+    }
+    return date.toISOString()
+  } catch (e) {
+    console.error("Error parsing GoComet date:", dateStr, timeStr, e)
+    return undefined
+  }
+}
+
+function transformGocometData(gocometData: GoCometLiveTrackingItem): TrackingData {
   const timelineMap = new Map<string, { location: string; terminal?: string; events: TrackingEvent[] }>()
 
-  gocometData.milestones.forEach((milestone) => {
-    const locationKey = milestone.location || "Unknown Location"
+  gocometData.events.forEach((event) => {
+    const locationKey = event.location || "Unknown Location"
     if (!timelineMap.has(locationKey)) {
       timelineMap.set(locationKey, { location: locationKey, events: [] })
     }
 
-    const eventTimestamp = `${milestone.event_date}T${milestone.event_time}:00` // Assuming time is HH:MM
+    // Combine date and time for timestamp, handling different formats
+    const eventTimestamp =
+      parseGoCometDateTime(event.actual_date, event.actual_datetime?.split(" ")[1]) ||
+      parseGoCometDateTime(event.planned_date, event.planned_datetime?.split(" ")[1]) ||
+      new Date().toISOString() // Fallback to current time if no date/time
 
     timelineMap.get(locationKey)?.events.push({
       timestamp: eventTimestamp,
-      date: milestone.event_date,
-      time: milestone.event_time,
-      status: milestone.event_name,
-      location: milestone.location,
-      description: milestone.description,
-      vessel: milestone.vessel_name,
-      flightNumber: milestone.flight_number,
-      type: mapGoCometEventType(milestone.event_name),
-      mode: milestone.mode,
-      voyage: milestone.voyage_number,
-      originalPlan: "N/A (GoComet API does not provide)", // Placeholder
-      currentPlan: "N/A (GoComet API does not provide)", // Placeholder
+      date: event.actual_date || event.planned_date,
+      time: event.actual_datetime?.split(" ")[1] || event.planned_datetime?.split(" ")[1],
+      status: event.display_event || event.event,
+      location: event.location,
+      description: event.remarks,
+      vessel: event.vessel_details?.vessel_name,
+      flightNumber: event.mode === "AIR" ? event.vessel_details?.vessel_num : undefined, // Assuming vessel_num is flight number for air
+      type: mapGoCometEventType(event.event),
+      mode: event.mode,
+      voyage: event.vessel_details?.voyage_num,
+      originalPlan: parseGoCometDateTime(event.original_planned_date, event.original_planned_datetime?.split(" ")[1]),
+      currentPlan: parseGoCometDateTime(event.planned_date, event.planned_datetime?.split(" ")[1]),
+      terminal: event.connected_port, // Using connected_port as terminal hint
     })
   })
 
@@ -136,32 +195,37 @@ function transformGocometData(gocometData: GoCometTrackingResponse["data"]): Tra
     return firstEventA - firstEventB
   })
 
+  // Derive ETA and ETD from events
+  const arrivalEvent = gocometData.events.find((e) => e.event === "arrival" || e.display_event === "Arrival")
+  const departureEvent = gocometData.events.find(
+    (e) => e.event === "origin_departure" || e.display_event === "Origin Departure",
+  )
+
+  const estimatedArrival = arrivalEvent?.planned_date
+  const estimatedDeparture = departureEvent?.actual_date || departureEvent?.planned_date
+
   return {
     shipmentNumber: gocometData.tracking_number,
-    status: gocometData.current_status,
+    status: gocometData.status,
+    carrier: gocometData.carrier_name,
     containerNumber: gocometData.container_number,
     containerType: gocometData.container_type,
-    weight: gocometData.weight,
-    origin: gocometData.origin,
-    destination: gocometData.destination,
-    pol: gocometData.pol,
-    pod: gocometData.pod,
-    estimatedArrival: gocometData.eta,
-    estimatedDeparture: gocometData.etd,
-    lastLocation: gocometData.last_location,
+    weight: gocometData.other_data?.weight, // Assuming weight might be in other_data
+    origin: gocometData.pol_name,
+    destination: gocometData.pod_name,
+    pol: gocometData.pol_name,
+    pod: gocometData.pod_name,
+    eta: estimatedArrival,
+    etd: estimatedDeparture,
+    lastLocation: gocometData.events[gocometData.events.length - 1]?.location, // Last event's location
     timeline: timeline,
-    documents: gocometData.documents?.map((doc) => ({
-      type: doc.document_type,
-      url: doc.document_url,
-      description: doc.document_description,
-    })),
-    details: gocometData.details
-      ? {
-          packages: gocometData.details.packages,
-          dimensions: gocometData.details.dimensions,
-          specialInstructions: gocometData.details.special_instructions,
-          shipmentType: gocometData.details.shipment_type?.toLowerCase() as ShipmentType,
-        }
-      : undefined,
+    documents: [], // GoComet live tracking response doesn't seem to include documents directly in this structure
+    details: {
+      packages: gocometData.other_data?.packages, // Assuming packages might be in other_data
+      dimensions: gocometData.other_data?.dimensions, // Assuming dimensions might be in other_data
+      specialInstructions: gocometData.other_data?.special_instructions, // Assuming specialInstructions might be in other_data
+      shipmentType: gocometData.mode?.toLowerCase() as ShipmentType,
+      freeDaysBeforeDemurrage: gocometData.stats?.demurrage?.days_left || null,
+    },
   }
 }

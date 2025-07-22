@@ -1,4 +1,4 @@
-import type { CarrierSuggestion, ShipmentType } from "@/types/tracking"
+import type { CarrierDetectionResult, ShipmentType, CarrierSuggestion } from "@/types/tracking"
 
 export interface CarrierDetails {
   name: string
@@ -334,29 +334,65 @@ export function getCarrierInfoByName(name: string): CarrierDetails | null {
  * @param trackingNumber The input tracking number.
  * @returns An object containing the detected type, carrier hint, and validity.
  */
-export function detectShipmentInfo(trackingNumber: string): DetectedShipmentInfo {
-  const cleanedNumber = trackingNumber.trim().toUpperCase().replace(/[\s-]/g, "")
+export function detectShipmentInfo(trackingNumber: string): CarrierDetectionResult {
+  const cleanNumber = trackingNumber.trim().toUpperCase().replace(/[\s-]/g, "")
+
+  // Maersk container numbers: 4 letters, 6 digits, 1 check digit (e.g., MAEU1234567)
+  // Maersk Bill of Lading: often 11 digits, sometimes prefixed with MAEU (e.g., MAEU12345678901)
+  if (/^[A-Z]{4}\d{7}$/.test(cleanNumber) && cleanNumber.startsWith("MAEU")) {
+    return { carrier: "Maersk", type: "container", isValid: true, carrierHint: "MAEU" }
+  }
+  if (/^\d{11}$/.test(cleanNumber) || (cleanNumber.startsWith("MAEU") && /^[A-Z]{4}\d{11}$/.test(cleanNumber))) {
+    return { carrier: "Maersk", type: "unknown", isValid: true, carrierHint: "MAEU" } // Could be BL or Booking
+  }
+
+  // MSC container numbers: 4 letters, 6 digits, 1 check digit (e.g., MSCU1234567)
+  if (/^[A-Z]{4}\d{7}$/.test(cleanNumber) && cleanNumber.startsWith("MSCU")) {
+    return { carrier: "MSC", type: "container", isValid: true, carrierHint: "MSCU" }
+  }
+
+  // GoComet specific patterns (if any, based on common formats they support)
+  // GoComet supports various formats, so we'll assume it can handle common container/BL/AWB
+  // If a number looks like a container, BL, or AWB, and isn't specifically Maersk/MSC,
+  // we can hint it towards GoComet as a general provider.
+  if (/^[A-Z]{4}\d{7}$/.test(cleanNumber)) {
+    // Generic container format
+    return { carrier: "GoComet", type: "container", isValid: true, carrierHint: "GoComet" }
+  }
+  if (/^\d{10,12}$/.test(cleanNumber)) {
+    // Common BL/AWB length
+    return { carrier: "GoComet", type: "unknown", isValid: true, carrierHint: "GoComet" }
+  }
+  if (/^[A-Z0-9]{8,15}$/.test(cleanNumber)) {
+    // More general alphanumeric
+    return { carrier: "GoComet", type: "unknown", isValid: true, carrierHint: "GoComet" }
+  }
+
+  // TrackShip (mocked) - specific mock number
+  if (cleanNumber === "MOCKTRACK123") {
+    return { carrier: "Trackship", type: "unknown", isValid: true, carrierHint: "TrackShip" }
+  }
 
   // 1. Check for specific carrier prefixes/patterns first
   for (const carrierName in carrierPrefixes) {
     const { type, patterns } = carrierPrefixes[carrierName]
     for (const pattern of patterns) {
-      if (pattern.test(cleanedNumber)) {
-        return { type, carrierHint: carrierName, isValid: true }
+      if (pattern.test(cleanNumber)) {
+        return { carrier: carrierName, type, carrierHint: carrierName, isValid: true }
       }
     }
   }
 
   // 2. Check general format patterns
-  if (trackingPatterns.ocean.test(cleanedNumber)) {
-    return { type: "ocean", isValid: true }
+  if (trackingPatterns.ocean.test(cleanNumber)) {
+    return { carrier: "Unknown", type: "ocean", isValid: true }
   }
-  if (trackingPatterns.air.test(cleanedNumber)) {
-    return { type: "air", isValid: true }
+  if (trackingPatterns.air.test(cleanNumber)) {
+    return { carrier: "Unknown", type: "air", isValid: true }
   }
   // Add more general patterns for LCL, parcel if available
 
-  return { type: "unknown", isValid: false }
+  return { carrier: "Unknown", type: "unknown", isValid: false }
 }
 
 /**
@@ -370,11 +406,11 @@ export function getCarrierSuggestions(trackingNumber: string): CarrierSuggestion
   const suggestions: CarrierSuggestion[] = []
 
   // Iterate through known carriers and see if their patterns match
-  for (const carrierName in carrierPrefixes) {
-    const { type, patterns } = carrierPrefixes[carrierName]
-    for (const pattern of patterns) {
-      if (pattern.test(cleanedNumber)) {
-        suggestions.push({ name: carrierName, code: carrierName, type })
+  for (const carrierName in carriers) {
+    const carrier = carriers[carrierName]
+    for (const prefix of carrier.prefixes) {
+      if (cleanedNumber.startsWith(prefix)) {
+        suggestions.push({ name: carrier.name, code: carrier.code, type: carrier.type })
         break // Add only one suggestion per carrier
       }
     }
@@ -386,12 +422,12 @@ export function getCarrierSuggestions(trackingNumber: string): CarrierSuggestion
       suggestions.push(
         { name: "Maersk", code: "MAERSK", type: "ocean" },
         { name: "MSC", code: "MSC", type: "ocean" },
-        { name: "CMA CGM", code: "CMA", type: "ocean" },
+        { name: "CMA CGM", code: "CMA_CGM", type: "ocean" },
       )
     } else if (trackingPatterns.air.test(cleanedNumber)) {
       suggestions.push(
-        { name: "Lufthansa Cargo", code: "LH", type: "air" },
-        { name: "Emirates SkyCargo", code: "EK", type: "air" },
+        { name: "Lufthansa Cargo", code: "LUFTHANSA", type: "air" },
+        { name: "Emirates SkyCargo", code: "EMIRATES", type: "air" },
       )
     }
   }
