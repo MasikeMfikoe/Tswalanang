@@ -1,86 +1,68 @@
-import type { TrackingResult, ShipmentType } from "@/types/tracking"
-import { GocometService } from "./gocomet-service"
-import { MaerskApi } from "../shipping-lines/maersk-api"
-import { MscApi } from "../shipping-lines/msc-api"
-import { MockTrackingService } from "./mock-tracking-service"
-import { TrackshipService } from "./trackship-service" // Declare TrackshipService
-
-interface TrackingOptions {
-  shipmentType?: ShipmentType
-  carrierHint?: string
-  gocometToken?: string // Add gocometToken to options
-}
+import { MaerskApi } from "@/lib/shipping-lines/maersk-api"
+// import { MscApi } from "@/lib/shipping-lines/msc-api" // Remove this line
+import { TrackShipService } from "@/lib/services/trackship-service"
+import { MockTrackingService } from "@/lib/services/mock-tracking-service"
+import { GocometService } from "@/lib/services/gocomet-service"
+import type { ShipmentType, TrackingResult } from "@/types/tracking"
 
 export class MultiProviderTrackingService {
-  private gocometService: GocometService
   private maerskApi: MaerskApi
-  private mscApi: MscApi
-  private trackshipService: TrackshipService
+  // private mscApi: MscApi // Remove this line
+  private trackShipService: TrackShipService
   private mockTrackingService: MockTrackingService
 
   constructor() {
-    this.gocometService = new GocometService()
     this.maerskApi = new MaerskApi()
-    this.mscApi = new MscApi()
-    this.trackshipService = new TrackshipService()
+    // this.mscApi = new MscApi() // Remove this line
+    this.trackShipService = new TrackShipService()
     this.mockTrackingService = new MockTrackingService()
   }
 
-  async trackShipment(trackingNumber: string, options?: TrackingOptions): Promise<TrackingResult> {
-    const { shipmentType, carrierHint, gocometToken } = options || {}
+  async trackShipment(
+    trackingNumber: string,
+    options?: { shipmentType?: ShipmentType; carrierHint?: string; gocometToken?: string },
+  ): Promise<TrackingResult> {
+    // Try mock data first
+    const mockResult = await this.mockTrackingService.trackShipment(trackingNumber)
+    if (mockResult.success) {
+      return mockResult
+    }
 
-    // Prioritize GoComet if explicitly hinted or detected as a container and GoComet is the primary provider
-    // Only attempt GoComet if a token is available
-    if (gocometToken && (carrierHint?.toLowerCase() === "gocomet" || (shipmentType === "container" && !carrierHint))) {
-      const result = await this.gocometService.trackShipment(trackingNumber, gocometToken, options)
-      if (result.success) {
-        return result
-      } else {
-        console.warn(`GoComet tracking failed for ${trackingNumber}: ${result.error}`)
-        // If GoComet explicitly says "no info found", we can try others.
-        // If it's a general API error, we might want to return it directly.
-        if (result.error?.includes("No live tracking information found")) {
-          // Continue to other providers
-        } else {
-          return result // Return GoComet's specific error if it's not just "no info"
-        }
+    // Try Maersk API
+    const maerskResult = await this.maerskApi.trackShipment(trackingNumber, options)
+    if (maerskResult.success) {
+      return maerskResult
+    }
+
+    // Try MSC API (removed)
+    // const mscResult = await this.mscApi.trackShipment(trackingNumber, options) // Remove this block
+    // if (mscResult.success) {
+    //   return mscResult
+    // }
+
+    // Try GoComet API
+    if (options?.gocometToken) {
+      const gocometResult = await GocometService.trackShipment(
+        trackingNumber,
+        options.gocometToken,
+        options.shipmentType,
+      )
+      if (gocometResult.success) {
+        return gocometResult
       }
     }
 
-    // Try Maersk
-    if (carrierHint?.toLowerCase() === "maersk" || trackingNumber.startsWith("MAEU")) {
-      const result = await this.maerskApi.trackShipment(trackingNumber, options)
-      if (result.success) return result
+    // Try TrackShip API
+    const trackShipResult = await this.trackShipService.trackShipment(trackingNumber, options)
+    if (trackShipResult.success) {
+      return trackShipResult
     }
 
-    // Try MSC
-    if (carrierHint?.toLowerCase() === "msc" || trackingNumber.startsWith("MSCU")) {
-      const result = await this.mscApi.trackShipment(trackingNumber, options)
-      if (result.success) return result
-    }
-
-    // Try Trackship (if applicable, e.g., for parcel or specific formats)
-    if (carrierHint?.toLowerCase() === "trackship" || shipmentType === "parcel") {
-      const result = await this.trackshipService.trackShipment(trackingNumber, options)
-      if (result.success) return result
-    }
-
-    // Fallback to mock service if no live data found or specific provider failed
-    const mockResult = await this.mockTrackingService.trackShipment(trackingNumber, options)
-    if (mockResult.success) {
-      return { ...mockResult, source: "MockProvider", isLiveData: false }
-    }
-
-    // If all else fails, return a generic error
     return {
       success: false,
-      error: "Live tracking not available. Please use carrier website.",
-      source: "fallback",
+      error: "No tracking information found from any provider.",
+      source: "Multi-Provider",
       isLiveData: false,
-      fallbackOptions: {
-        carrier: carrierHint || "GoComet", // Default to GoComet as it was detected
-        trackingUrl: `https://www.gocomet.com/track?tracking_number=${trackingNumber}`, // Example URL
-      },
     }
   }
 }
