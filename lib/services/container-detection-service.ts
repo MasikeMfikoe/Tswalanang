@@ -473,7 +473,13 @@ export function detectShipmentInfoLegacy(trackingNumber: string): {
   const oceanMatch = trackingNumber.match(/^([A-Z]{3}U)(\d{7})$/)
   if (oceanMatch) {
     const prefix = oceanMatch[1]
-    const carrier = "OCEAN_PREFIXES"[prefix]
+    const carrier = (
+      {
+        // This object was not defined in the previous code, adding a placeholder.
+        // You might need to populate this with actual prefixes and carriers.
+        // Example: "MSCU": "MSC", "MAEU": "Maersk"
+      } as Record<string, string>
+    )[prefix]
     if (carrier) {
       return { type: "ocean", carrier: carrier }
     }
@@ -484,7 +490,13 @@ export function detectShipmentInfoLegacy(trackingNumber: string): {
   const airWaybillMatch = trackingNumber.match(/^(\d{3})-?(\d{8})$/)
   if (airWaybillMatch) {
     const prefix = airWaybillMatch[1]
-    const carrier = "AIR_CARRIERS"[prefix]
+    const carrier = (
+      {
+        // This object was not defined in the previous code, adding a placeholder.
+        // You might need to populate this with actual prefixes and carriers.
+        // Example: "071": "Ethiopian Airlines", "176": "Emirates SkyCargo"
+      } as Record<string, string>
+    )[prefix]
     if (carrier) {
       return { type: "air", carrier: carrier }
     }

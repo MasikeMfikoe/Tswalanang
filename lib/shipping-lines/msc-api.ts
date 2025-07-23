@@ -2,107 +2,89 @@ import type { ShipmentType, TrackingResult, TrackingData } from "@/types/trackin
 
 // This is a simplified mock for MSC API integration.
 // In a real scenario, this would involve actual API calls to MSC.
-export class MSCAPI {
+export class MscApi {
   async trackShipment(
     trackingNumber: string,
     options?: { shipmentType?: ShipmentType; carrierHint?: string },
   ): Promise<TrackingResult> {
     // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 600))
+    await new Promise((resolve) => setTimeout(resolve, 500))
 
     if (trackingNumber.startsWith("MSCU")) {
       // Simulate successful tracking for a specific MSC number
       if (trackingNumber === "MSCU9876543") {
         const mockData: TrackingData = {
           shipmentNumber: "MSCU9876543",
-          status: "In Transit",
+          status: "Customs Cleared",
           carrier: "MSC",
           containerNumber: "MSCU9876543",
-          containerType: "40' GP",
-          weight: "25,000 KGS",
-          origin: "Valencia, Spain",
-          destination: "Santos, Brazil",
-          pol: "ESVLC",
-          pod: "BRSSZ",
-          eta: "2025-09-01",
-          etd: "2025-08-10",
-          lastLocation: "Atlantic Ocean",
+          containerType: "20' GP",
+          weight: "15,000 kg",
+          origin: "Busan, South Korea",
+          destination: "Los Angeles, USA",
+          pol: "KRPUS",
+          pod: "USLAX",
+          eta: "2025-08-10",
+          etd: "2025-07-10",
+          lastLocation: "Los Angeles, USA",
           timeline: [
             {
-              location: "Valencia, Spain",
-              terminal: "MSC Terminal Valencia",
+              location: "Busan, South Korea",
               events: [
                 {
-                  timestamp: "2025-08-08T11:00:00Z",
-                  date: "2025-08-08",
+                  timestamp: "2025-07-08T09:00:00Z",
+                  date: "2025-07-08",
+                  time: "09:00",
+                  location: "Busan, South Korea",
+                  description: "Container loaded onto vessel",
+                  status: "Loaded",
+                  type: "load",
+                },
+                {
+                  timestamp: "2025-07-10T11:00:00Z",
+                  date: "2025-07-10",
                   time: "11:00",
-                  location: "Valencia, Spain",
-                  description: "Cargo received at origin terminal",
-                  status: "Cargo Received",
-                  type: "cargo-received",
-                  mode: "TRUCK",
-                },
-                {
-                  timestamp: "2025-08-10T16:00:00Z",
-                  date: "2025-08-10",
-                  time: "16:00",
-                  location: "Valencia, Spain",
-                  description: "Vessel departed from Valencia",
+                  location: "Busan, South Korea",
+                  description: "Vessel departed from Busan",
                   status: "Departed",
-                  vessel: "MSC GENEVA",
-                  voyage: "234S",
+                  vessel: "MSC GÜLSÜN",
+                  voyage: "001W",
                   type: "vessel-departure",
-                  mode: "OCEAN",
                 },
               ],
             },
             {
-              location: "Atlantic Ocean",
+              location: "Los Angeles, USA",
               events: [
                 {
-                  timestamp: "2025-08-20T14:00:00Z",
-                  date: "2025-08-20",
-                  time: "14:00",
-                  location: "Mid-Atlantic",
-                  description: "Vessel is in transit",
-                  status: "In Transit",
-                  type: "event",
-                  mode: "OCEAN",
-                },
-              ],
-            },
-            {
-              location: "Santos, Brazil",
-              terminal: "Santos Port Terminal",
-              events: [
-                {
-                  timestamp: "2025-09-01T08:00:00Z",
-                  date: "2025-09-01",
-                  time: "08:00",
-                  location: "Santos, Brazil",
-                  description: "Vessel arrived at destination port",
+                  timestamp: "2025-08-08T16:00:00Z",
+                  date: "2025-08-08",
+                  time: "16:00",
+                  location: "Los Angeles, USA",
+                  description: "Vessel arrived at Los Angeles",
                   status: "Arrived",
-                  vessel: "MSC GENEVA",
-                  voyage: "234S",
+                  vessel: "MSC GÜLSÜN",
+                  voyage: "001W",
                   type: "vessel-arrival",
-                  mode: "OCEAN",
+                },
+                {
+                  timestamp: "2025-08-09T10:00:00Z",
+                  date: "2025-08-09",
+                  time: "10:00",
+                  location: "Los Angeles, USA",
+                  description: "Shipment cleared customs",
+                  status: "Customs Cleared",
+                  type: "customs-cleared",
                 },
               ],
             },
           ],
-          documents: [
-            { type: "Bill of Lading", url: "/placeholder.svg?height=100&width=100", description: "Original BL" },
-            {
-              type: "Packing List",
-              url: "/placeholder.svg?height=100&width=100",
-              description: "Detailed packing list",
-            },
-          ],
+          documents: [],
           details: {
-            packages: "150 drums",
-            dimensions: "11m x 2.5m x 2.6m",
+            packages: "15 pallets",
+            dimensions: "6m x 2.3m x 2.4m",
             shipmentType: "ocean",
-            freeDaysBeforeDemurrage: 10,
+            freeDaysBeforeDemurrage: 5,
           },
         }
         return { success: true, data: mockData, source: "MSC API", isLiveData: true }
@@ -114,7 +96,7 @@ export class MSCAPI {
           isLiveData: false,
           fallbackOptions: {
             carrier: "MSC",
-            trackingUrl: `https://www.msc.com/track-a-shipment?agencyPath=msc&trackingNumber=${trackingNumber}`,
+            trackingUrl: `https://www.msc.com/track-and-trace?search=${trackingNumber}`,
           },
         }
       }
@@ -122,5 +104,3 @@ export class MSCAPI {
     return { success: false, error: "Not an MSC tracking number.", source: "MSC API", isLiveData: false }
   }
 }
-
-export default MSCAPI

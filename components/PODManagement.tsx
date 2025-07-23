@@ -273,5 +273,3 @@ export function PODManagement() {
     </Card>
   )
 }
-
-export default PODManagement

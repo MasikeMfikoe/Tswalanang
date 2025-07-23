@@ -1,6 +1,8 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
+
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,14 +16,13 @@ import { supabase } from "@/lib/supabase"
 import type { Order, Customer, Status, CargoStatus, FreightType } from "@/types/models"
 import { Textarea } from "@/components/ui/textarea"
 
-interface CreateOrderProps {
-  customers: Customer[]
-  freightTypes: FreightType[]
-}
-
-export const CreateOrder: React.FC<CreateOrderProps> = ({ customers, freightTypes }) => {
+export default function CreateOrder() {
   const router = useRouter()
   const { toast } = useToast()
+
+  // State for freight types
+  const [freightTypes, setFreightTypes] = useState<Array<{ id: string; name: string; code: string }>>([])
+  const [isLoadingFreightTypes, setIsLoadingFreightTypes] = useState(true)
 
   // State for order form
   const [order, setOrder] = useState<Partial<Order>>({
@@ -55,15 +56,19 @@ export const CreateOrder: React.FC<CreateOrderProps> = ({ customers, freightType
   // State for UI
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
   const [customersFetchError, setCustomersFetchError] = useState<string | null>(null)
 
   // Fetch customers on component mount
   React.useEffect(() => {
     fetchCustomers()
+    fetchFreightTypes()
   }, [])
 
   // Fetch customers directly from Supabase
   const fetchCustomers = async () => {
+    setIsLoadingCustomers(true)
     setCustomersFetchError(null)
 
     try {
@@ -73,24 +78,106 @@ export const CreateOrder: React.FC<CreateOrderProps> = ({ customers, freightType
         console.error("Error fetching customers:", error)
         setCustomersFetchError("Failed to load customers")
         // Use fallback customers
-        setOrder((prev) => ({
-          ...prev,
-          importer: "ABC Trading Company",
-        }))
+        setCustomers([
+          {
+            id: "demo-1",
+            name: "ABC Trading Company",
+            contactPerson: "John Smith",
+            email: "john@abctrading.com",
+            phone: "+1-555-0123",
+            address: {
+              street: "123 Business Ave",
+              city: "New York",
+              postalCode: "10001",
+              country: "USA",
+            },
+            totalOrders: 15,
+            totalSpent: 125000,
+            vatNumber: "US123456789",
+            importersCode: "IMP001",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "demo-2",
+            name: "Global Imports Ltd",
+            contactPerson: "Sarah Johnson",
+            email: "sarah@globalimports.com",
+            phone: "+1-555-0456",
+            address: {
+              street: "456 Commerce St",
+              city: "Los Angeles",
+              postalCode: "90210",
+              country: "USA",
+            },
+            totalOrders: 8,
+            totalSpent: 75000,
+            vatNumber: "US987654321",
+            importersCode: "IMP002",
+            createdAt: new Date().toISOString(),
+          },
+        ])
       } else {
-        setOrder((prev) => ({
-          ...prev,
-          importer: data.length > 0 ? data[0].name : "",
-        }))
+        setCustomers(data || [])
       }
     } catch (error) {
       console.error("Error:", error)
       setCustomersFetchError("Failed to load customers")
       // Use fallback customers on error
-      setOrder((prev) => ({
-        ...prev,
-        importer: "Demo Customer 1",
-      }))
+      setCustomers([
+        {
+          id: "fallback-1",
+          name: "Demo Customer 1",
+          contactPerson: "Demo Contact",
+          email: "demo1@example.com",
+          phone: "+1-555-0001",
+          address: {
+            street: "123 Demo St",
+            city: "Demo City",
+            postalCode: "12345",
+            country: "USA",
+          },
+          totalOrders: 0,
+          totalSpent: 0,
+          createdAt: new Date().toISOString(),
+        },
+      ])
+    } finally {
+      setIsLoadingCustomers(false)
+    }
+  }
+
+  const fetchFreightTypes = async () => {
+    setIsLoadingFreightTypes(true)
+    try {
+      const { data, error } = await supabase
+        .from("freight_types")
+        .select("id, name, code")
+        .eq("active", true)
+        .order("name")
+
+      if (error) {
+        console.error("Error fetching freight types:", error)
+        // Fallback to hardcoded options
+        setFreightTypes([
+          { id: "1", name: "Sea Freight", code: "SEA" },
+          { id: "2", name: "Air Freight", code: "AIR" },
+          { id: "3", name: "EXW", code: "EXW" },
+          { id: "4", name: "FOB", code: "FOB" },
+        ])
+      } else {
+        setFreightTypes(data || [])
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      // Use fallback data
+      setFreightTypes([
+        { id: "1", name: "Sea Freight", code: "SEA" },
+        { id: "2", name: "Air Freight", code: "AIR" },
+        { id: "3", name: "EXW", code: "EXW" },
+        { id: "4", name: "FOB", code: "FOB" },
+      ])
+    } finally {
+      setIsLoadingFreightTypes(false)
     }
   }
 
@@ -313,16 +400,34 @@ export const CreateOrder: React.FC<CreateOrderProps> = ({ customers, freightType
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="importer">Importer</Label>
-                        <Select value={order.importer || ""} onValueChange={(value) => handleChange("importer", value)}>
+                        <Select
+                          value={order.importer || ""}
+                          onValueChange={(value) => handleChange("importer", value)}
+                          disabled={isLoadingCustomers}
+                        >
                           <SelectTrigger className={errors.importer ? "border-red-500" : ""}>
                             <SelectValue placeholder="Select importer" />
                           </SelectTrigger>
                           <SelectContent>
-                            {customers.map((customer) => (
-                              <SelectItem key={customer.id} value={customer.name}>
-                                {customer.name}
+                            {isLoadingCustomers ? (
+                              <SelectItem value="loading" disabled>
+                                Loading customers...
                               </SelectItem>
-                            ))}
+                            ) : customersFetchError ? (
+                              <SelectItem value="error" disabled>
+                                Error loading customers - using fallback data
+                              </SelectItem>
+                            ) : customers && customers.length > 0 ? (
+                              customers.map((customer) => (
+                                <SelectItem key={customer.id} value={customer.name}>
+                                  {customer.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="no-customers" disabled>
+                                No customers available
+                              </SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                         {errors.importer && <p className="text-red-500 text-xs mt-1">{errors.importer}</p>}
@@ -356,16 +461,27 @@ export const CreateOrder: React.FC<CreateOrderProps> = ({ customers, freightType
                         <Select
                           value={order.freightType || "Sea Freight"}
                           onValueChange={(value) => handleChange("freightType", value as FreightType)}
+                          disabled={isLoadingFreightTypes}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select freight type" />
                           </SelectTrigger>
                           <SelectContent>
-                            {freightTypes.map((type) => (
-                              <SelectItem key={type.id} value={type.name}>
-                                {type.name}
+                            {isLoadingFreightTypes ? (
+                              <SelectItem value="loading" disabled>
+                                Loading freight types...
                               </SelectItem>
-                            ))}
+                            ) : freightTypes.length > 0 ? (
+                              freightTypes.map((freightType) => (
+                                <SelectItem key={freightType.id} value={freightType.name}>
+                                  {freightType.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="no-types" disabled>
+                                No freight types available
+                              </SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -559,5 +675,3 @@ export const CreateOrder: React.FC<CreateOrderProps> = ({ customers, freightType
     </div>
   )
 }
-
-export default CreateOrder

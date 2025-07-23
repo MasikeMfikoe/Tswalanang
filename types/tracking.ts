@@ -1,81 +1,84 @@
-export type ShipmentType = "ocean" | "air" | "lcl" | "parcel" | "unknown"
+export type ShipmentType = "ocean" | "air" | "parcel" | "lcl" | "unknown"
 
 export interface TrackingEvent {
   timestamp: string // ISO string
-  date?: string // YYYY-MM-DD
-  time?: string // HH:MM
   location?: string
+  status: string
   description?: string
-  status?: string // e.g., "In Transit", "Delivered"
-  vessel?: string
-  flightNumber?: string
   type?:
-    | "event"
+    | "cargo-received"
+    | "load"
     | "vessel-departure"
     | "vessel-arrival"
     | "plane-takeoff"
     | "plane-landing"
-    | "gate"
-    | "load"
-    | "cargo-received"
     | "customs-cleared"
-    | "pickup" // Added from Road/Courier events
-    | "out-for-delivery" // Added from Road/Courier events
-  mode?: string // e.g., "Ocean", "Air", "Road"
-  voyage?: string // Voyage number for ocean shipments
-  originalPlan?: string // Original planned date/time
-  currentPlan?: string // Current planned date/time
-  terminal?: string // Specific terminal at a location
+    | "delivery"
+    | "event"
+  vessel?: string
+  voyage?: string
+  flightNumber?: string
+  mode?: string // e.g., "truck", "rail", "ocean", "air"
+  date?: string // Formatted date string if available
+  time?: string // Formatted time string if available
+  terminal?: string // Terminal name if available
+}
+
+export interface TrackingTimelineLocation {
+  location: string
+  terminal?: string
+  events: TrackingEvent[]
+}
+
+export interface TrackingDetails {
+  shipmentType?: ShipmentType
+  containerType?: string
+  freeDaysBeforeDemurrage?: number
+  // Add other specific details as needed
 }
 
 export interface TrackingData {
   shipmentNumber: string
   status: string
-  carrier?: string
   containerNumber?: string
-  containerType?: string
-  weight?: string
   origin?: string
   destination?: string
   pol?: string // Port of Loading
   pod?: string // Port of Discharge
-  eta?: string // Estimated Time of Arrival (derived from events)
-  etd?: string // Estimated Time of Departure (derived from events)
+  eta?: string // Estimated Time of Arrival
+  etd?: string // Estimated Time of Departure
+  carrier?: string
+  events?: TrackingEvent[]
+  timeline?: TrackingTimelineLocation[] // Structured timeline
+  documents?: { type: string; url: string; description?: string }[]
+  weight?: string
   lastLocation?: string
-  timeline: Array<{
-    location: string
-    terminal?: string
-    events: TrackingEvent[]
-  }>
-  documents?: Array<{
-    type?: string
-    url: string
-    description?: string
-  }>
-  details?: {
-    packages?: string
-    dimensions?: string
-    specialInstructions?: string
-    shipmentType?: ShipmentType
-    freeDaysBeforeDemurrage?: number
-  }
+  details?: TrackingDetails
 }
 
 export interface TrackingResult {
   success: boolean
   data?: TrackingData
   error?: string
-  source: string // e.g., "GoComet API", "SeaRates API", "MockProvider", "fallback"
-  isLiveData: boolean
+  source?: string // e.g., "trackship", "maersk-api", "gocomet", "mock"
+  isLiveData?: boolean // True if data is from a live API, false if mocked or fallback
   fallbackOptions?: {
     carrier: string
     trackingUrl: string
   }
 }
 
-export type GoCometAuthResponse = {
-  token: string
-  expires_in: number
+export interface CarrierDetectionResult {
+  carrier: string
+  type: ShipmentType
+  isValid: boolean
+  carrierHint?: string // A more specific hint like "MAEU" for Maersk containers
+}
+
+export interface CarrierSuggestion {
+  name: string
+  code: string
+  type: ShipmentType
 }
 
 // Type for a single tracking item returned by the GET /live-tracking API
@@ -153,9 +156,7 @@ export type GoCometLiveTrackingResponse = {
   updated_trackings: GoCometLiveTrackingItem[]
 }
 
-export type CarrierDetectionResult = {
-  carrier: "MSC" | "Maersk" | "GoComet" | "Trackship" | "Unknown"
-  type: "container" | "airwaybill" | "unknown"
-  isValid: boolean
-  carrierHint?: string
+export type GoCometAuthResponse = {
+  token: string
+  expires_in: number
 }

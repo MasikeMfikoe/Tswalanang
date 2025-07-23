@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search } from "lucide-react"
 import ShipmentTrackingResults from "@/components/ShipmentTrackingResults"
-import { detectShipmentInfo } from "@/lib/services/container-detection-service"
+import { detectShipmentTrackingInfo } from "@/lib/services/container-detection-service" // Changed import
 import type { ShipmentType } from "@/types/tracking"
 import Image from "next/image"
 
@@ -15,7 +15,7 @@ export default function ShipmentTrackerPage() {
   const [trackingNumberInput, setTrackingNumberInput] = useState("")
   const [trackingNumber, setTrackingNumber] = useState("")
   const [detectedShipmentType, setDetectedShipmentType] = useState<ShipmentType>("unknown")
-  const [detectedCarrierHint, setDetectedCarrierHint] = useState<string | undefined>(undefined)
+  const [detectedCarrierName, setDetectedCarrierName] = useState<string | undefined>(undefined) // New state for carrier name
   const [gocometToken, setGocometToken] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -60,9 +60,9 @@ export default function ShipmentTrackerPage() {
   const handleSearch = () => {
     if (trackingNumberInput.trim()) {
       setTrackingNumber(trackingNumberInput) // Set the tracking number to trigger results display
-      const detectedInfo = detectShipmentInfo(trackingNumberInput)
+      const detectedInfo = detectShipmentTrackingInfo(trackingNumberInput) // Use the more detailed detection
       setDetectedShipmentType(detectedInfo.type)
-      setDetectedCarrierHint(detectedInfo.carrierHint)
+      setDetectedCarrierName(detectedInfo.carrierDetails?.name) // Set the detected carrier name
     }
   }
 
@@ -72,11 +72,11 @@ export default function ShipmentTrackerPage() {
     if (!value.trim()) {
       setTrackingNumber("") // Clear tracking number to hide results
       setDetectedShipmentType("unknown")
-      setDetectedCarrierHint(undefined)
+      setDetectedCarrierName(undefined) // Clear detected carrier
     } else {
-      const detectedInfo = detectShipmentInfo(value)
+      const detectedInfo = detectShipmentTrackingInfo(value) // Use the more detailed detection
       setDetectedShipmentType(detectedInfo.type)
-      setDetectedCarrierHint(detectedInfo.carrierHint)
+      setDetectedCarrierName(detectedInfo.carrierDetails?.name) // Set the detected carrier name
     }
   }
 
@@ -132,14 +132,17 @@ export default function ShipmentTrackerPage() {
           </Button>
         </div>
 
-        {trackingNumberInput.trim() && detectedShipmentType !== "unknown" && (
+        {trackingNumberInput.trim() && (
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Detected: <span className="font-semibold">{detectedShipmentType.toUpperCase()}</span>
-            {detectedCarrierHint && <span className="ml-1">({detectedCarrierHint})</span>}
+            Detected:{" "}
+            <span className="font-semibold">
+              {detectedShipmentType !== "unknown" ? detectedShipmentType.toUpperCase() : "Unknown Type"}
+            </span>
+            {detectedCarrierName && <span className="ml-1">({detectedCarrierName})</span>}
+            {!detectedCarrierName && detectedShipmentType !== "unknown" && (
+              <span className="ml-1">(Carrier Unknown)</span>
+            )}
           </p>
-        )}
-        {trackingNumberInput.trim() && detectedShipmentType === "unknown" && (
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Detected: Unknown shipment type.</p>
         )}
 
         {trackingNumber && (
@@ -147,7 +150,7 @@ export default function ShipmentTrackerPage() {
             <ShipmentTrackingResults
               trackingNumber={trackingNumber}
               bookingType={detectedShipmentType}
-              carrierHint={detectedCarrierHint}
+              carrierHint={detectedCarrierName} // Pass the detected carrier name as hint
               gocometToken={gocometToken} // Pass the obtained token
             />
           </div>
