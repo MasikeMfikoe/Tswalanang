@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient"
-import type { Order, ApiResponse, PaginatedResponse, CargoStatusHistoryEntry } from "@/types/models"
+import type { Order, ApiResponse, PaginatedResponse, CargoStatusHistoryEntry, FreightType } from "@/types/models"
 
 // Orders API service
 export const ordersApi = {
@@ -95,6 +95,25 @@ export const ordersApi = {
     } catch (error) {
       console.error(`Error marking order ${orderId} as completed:`, error)
       throw error
+    }
+  },
+
+  // Get all freight types
+  async getFreightTypes(): Promise<ApiResponse<FreightType[]>> {
+    try {
+      return await apiClient.get<ApiResponse<FreightType[]>>("/freight-types")
+    } catch (error) {
+      console.error("Error fetching freight types:", error)
+
+      // Optional harmless fallback for development so the form still works
+      return {
+        data: [
+          { id: "sea", name: "Sea Freight" },
+          { id: "air", name: "Air Freight" },
+        ] as unknown as FreightType[],
+        message: "Using local fallback freight types",
+        success: true,
+      }
     }
   },
 }

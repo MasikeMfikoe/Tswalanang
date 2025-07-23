@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { CreateOrder } from "@/components/CreateOrder" // Ensure this is a default export or named export
-import { getCustomers } from "@/lib/api/customersApi"
-import { getFreightTypes } from "@/lib/api/ordersApi" // Assuming this API exists for freight types
-import type { Customer, FreightType } from "@/types/models" // Adjust path as necessary
+import CreateOrder from "@/components/CreateOrder"
+import { customersApi } from "@/lib/api/customersApi"
+import { ordersApi } from "@/lib/api/ordersApi"
+import type { Customer, FreightType } from "@/types/models"
 
 export default function CreateOrderPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -15,9 +15,16 @@ export default function CreateOrderPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [customersData, freightTypesData] = await Promise.all([getCustomers(), getFreightTypes()])
-        setCustomers(customersData.data)
-        setFreightTypes(freightTypesData)
+        const [customersRes, freightTypesRes] = await Promise.all([
+          customersApi.getCustomers(),
+          ordersApi.getFreightTypes(),
+        ])
+
+        setCustomers(customersRes.data)
+        setFreightTypes(
+          // some APIs return `{ data: [...] }`, others return the array directly
+          Array.isArray(freightTypesRes) ? freightTypesRes : freightTypesRes.data,
+        )
       } catch (err) {
         console.error("Failed to fetch initial data for CreateOrderPage:", err)
         setError("Failed to load necessary data. Please try again later.")
