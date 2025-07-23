@@ -152,3 +152,5 @@ export function ClientPackDocuments({ orderId, documents }: ClientPackDocumentsP
     </Card>
   )
 }
+
+export default ClientPackDocuments

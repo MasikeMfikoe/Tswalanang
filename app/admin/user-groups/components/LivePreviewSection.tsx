@@ -1,52 +1,53 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { CheckCircle, XCircle, User, Lock, Settings, FileText, Truck, DollarSign } from "lucide-react"
+"use client"
+
+import { Card, CardContent } from "@/components/ui/card"
+import { CheckCircle, Lock, LockOpen } from "lucide-react"
 
 interface LivePreviewSectionProps {
   groupName: string
   permissions: Record<string, boolean>
   assignedUsersCount: number
+  navigationStructure: any[]
 }
 
-export function LivePreviewSection({ groupName, permissions, assignedUsersCount }: LivePreviewSectionProps) {
-  const permissionIcons: Record<string, JSX.Element> = {
-    canViewDashboard: <User className="h-4 w-4" />,
-    canManageUsers: <Lock className="h-4 w-4" />,
-    canEditSettings: <Settings className="h-4 w-4" />,
-    canViewDocuments: <FileText className="h-4 w-4" />,
-    canManageOrders: <Truck className="h-4 w-4" />,
-    canViewFinancials: <DollarSign className="h-4 w-4" />,
+export function LivePreviewSection({
+  groupName,
+  permissions,
+  assignedUsersCount,
+  navigationStructure,
+}: LivePreviewSectionProps) {
+  const isPathAllowed = (path: string) => {
+    return permissions[path] || false
+  }
+
+  const renderNavigationItem = (item: any) => {
+    const isAllowed = isPathAllowed(item.path)
+
+    return (
+      <div key={item.path} className="flex items-center space-x-2">
+        {isAllowed ? <LockOpen className="h-4 w-4 text-green-500" /> : <Lock className="h-4 w-4 text-red-500" />}
+        <span>{item.name}</span>
+      </div>
+    )
   }
 
   return (
     <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Live Preview: {groupName || "New Group"}</CardTitle>
-      </CardHeader>
       <CardContent className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold mb-2">Permissions</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {Object.entries(permissions).map(([key, value]) => (
-              <div key={key} className="flex items-center gap-2">
-                {permissionIcons[key]}
-                <span>{key.replace(/([A-Z])/g, " $1").replace(/^can/, "")}</span>
-                {value ? (
-                  <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />
-                ) : (
-                  <XCircle className="h-4 w-4 text-red-500 ml-auto" />
-                )}
-              </div>
-            ))}
+        <h3 className="text-lg font-semibold">Live Preview</h3>
+        <p className="text-sm text-gray-500">
+          See what the user experience will be like for users in the &quot;{groupName}&quot; group.
+        </p>
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+            <CheckCircle className="h-4 w-4 text-green-500" />
+            <span>Assigned Users: {assignedUsersCount}</span>
           </div>
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold mb-2">Assigned Users</h3>
-          <Badge variant="secondary" className="text-base">
-            <User className="h-4 w-4 mr-1" /> {assignedUsersCount} Users
-          </Badge>
+          <div className="space-y-1">{navigationStructure.map((item) => renderNavigationItem(item))}</div>
         </div>
       </CardContent>
     </Card>
   )
 }
+
+export default LivePreviewSection

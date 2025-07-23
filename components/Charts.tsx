@@ -65,3 +65,5 @@ export function Charts({ type, data, title, xAxisDataKey, series }: ChartProps) 
     </Card>
   )
 }
+
+export { Charts as BarChart }

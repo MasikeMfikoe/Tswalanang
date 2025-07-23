@@ -1,4 +1,5 @@
 import { MaerskAPI } from "./maersk-api"
+import { MSCAPI } from "./msc-api"
 import type { ShippingLine, ShippingLineCredentials } from "@/types/shipping"
 
 export class ShippingAPIFactory {
@@ -9,6 +10,12 @@ export class ShippingAPIFactory {
           baseUrl: process.env.MAERSK_API_URL || "",
           clientId: process.env.MAERSK_CLIENT_ID || "",
           clientSecret: process.env.MAERSK_CLIENT_SECRET || "",
+        }
+      case "msc":
+        return {
+          baseUrl: process.env.MSC_API_URL || "",
+          username: process.env.MSC_USERNAME || "",
+          password: process.env.MSC_PASSWORD || "",
         }
       default:
         throw new Error(`Unsupported shipping line: ${shippingLine}`)
@@ -28,6 +35,14 @@ export class ShippingAPIFactory {
             credentials.clientId !== "undefined" &&
             credentials.clientSecret !== "undefined"
           )
+        case "msc":
+          return !!(
+            credentials.baseUrl &&
+            credentials.username &&
+            credentials.password &&
+            credentials.username !== "undefined" &&
+            credentials.password !== "undefined"
+          )
         default:
           return false
       }
@@ -40,6 +55,8 @@ export class ShippingAPIFactory {
     switch (shippingLine) {
       case "maersk":
         return new MaerskAPI(credentials)
+      case "msc":
+        return new MSCAPI(credentials)
       default:
         throw new Error(`Unsupported shipping line: ${shippingLine}`)
     }

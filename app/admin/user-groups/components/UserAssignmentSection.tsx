@@ -1,62 +1,62 @@
 "use client"
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { UserIcon } from "lucide-react"
-import { useState } from "react"
+import { Label } from "@/components/ui/label"
+
+interface User {
+  id: string
+  name: string
+  email: string
+}
 
 interface UserAssignmentSectionProps {
-  allUsers: { id: string; name: string; email: string }[]
+  groupId: string
+  allUsers: User[]
   assignedUserIds: Set<string>
   onUserAssignmentChange: (userId: string, isAssigned: boolean) => void
+  isDefaultGroup?: boolean
 }
+
+const mockUsers: User[] = [
+  { id: "user1", name: "Alice Smith", email: "alice@example.com" },
+  { id: "user2", name: "Bob Johnson", email: "bob@example.com" },
+  { id: "user3", name: "Charlie Brown", email: "charlie@example.com" },
+  { id: "user4", name: "Diana Prince", email: "diana@example.com" },
+  { id: "user5", name: "Eve Adams", email: "eve@example.com" },
+]
 
 export function UserAssignmentSection({
-  allUsers,
+  groupId,
+  allUsers = mockUsers,
   assignedUserIds,
   onUserAssignmentChange,
+  isDefaultGroup = false,
 }: UserAssignmentSectionProps) {
-  const [searchTerm, setSearchTerm] = useState("")
-
-  const filteredUsers = allUsers.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const handleCheckboxChange = (userId: string, isChecked: boolean) => {
+    onUserAssignmentChange(userId, isChecked)
+  }
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Assign Users</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Input placeholder="Search users..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-        <ScrollArea className="h-64 border rounded-md p-2">
-          {filteredUsers.length === 0 ? (
-            <p className="text-center text-gray-500 py-4">No users found.</p>
-          ) : (
-            <div className="space-y-2">
-              {filteredUsers.map((user) => (
-                <div key={user.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md">
-                  <div className="flex items-center gap-2">
-                    <UserIcon className="h-4 w-4 text-gray-500" />
-                    <div>
-                      <p className="font-medium">{user.name}</p>
-                      <p className="text-sm text-gray-500">{user.email}</p>
-                    </div>
-                  </div>
-                  <Checkbox
-                    checked={assignedUserIds.has(user.id)}
-                    onCheckedChange={(checked) => onUserAssignmentChange(user.id, checked as boolean)}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold">Assign Users to Group</h3>
+      <p className="text-sm text-gray-500">Select users to assign to this group.</p>
+      <div className="rounded-md border p-4">
+        {allUsers.map((user) => (
+          <div key={user.id} className="flex items-center space-x-2">
+            <Checkbox
+              id={`user-${user.id}`}
+              checked={assignedUserIds.has(user.id)}
+              onCheckedChange={(checked) => handleCheckboxChange(user.id, !!checked)}
+              disabled={isDefaultGroup}
+            />
+            <Label htmlFor={`user-${user.id}`} className="flex items-center space-x-2">
+              <span>{user.name}</span>
+              <span className="text-gray-500 text-sm">{user.email}</span>
+            </Label>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
+
+export default UserAssignmentSection

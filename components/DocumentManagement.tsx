@@ -142,3 +142,5 @@ export function DocumentManagement({ documents, onDelete }: DocumentManagementPr
     </Table>
   )
 }
+
+export default DocumentManagement

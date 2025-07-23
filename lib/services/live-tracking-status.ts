@@ -10,6 +10,7 @@ export interface LiveTrackingStatus {
 export function getLiveTrackingStatus(): LiveTrackingStatus[] {
   const carriers = [
     { name: "Maersk", code: "maersk" as const },
+    { name: "MSC", code: "msc" as const },
     { name: "CMA CGM", code: "cma-cgm", supported: false },
     { name: "Hapag-Lloyd", code: "hapag-lloyd", supported: false },
     { name: "ONE", code: "one", supported: false },

@@ -2,7 +2,7 @@ import type { ShipmentType, TrackingResult, TrackingData } from "@/types/trackin
 
 // This is a simplified mock for Maersk API integration.
 // In a real scenario, this would involve actual API calls to Maersk.
-export class MaerskApi {
+export class MaerskAPI {
   async trackShipment(
     trackingNumber: string,
     options?: { shipmentType?: ShipmentType; carrierHint?: string },
@@ -79,8 +79,6 @@ export class MaerskApi {
                   location: "Rotterdam, Netherlands",
                   description: "Vessel arrived at destination port",
                   status: "Arrived",
-                  vessel: "Maersk Triple E",
-                  voyage: "V123",
                   type: "vessel-arrival",
                 },
               ],
@@ -118,3 +116,5 @@ export class MaerskApi {
     return { success: false, error: "Not a Maersk tracking number.", source: "Maersk API", isLiveData: false }
   }
 }
+
+export default MaerskAPI
