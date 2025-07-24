@@ -1,9 +1,32 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { Button } from "@/components/ui/button"
 
-export default function SignaturePad({ width = 300, height = 120 }: { width?: number; height?: number }) {
+import { useRef, useEffect, useCallback, useState } from "react"
+
+interface SignaturePadProps {
+  width?: number
+  height?: number
+  onSave?: (dataUrl: string | null) => void
+}
+
+export function SignaturePad({ width = 300, height = 120, onSave }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
+
+  const clear = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setSignatureDataUrl(null)
+
+    if (onSave) {
+      onSave(null)
+    }
+  }, [onSave])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -28,7 +51,14 @@ export default function SignaturePad({ width = 300, height = 120 }: { width?: nu
       ctx.stroke()
     }
 
-    const end = () => (drawing = false)
+    const end = () => {
+      drawing = false
+      const dataUrl = canvas.toDataURL()
+      setSignatureDataUrl(dataUrl)
+      if (onSave) {
+        onSave(dataUrl)
+      }
+    }
 
     const getX = (e: any) => (e.touches ? e.touches[0].clientX : e.clientX) - canvas.getBoundingClientRect().left
     const getY = (e: any) => (e.touches ? e.touches[0].clientY : e.clientY) - canvas.getBoundingClientRect().top
@@ -50,7 +80,14 @@ export default function SignaturePad({ width = 300, height = 120 }: { width?: nu
       canvas.removeEventListener("touchmove", draw)
       canvas.removeEventListener("touchend", end)
     }
-  }, [])
+  }, [height, onSave, width])
 
-  return <canvas ref={canvasRef} width={width} height={height} className="border rounded-md bg-white" />
+  return (
+    <div className="flex flex-col">
+      <canvas ref={canvasRef} width={width} height={height} className="border rounded-md bg-white" />
+      <Button type="button" variant="ghost" onClick={clear}>
+        Clear
+      </Button>
+    </div>
+  )
 }

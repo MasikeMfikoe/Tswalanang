@@ -2,7 +2,7 @@ import type { ShipmentType, TrackingResult, TrackingData } from "@/types/trackin
 
 // This is a simplified mock for Trackship API integration.
 // In a real scenario, this would involve actual API calls to Trackship.
-export class TrackshipService {
+export class TrackShipService {
   async trackShipment(
     trackingNumber: string,
     options?: { shipmentType?: ShipmentType; carrierHint?: string },
@@ -96,5 +96,16 @@ export class TrackshipService {
       }
     }
     return { success: false, error: "Not a Trackship tracking number.", source: "Trackship API", isLiveData: false }
+  }
+
+  async getSupportedCarriers(): Promise<any> {
+    return new Promise((resolve) =>
+      setTimeout(() => {
+        resolve([
+          { name: "Mock Courier", code: "mock" },
+          { name: "Another Courier", code: "another" },
+        ])
+      }, 500),
+    )
   }
 }

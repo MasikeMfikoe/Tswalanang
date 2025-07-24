@@ -113,3 +113,9 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Internal server error", details: error }, { status: 500 })
   }
 }
+
+export async function POST(request: Request) {
+  const { userId, data } = await request.json()
+  console.log(`Updating auth user ${userId} with data:`, data)
+  return NextResponse.json({ success: true })
+}

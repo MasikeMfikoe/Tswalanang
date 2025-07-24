@@ -108,5 +108,7 @@ export function useSessionTimeout({
     timeRemaining,
     extendSession,
     isWarningShown: warningShown,
+    resetSession: resetTimer,
+    timeLeft: timeRemaining,
   }
 }

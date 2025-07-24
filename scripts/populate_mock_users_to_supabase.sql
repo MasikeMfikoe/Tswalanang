@@ -430,3 +430,7 @@ SELECT
 FROM user_profiles up
 LEFT JOIN auth.users au ON up.id = au.id
 ORDER BY up.role, up.name;
+
+-- Placeholder content for scripts/populate_mock_users_to_supabase.sql
+-- Example: INSERT INTO public.user_profiles (id, email, full_name, role) VALUES (gen_random_uuid(), 'mock@example.com', 'Mock User', 'user');
+SELECT 'Populating mock users to Supabase';

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PlusCircle, Trash2, Save, Loader2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
-import { getCustomerRateCard, updateCustomerRateCard } from "@/lib/api/customersApi" // Assuming these API functions exist
+import { customersApi } from "@/lib/api/customersApi" // Assuming these API functions exist
 import type { RateCardEntry } from "@/types/rates" // Assuming this type exists
 
 export default function CustomerRateCardPage() {
@@ -29,8 +29,8 @@ export default function CustomerRateCardPage() {
   const fetchRateCard = async (custId: string) => {
     setLoading(true)
     try {
-      const data = await getCustomerRateCard(custId)
-      setRateCard(data || []) // Ensure it's an array, even if null/undefined
+      const response = await customersApi.getCustomerRateCard(custId)
+      setRateCard(response.data || []) // Ensure it's an array, even if null/undefined
     } catch (error) {
       console.error("Failed to fetch rate card:", error)
       toast({
@@ -85,7 +85,7 @@ export default function CustomerRateCardPage() {
 
     setSaving(true)
     try {
-      await updateCustomerRateCard(customerId, rateCard)
+      await customersApi.updateCustomerRateCard(customerId, rateCard)
       toast({
         title: "Success",
         description: "Rate card updated successfully!",

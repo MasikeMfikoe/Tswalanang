@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,7 +38,7 @@ export default function TrackingUserCreator() {
         password: userData.password,
       })
 
-      if (authError) throw new authError()
+      if (authError) throw new Error(authError.message)
 
       // 2. Create user profile with tracking-only permissions
       const { error: profileError } = await supabase.from("user_profiles").insert({

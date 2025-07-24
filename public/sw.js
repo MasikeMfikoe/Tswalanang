@@ -11,6 +11,7 @@ self.addEventListener("install", (event) => {
       return cache.addAll(urlsToCache)
     }),
   )
+  self.skipWaiting()
 })
 
 // Cache and return requests
@@ -61,4 +62,5 @@ self.addEventListener("activate", (event) => {
       )
     }),
   )
+  self.clients.claim()
 })

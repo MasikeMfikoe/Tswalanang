@@ -73,4 +73,14 @@ export const deliveriesApi = {
       throw error
     }
   },
+
+  // Update delivery status
+  async updateDeliveryStatus(id: string, status: string): Promise<ApiResponse<Delivery>> {
+    try {
+      return await apiClient.put<ApiResponse<Delivery>>(`/deliveries/${id}/status`, { status })
+    } catch (error) {
+      console.error(`Error updating delivery ${id} status:`, error)
+      throw error
+    }
+  },
 }

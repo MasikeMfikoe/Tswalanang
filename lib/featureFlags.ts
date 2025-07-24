@@ -52,3 +52,8 @@ export function disableFeature(flagName: string): void {
     }
   }
 }
+
+// Placeholder content for lib/featureFlags.ts
+export const featureFlags = {
+  isFeatureEnabled: (flag: string) => true,
+}

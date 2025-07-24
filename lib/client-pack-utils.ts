@@ -90,3 +90,14 @@ export function getMockClientPackDocuments(orderId: string, freightType?: string
     required: CLIENT_PACK_DOCUMENT_TYPES.includes(type),
   }))
 }
+
+/**
+ * Generates a client pack for a given order ID
+ *
+ * @param orderId - The ID of the order
+ * @returns An object containing the URL of the generated client pack
+ */
+export function generateClientPack(orderId: string) {
+  console.log(`Generating client pack for order ${orderId}`)
+  return { url: `/client-packs/${orderId}.pdf` }
+}

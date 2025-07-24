@@ -77,4 +77,11 @@ export const courierOrdersApi = {
       throw error
     }
   },
+
+  // Placeholder methods for demonstration purposes
+  getOrders: async () => ({ data: [], error: null }),
+  getOrder: async (id: string) => ({ data: null, error: null }),
+  createOrder: async (data: any) => ({ data: null, error: null }),
+  updateOrder: async (id: string, data: any) => ({ data: null, error: null }),
+  deleteOrder: async (id: string) => ({ success: true, error: null }),
 }

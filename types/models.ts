@@ -1,314 +1,188 @@
-// Common types
-export type Status = "Pending" | "In Progress" | "Completed" | "Cancelled"
-export type CargoStatus =
-  | "instruction-sent"
-  | "agent-response"
-  | "at-origin"
-  | "cargo-departed"
-  | "in-transit"
-  | "at-destination"
-  | "delivered"
-export type FreightType = {
-  id: string
-  name: string
-  description?: string
-}
-export type Priority = "High" | "Medium" | "Low"
-export type ServiceType = "Express" | "Standard" | "Economy" | "Next Day"
-export type EstimateStatus = "Draft" | "Sent" | "Accepted" | "Rejected"
+export type OrderStatus =
+  | "Pending"
+  | "Processing"
+  | "In Transit"
+  | "Customs Clearance"
+  | "Delivered"
+  | "Completed"
+  | "Cancelled"
+  | "On Hold"
+  | "Exception"
 
-// Order model
-export interface Order {
-  id: string
-  poNumber: string // Added from mock data
-  supplier: string // Added from mock data
-  importer: string // Added from mock data
-  status: Status // Changed to Status type
-  cargoStatus: CargoStatus // Added from mock data
-  freightType: FreightType // Changed to FreightType type
-  cargoStatusComment?: string // Added from mock data
-  totalValue: number
-  customerName: string
-  customerId?: string // Added for linking to customers
-  createdAt: string
-  updatedAt?: string // Changed from lastUpdate to updatedAt for consistency
-  items?: OrderItem[]
-  documents?: Document[]
-  currency: string // Added from mock data
-  lastUpdate: string // Kept for backward compatibility if needed, though updatedAt is preferred
-  shippingAddress: string // Added from mock data
-  billingAddress: string // Added from mock data
-  paymentStatus: string // Added from mock data
-  deliveryDate: string // Added from mock data
-  trackingNumber: string // Added from mock data
-  carrier: string // Added from mock data
-  notes: string // Added from mock data
-  cost?: number // Added financial columns
-  price?: number // Added financial columns
-  profit?: number // Added financial columns
-  commercialValue?: number // Added from add_financial_columns_to_orders.sql
-  customsDuties?: number // Added from add_financial_columns_to_orders.sql
-  handlingFees?: number // Added from add_financial_columns_to_orders.sql
-  shippingCost?: number // Added from add_financial_columns_to_orders.sql
-  documentationFee?: number // Added from add_financial_columns_to_orders.sql
-  communicationFee?: number // Added from add_financial_columns_to_orders.sql
-  financialNotes?: string // Added from add_financial_columns_to_orders.sql
-}
+export type DocumentType =
+  | "Bill of Lading"
+  | "Commercial Invoice"
+  | "Packing List"
+  | "Certificate of Origin"
+  | "Customs Declaration"
+  | "Proof of Delivery"
+  | "Other"
 
-export interface OrderItem {
-  id: string
-  name: string
-  quantity: number
-  price: number
-  orderId: string
-}
-
-// Customer model
-export interface Customer {
-  id: string
-  name: string
-  contactPerson: string
-  email: string
-  phone: string
-  address: Address
-  totalOrders: number
-  totalSpent: number
-  vatNumber?: string
-  importersCode?: string
-  rateCard?: RateCard
-  createdAt?: string
-  updatedAt?: string
-}
-
-export interface RateCard {
-  seaFreight: {
-    communicationFee: number
-    documentationFee: number
-    agencyFee: number
-    facilityFee: number
-  }
-  airFreight: {
-    communicationFee: number
-    documentationFee: number
-    agencyFee: number
-    facilityFee: number
-  }
-}
+export type FreightType = "Air" | "Ocean" | "Road" | "Rail" | "Multimodal"
 
 export interface Address {
   street: string
   city: string
+  state?: string
   postalCode: string
   country: string
 }
 
-export interface Contact {
-  name: string
-  landline: string
-  cellphone: string
-  email: string
-}
-
-// Estimate model
-export interface Estimate {
+export interface Customer {
   id: string
-  customerId: string
-  customerName: string
-  customerEmail: string
-  status: string
-  createdAt: string
-  updatedAt?: string
-  freightType: string
-  commercialValue: string
-  customsDuties: string
-  handlingFees: string
-  shippingCost: string
-  documentationFee: string
-  communicationFee: string
-  notes: string
-  totalAmount: number
+  name: string
+  contact_person: string
+  email: string
+  phone: string
+  address_street: string
+  address_city: string
+  address_postal_code: string
+  address_country: string
+  vat_number?: string
+  importers_code?: string
+  total_orders: number
+  total_spent: number
+  created_at: string
+  updated_at: string
 }
 
-// Document model
+export interface Order {
+  id: string
+  customer_id: string
+  customer_name: string // Denormalized for easier access
+  po_number: string
+  order_date: string
+  status: OrderStatus
+  freight_type: FreightType
+  origin_address: Address
+  destination_address: Address
+  total_value: number
+  currency: string
+  expected_delivery_date?: string
+  actual_delivery_date?: string
+  tracking_number?: string
+  notes?: string
+  created_at: string
+  updated_at: string
+  documents?: Document[] // Joined documents
+}
+
 export interface Document {
   id: string
-  name: string
-  type: string
-  url: string
   order_id: string
-  created_at: string
-  updated_at?: string
-  required?: boolean
-}
-
-// Delivery model
-export interface Delivery {
-  id: string
-  orderNumber: string
-  status: string
-  estimatedDelivery: string
-  actualDelivery?: string
-  driverName: string
-  deliveryCompany: string
-  poNumber: string
-  createdAt?: string
-  updatedAt?: string
-}
-
-// Courier Order model
-export interface CourierOrder {
-  id: string
-  waybillNo: string
-  poNumber: string
-  createdAt: string
-  sender: string
-  receiver: string
-  fromLocation: string
-  toLocation: string
-  status: string
-  serviceType: ServiceType
-  items?: CourierOrderItem[]
-  trackingEvents?: TrackingEvent[]
-  specialInstructions?: string
-  accountDetails?: AccountDetails
-  contactDetails?: {
-    sender: ContactDetails
-    receiver: ContactDetails
-  }
-  insurance?: string
-  totalWeight?: string
-  totalVolume?: string
-  estimatedDelivery?: string
-  actualDelivery?: string
-  cost?: OrderCost
-
-  // New fields for electronic delivery receipt
-  enableElectronicDeliveryReceipt?: boolean
-  notifyRecipient?: boolean
-  sendConfirmationToAdmin?: boolean
-  recipientEmail?: string
-  notificationSentAt?: string
-
-  // New fields for sender notifications
-  senderEmail?: string
-  notifySenderOnCreate?: boolean
-  notifySenderOnConfirm?: boolean
-  senderNotificationSentAt?: string
-  senderConfirmationSentAt?: string
-
-  // Notification history
-  notifications?: NotificationRecord[]
-}
-
-// New interface for notification records
-export interface NotificationRecord {
-  id: number
-  type: "recipient" | "sender_created" | "sender_confirmed" | "admin"
-  email: string
-  status: "sent" | "failed"
-  sentAt: string
-  retries?: number
-}
-
-export interface CourierOrderItem {
-  id: number
-  description: string
-  dimensions: string
-  volKgs: number
-  massKgs: number
-}
-
-export interface TrackingEvent {
-  id: number
-  status: string
-  location: string
-  timestamp: string
+  file_name: string
+  file_url: string
+  document_type: DocumentType
+  uploaded_at: string
+  uploaded_by: string // User ID or Name
+  status: "Pending" | "Approved" | "Rejected"
   notes?: string
 }
 
-export interface AccountDetails {
-  accountNumber: string
-  accountType: string
-  creditLimit: string
-  paymentTerms: string
-}
-
-export interface ContactDetails {
-  name: string
-  company: string
-  phone: string
-  email: string
-  address: string
-}
-
-export interface OrderCost {
-  baseCharge: string
-  fuelSurcharge: string
-  insurance: string
-  tax: string
-  total: string
-}
-
-// Cargo Status History
-export interface CargoStatusHistoryEntry {
+export interface Shipment {
   id: string
-  status: CargoStatus
-  comment: string
-  timestamp: string
-  user: {
-    name: string
-    surname: string
-  }
+  order_id: string
+  tracking_number: string
+  carrier: string
+  current_status: string
+  last_updated: string
+  origin_port?: string
+  destination_port?: string
+  vessel_name?: string
+  eta?: string
+  actual_arrival?: string
+  container_number?: string
+  created_at: string
+  updated_at: string
 }
 
-// Rate Card
+export interface CargoStatus {
+  id: string
+  shipment_id: string
+  timestamp: string
+  location: string
+  status_code: string
+  status_description: string
+  notes?: string
+  created_at: string
+}
+
+export interface CourierOrder {
+  id: string
+  order_id?: string // Link to main order if applicable
+  customer_id: string
+  customer_name: string
+  pickup_address: Address
+  delivery_address: Address
+  package_description: string
+  weight: number
+  dimensions: { length: number; width: number; height: number }
+  status: "Pending" | "Scheduled" | "In Transit" | "Delivered" | "Cancelled"
+  tracking_number?: string
+  courier_company: string
+  pickup_date: string
+  delivery_date?: string
+  price: number
+  currency: string
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Estimate {
+  id: string
+  customer_id: string
+  customer_name: string
+  estimate_number: string
+  status: "Draft" | "Sent" | "Accepted" | "Rejected" | "Converted to Order"
+  freight_type: FreightType
+  origin_address: Address
+  destination_address: Address
+  items: EstimateItem[]
+  total_estimated_cost: number
+  currency: string
+  valid_until: string
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface EstimateItem {
+  id: string
+  description: string
+  quantity: number
+  unit_price: number
+  total_price: number
+}
+
 export interface RateItem {
   id: string
-  name: string
-  seaFreight: number
-  airFreight: number
-  isPercentage: boolean
-  percentageBase?: string
+  customer_id: string
+  freight_type: FreightType
+  origin_country: string
+  destination_country: string
+  unit_type: "per_kg" | "per_cbm" | "per_container" | "flat_rate"
+  rate: number
+  currency: string
+  valid_from: string
+  valid_until: string
+  notes?: string
+  created_at: string
+  updated_at: string
 }
 
-// Notification
-export interface Notification {
-  id: number
-  title: string
-  message: string
-  time: string
-  read: boolean
-}
-
-// API Response types
 export interface ApiResponse<T> {
-  data: T
+  data?: T
   success: boolean
   message?: string
   error?: string
+  details?: any
 }
 
-export interface PaginatedResponse<T> extends ApiResponse<T> {
-  pagination: {
-    page: number
-    pageSize: number
-    totalItems: number
-    totalPages: number
-  }
-}
-
-// Dashboard metrics
-export interface DashboardMetrics {
-  totalOrders: number
-  totalRevenue: number
-  completionRate: number
-  activeCustomers: number
-  ordersByStatus: {
-    active: number
-    completed: number
-    pending: number
-  }
-  recentOrders: Order[]
-  topCustomers: Customer[]
-  monthlyOrderTrend: Array<{ name: string; value: number }>
+export interface PaginatedResponse<T> {
+  data: T
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
 }

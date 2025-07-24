@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search } from "lucide-react"
 import ShipmentTrackingResults from "@/components/ShipmentTrackingResults"
-import { detectShipmentTrackingInfo } from "@/lib/services/container-detection-service" // Changed import
+import { detectShipmentTrackingInfo } from "@/lib/services/container-detection-service"
 import type { ShipmentType } from "@/types/tracking"
 import Image from "next/image"
 
@@ -15,7 +15,7 @@ export default function ShipmentTrackerPage() {
   const [trackingNumberInput, setTrackingNumberInput] = useState("")
   const [trackingNumber, setTrackingNumber] = useState("")
   const [detectedShipmentType, setDetectedShipmentType] = useState<ShipmentType>("unknown")
-  const [detectedCarrierName, setDetectedCarrierName] = useState<string | undefined>(undefined) // New state for carrier name
+  const [detectedCarrierName, setDetectedCarrierName] = useState<string | undefined>(undefined)
   const [gocometToken, setGocometToken] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -35,8 +35,16 @@ export default function ShipmentTrackerPage() {
         })
 
         if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || "Failed to authenticate with GoComet.")
+          const errorText = await response.text() // Read as text first
+          let errorMessage = `Failed to authenticate with GoComet: ${response.status} ${response.statusText}`
+          try {
+            const errorData = JSON.parse(errorText) // Attempt to parse as JSON
+            errorMessage = errorData.error || errorMessage
+          } catch (parseError) {
+            // If parsing fails, use the raw text
+            errorMessage = `Failed to authenticate with GoComet: ${errorText}`
+          }
+          throw new Error(errorMessage)
         }
 
         const data = await response.json()

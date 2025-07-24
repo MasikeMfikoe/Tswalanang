@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "manager" | "employee" | "guest" | "client"
+export type UserRole = "admin" | "manager" | "employee" | "guest" | "client" | "tracking"
 
 export interface Permissions {
   [module: string]: {
@@ -139,4 +139,12 @@ export interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   getUsers: () => Promise<User[]>
+}
+
+export interface UserProfile {
+  id: string
+  email: string
+  full_name?: string
+  role: "admin" | "user" | "client"
+  customer_id?: string
 }

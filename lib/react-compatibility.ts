@@ -1,18 +1,11 @@
-import { useId } from "react"
+"use client"
 
-/**
- * A compatibility layer for React 18 features
- */
+import React from "react"
 
-/**
- * Generate a stable ID that works with React 18
- * This is a replacement for the useId hook in React 19
- */
-export function useStableId(prefix?: string): string {
-  const id = useId()
-  return prefix ? `${prefix}-${id}` : id
+export function useClientOnlyEffect(effect: () => void, deps: React.DependencyList) {
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      effect()
+    }
+  }, deps)
 }
-
-/**
- * Other compatibility functions can be added here as needed
- */

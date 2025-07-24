@@ -2,7 +2,7 @@ import type { ShipmentType, TrackingResult, TrackingData } from "@/types/trackin
 
 // This is a simplified mock for Maersk API integration.
 // In a real scenario, this would involve actual API calls to Maersk.
-export class MaerskApi {
+export class MaerskAPI {
   async trackShipment(
     trackingNumber: string,
     options?: { shipmentType?: ShipmentType; carrierHint?: string },

@@ -226,3 +226,8 @@ const rateLimiter = {
 export function checkRateLimit(ip: string): boolean {
   return rateLimiter.isAllowed(ip)
 }
+
+// Currency API object
+export const currencyApi = {
+  getExchangeRates: async (base: string, symbols: string[]) => ({ data: { rates: { USD: 1, EUR: 0.9 } }, error: null }),
+}

@@ -3,21 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import {
-  Plane,
-  Ship,
-  Package,
-  MapPin,
-  Calendar,
-  Clock,
-  FileText,
-  Download,
-  Loader2,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  Info,
-} from "lucide-react"
+import { Plane, Ship, Package, MapPin, Calendar, Clock, FileText, Download, Loader2, AlertCircle, CheckCircle, XCircle, Info } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import type { TrackingResult, TrackingEvent, ShipmentType } from "@/types/tracking"
 
@@ -279,6 +265,8 @@ export default function ShipmentTrackingResults({
                   <ul className="mt-2 space-y-2">
                     {locationEntry.events.map((event, eventIndex) => (
                       <li key={eventIndex} className="flex items-start gap-3 text-gray-700 dark:text-gray-300">
+                        {/* Added CheckCircle here */}
+                        <CheckCircle className="h-4 w-4 text-green-500 mt-1" />
                         <div className="mt-1">{getIconForEventType(event.type)}</div>
                         <div>
                           <p className="font-medium">{event.status || event.description}</p>

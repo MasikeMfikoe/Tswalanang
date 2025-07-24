@@ -163,8 +163,13 @@ export function useDataTable<TData, TFilter extends Record<string, any> = Record
     isError,
     error,
     refetch,
-    pagination,
-    sorting,
+    pagination: {
+      pageIndex: pagination.currentPage - 1,
+      pageSize: pagination.pageSize,
+      setPagination: pagination.setCurrentPage,
+    },
+    sorting: sorting.sortState,
+    setSorting: sorting.setSortState,
     filtering: {
       ...filtering,
       setFilter: handleFilterChange,

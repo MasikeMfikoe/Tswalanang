@@ -1,15 +1,13 @@
 -- Create customer_rate_cards table
 CREATE TABLE IF NOT EXISTS customer_rate_cards (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-    sea_freight_communication_fee DECIMAL(10,2) DEFAULT 350.00,
-    sea_freight_documentation_fee DECIMAL(10,2) DEFAULT 350.00,
-    sea_freight_agency_fee DECIMAL(5,2) DEFAULT 3.50,
-    sea_freight_facility_fee DECIMAL(5,2) DEFAULT 2.50,
-    air_freight_communication_fee DECIMAL(10,2) DEFAULT 150.00,
-    air_freight_documentation_fee DECIMAL(10,2) DEFAULT 250.00,
-    air_freight_agency_fee DECIMAL(5,2) DEFAULT 3.50,
-    air_freight_facility_fee DECIMAL(5,2) DEFAULT 2.50,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
+    origin TEXT NOT NULL,
+    destination TEXT NOT NULL,
+    rate DECIMAL NOT NULL,
+    currency TEXT NOT NULL,
+    valid_from DATE NOT NULL,
+    valid_to DATE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -17,10 +15,12 @@ CREATE TABLE IF NOT EXISTS customer_rate_cards (
 -- Create unique constraint to ensure one rate card per customer
 ALTER TABLE customer_rate_cards 
 ADD CONSTRAINT unique_customer_rate_card 
-UNIQUE (customer_id);
+UNIQUE (customer_id, origin, destination);
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_customer_rate_cards_customer_id ON customer_rate_cards(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customer_rate_cards_origin ON customer_rate_cards(origin);
+CREATE INDEX IF NOT EXISTS idx_customer_rate_cards_destination ON customer_rate_cards(destination);
 
 -- Enable RLS
 ALTER TABLE customer_rate_cards ENABLE ROW LEVEL SECURITY;

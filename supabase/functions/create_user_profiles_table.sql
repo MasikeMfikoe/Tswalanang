@@ -15,16 +15,11 @@ BEGIN
   END IF;
 
   -- Create the table
-  CREATE TABLE public.user_profiles (
-    id UUID PRIMARY KEY,
-    username TEXT,
-    name TEXT,
-    surname TEXT,
-    role TEXT DEFAULT 'guest',
-    department TEXT,
-    page_access TEXT[] DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  CREATE TABLE IF NOT EXISTS public.user_profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id),
+    email TEXT UNIQUE NOT NULL,
+    full_name TEXT,
+    role TEXT DEFAULT 'user'
   );
 
   -- Set up Row Level Security

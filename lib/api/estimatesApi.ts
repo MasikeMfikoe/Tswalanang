@@ -1,4 +1,5 @@
 import type { Estimate, ApiResponse, PaginatedResponse } from "@/types/models"
+import { apiClient } from "./apiClient"
 
 // Helper function to transform database row to frontend format
 function transformEstimateFromDB(item: any): Estimate {
@@ -53,13 +54,9 @@ export const estimatesApi = {
       if (params?.sortBy) searchParams.set("sortBy", params.sortBy)
       if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder)
 
-      const response = await fetch(`/api/estimates?${searchParams.toString()}`)
+      const response = await apiClient.get(`/api/estimates?${searchParams.toString()}`)
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
+      const result = response.data
       console.log("API response:", result)
 
       if (!result.success) {
@@ -100,16 +97,9 @@ export const estimatesApi = {
     try {
       console.log("getEstimateById called with id:", id)
 
-      const response = await fetch(`/api/estimates/${id}`)
+      const response = await apiClient.get(`/api/estimates/${id}`)
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error("Estimate not found")
-        }
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
+      const result = response.data
       console.log("Single estimate API response:", result)
 
       if (!result.success) {
@@ -139,20 +129,10 @@ export const estimatesApi = {
     try {
       console.log("Creating estimate via API route:", estimateData)
 
-      const response = await fetch("/api/estimates", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(estimateData),
-      })
+      const response = await apiClient.post("/api/estimates", estimateData)
 
-      const result = await response.json()
+      const result = response.data
       console.log("Create estimate API response:", result)
-
-      if (!response.ok) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`)
-      }
 
       if (!result.success) {
         throw new Error(result.error || "Failed to create estimate")
@@ -178,20 +158,9 @@ export const estimatesApi = {
     try {
       console.log("Updating estimate via API route:", id, estimateData)
 
-      const response = await fetch(`/api/estimates/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(estimateData),
-      })
+      const response = await apiClient.put(`/api/estimates/${id}`, estimateData)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
+      const result = response.data
       console.log("Estimate updated successfully:", result)
 
       return {
@@ -212,16 +181,9 @@ export const estimatesApi = {
   // Delete an estimate
   async deleteEstimate(id: string): Promise<ApiResponse<void>> {
     try {
-      const response = await fetch(`/api/estimates/${id}`, {
-        method: "DELETE",
-      })
+      const response = await apiClient.delete(`/api/estimates/${id}`)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
+      const result = response.data
 
       return {
         data: undefined,
@@ -241,20 +203,9 @@ export const estimatesApi = {
   // Update estimate status
   async updateEstimateStatus(id: string, status: string): Promise<ApiResponse<void>> {
     try {
-      const response = await fetch(`/api/estimates/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status }),
-      })
+      const response = await apiClient.put(`/api/estimates/${id}`, { status })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
+      const result = response.data
 
       return {
         data: undefined,

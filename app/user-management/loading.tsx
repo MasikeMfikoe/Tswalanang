@@ -63,6 +63,7 @@ export default function UserManagementLoading() {
           </CardContent>
         </Card>
       </div>
+      <div>Loading user management...</div>
     </div>
   )
 }

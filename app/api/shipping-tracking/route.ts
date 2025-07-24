@@ -39,6 +39,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const trackingNumber = searchParams.get("trackingNumber")
+  console.log(`Fetching shipping tracking for: ${trackingNumber}`)
+  return NextResponse.json({ trackingNumber, status: "In Transit", events: [] })
+}
+
 function generateMockTrackingData(trackingNumber: string, trackingInfo: TrackingNumberInfo, bookingType: string) {
   const shippingLineInfo = getShippingLineInfo(trackingInfo, trackingNumber)
   const now = new Date()

@@ -1,12 +1,11 @@
 "use client"
-
-import { useEffect } from "react"
+import React from "react"
 import { useRouter } from "next/navigation"
 
 export default function AdminUsersPage() {
   const router = useRouter()
 
-  useEffect(() => {
+  React.useEffect(() => {
     // Redirect to the new user management interface
     router.replace("/user-management")
   }, [router])

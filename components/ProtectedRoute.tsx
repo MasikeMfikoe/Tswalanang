@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { useEffect, useState } from "react"
@@ -107,7 +106,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
     return null // Will redirect
   }
 
-  return <>{children}</>
+  return <div>{children}</div>
 }
 
 export default ProtectedRoute

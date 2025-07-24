@@ -12,6 +12,7 @@ export function useSearch({ initialSearchTerm = "", debounceTime = 300 }: Search
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm)
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(initialSearchTerm)
   const [isSearching, setIsSearching] = useState(false)
+  const [filteredData, setFilteredData] = useState([])
 
   // Debounce search term
   const handleSearchChange = useCallback(
@@ -35,15 +36,19 @@ export function useSearch({ initialSearchTerm = "", debounceTime = 300 }: Search
     setSearchTerm("")
     setDebouncedSearchTerm("")
     setIsSearching(false)
+    setFilteredData([])
   }, [])
 
   const searchedItems = useCallback(
     <T,>(items: T[], searchFn: (item: T, term: string) => boolean): T[] => {
       if (!debouncedSearchTerm) {
+        setFilteredData(items)
         return items
       }
 
-      return items.filter((item) => searchFn(item, debouncedSearchTerm))
+      const filtered = items.filter((item) => searchFn(item, debouncedSearchTerm))
+      setFilteredData(filtered)
+      return filtered
     },
     [debouncedSearchTerm],
   )
@@ -84,5 +89,6 @@ export function useSearch({ initialSearchTerm = "", debounceTime = 300 }: Search
     clearSearch,
     searchedItems,
     highlightSearchTerm,
+    filteredData,
   }
 }

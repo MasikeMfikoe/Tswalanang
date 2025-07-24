@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { UserGroupsSidebar } from "./components/UserGroupsSidebar"
-import { PermissionsEditor } from "./components/PermissionsEditor"
+import PermissionsEditor from "./components/PermissionsEditor"
 import { UserAssignmentSection } from "./components/UserAssignmentSection"
 import { LivePreviewSection } from "./components/LivePreviewSection"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ interface UserGroup {
   name: string
   permissions: Record<string, boolean>
   assignedUserIds: string[]
+  isDefault: boolean
 }
 
 interface User {
@@ -37,6 +38,7 @@ const mockUserGroups: UserGroup[] = [
       canViewFinancials: true,
     },
     assignedUserIds: ["user1", "user2"],
+    isDefault: false,
   },
   {
     id: "2",
@@ -50,6 +52,7 @@ const mockUserGroups: UserGroup[] = [
       canViewFinancials: false,
     },
     assignedUserIds: ["user3"],
+    isDefault: false,
   },
   {
     id: "3",
@@ -63,6 +66,21 @@ const mockUserGroups: UserGroup[] = [
       canViewFinancials: true,
     },
     assignedUserIds: ["user4"],
+    isDefault: false,
+  },
+  {
+    id: "4",
+    name: "Super Admin",
+    permissions: {
+      canViewDashboard: true,
+      canManageUsers: true,
+      canEditSettings: true,
+      canViewDocuments: true,
+      canManageOrders: true,
+      canViewFinancials: true,
+    },
+    assignedUserIds: [],
+    isDefault: true,
   },
 ]
 
@@ -108,6 +126,7 @@ export default function UserGroupsPage() {
         canViewFinancials: false,
       },
       assignedUserIds: [],
+      isDefault: false,
     })
     setIsNewGroup(true)
   }
@@ -207,7 +226,17 @@ export default function UserGroupsPage() {
                   value={editingGroup.name}
                   onChange={(e) => setEditingGroup({ ...editingGroup, name: e.target.value })}
                 />
-                <PermissionsEditor permissions={editingGroup.permissions} onPermissionChange={handlePermissionChange} />
+                <PermissionsEditor
+                  group={editingGroup}
+                  permissions={editingGroup.permissions}
+                  onUpdateGroupName={(name) => setEditingGroup({ ...editingGroup, name })}
+                  onUpdatePermissions={(permissions) =>
+                    setEditingGroup({
+                      ...editingGroup,
+                      permissions: permissions.reduce((acc, p) => ({ ...acc, [p.pagePath]: p.allowed }), {}),
+                    })
+                  }
+                />
               </div>
               <LivePreviewSection
                 groupName={editingGroup.name}

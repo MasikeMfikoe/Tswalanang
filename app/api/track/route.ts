@@ -1,50 +1,43 @@
 import { NextResponse } from "next/server"
-import { MultiProviderTrackingService } from "@/lib/services/multi-provider-tracking-service"
-import { detectShipmentInfo } from "@/lib/services/container-detection-service"
-import type { ShipmentType } from "@/types/tracking"
+import { UnifiedTrackingService } from "@/lib/services/unified-tracking-service"
+import { GoCometService } from "@/lib/services/gocomet-service"
+import { MaerskAPI } from "@/lib/shipping-lines/maersk-api"
+import { MSCAPI } from "@/lib/shipping-lines/msc-api"
+import { TrackShipService } from "@/lib/services/trackship-service"
+import { MockTrackingService } from "@/lib/services/mock-tracking-service"
+import { SearatesService } from "@/lib/services/searates-service"
+import { WebScrapingService } from "@/lib/services/web-scraping-service"
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const trackingNumber = searchParams.get("trackingNumber")
+  const provider = searchParams.get("provider")
+  const gocometToken = searchParams.get("gocometToken") // Get GoComet token from query params
+
+  if (!trackingNumber) {
+    return NextResponse.json({ error: "Tracking number is required" }, { status: 400 })
+  }
+
   try {
-    const { trackingNumber, bookingType, carrierHint, gocometToken } = await request.json() // Receive gocometToken
+    const unifiedTrackingService = new UnifiedTrackingService(
+      new GoCometService(),
+      new MaerskAPI(),
+      new MSCAPI(),
+      new TrackShipService(),
+      new MockTrackingService(),
+      new SearatesService(),
+      new WebScrapingService(),
+    )
 
-    if (!trackingNumber) {
-      return NextResponse.json({ success: false, error: "Tracking number is required." }, { status: 400 })
+    const trackingData = await unifiedTrackingService.trackShipment(trackingNumber, provider, gocometToken || undefined) // Pass token
+
+    if (!trackingData) {
+      return NextResponse.json({ message: "No tracking data found for this number." }, { status: 404 })
     }
 
-    // Detect shipment type and carrier hint (can be overridden by client-provided bookingType/carrierHint)
-    const detectedInfo = detectShipmentInfo(trackingNumber)
-    const finalShipmentType: ShipmentType = bookingType || detectedInfo.type
-    const finalCarrierHint: string | undefined = carrierHint || detectedInfo.carrierHint
-
-    const trackingService = new MultiProviderTrackingService()
-    const result = await trackingService.trackShipment(trackingNumber, {
-      shipmentType: finalShipmentType,
-      carrierHint: finalCarrierHint,
-      gocometToken: gocometToken, // Pass the received token
-    })
-
-    if (result.success) {
-      return NextResponse.json({
-        success: true,
-        data: result.data,
-        source: result.source,
-        isLiveData: result.isLiveData,
-      })
-    } else {
-      // If tracking failed, return the error and any fallback options
-      return NextResponse.json(
-        {
-          success: false,
-          error: result.error || "Failed to retrieve tracking information.",
-          source: result.source,
-          fallbackOptions: result.fallbackOptions,
-          isLiveData: result.isLiveData,
-        },
-        { status: 200 }, // Return 200 even on tracking failure, as it's a valid response from the service
-      )
-    }
-  } catch (error: any) {
-    console.error("Error in /api/track route:", error)
-    return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 })
+    return NextResponse.json(trackingData)
+  } catch (error) {
+    console.error("Error tracking shipment:", error)
+    return NextResponse.json({ error: "Failed to retrieve tracking information." }, { status: 500 })
   }
 }

@@ -1,14 +1,11 @@
 "use client"
 
-import { useEffect } from "react"
-
-import { useState } from "react"
-
+import { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { SignaturePad } from "@/components/ui/signature-pad" // Assuming a signature pad component
+import SignaturePad from "@/components/ui/signature-pad" // Assuming a signature pad component
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"

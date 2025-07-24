@@ -1,677 +1,509 @@
 "use client"
 
-import React from "react"
+import type React from "react"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/use-toast"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { NewOrderDocumentUpload } from "@/components/NewOrderDocumentUpload"
-import { supabase } from "@/lib/supabase"
-import type { Order, Customer, Status, CargoStatus, FreightType } from "@/types/models"
 import { Textarea } from "@/components/ui/textarea"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { cn } from "@/lib/utils"
+import { format } from "date-fns"
+import { CalendarIcon, Loader2 } from "lucide-react"
+import type { Order, FreightType, OrderStatus } from "@/types/models"
+import { useCreateOrderMutation } from "@/hooks/useOrdersQuery"
+import { useCustomersQuery } from "@/hooks/useCustomersQuery"
+import { useToast } from "@/components/ui/use-toast"
+import { useRouter } from "next/navigation"
 
-export default function CreateOrder() {
+interface CreateOrderProps {
+  initialData?: Partial<Order>
+  onSuccess?: (order: Order) => void
+  onCancel?: () => void
+}
+
+export default function CreateOrder({ initialData = {}, onSuccess, onCancel }: CreateOrderProps) {
   const router = useRouter()
   const { toast } = useToast()
+  const createOrderMutation = useCreateOrderMutation()
+  const { data: customersData, isLoading: isLoadingCustomers } = useCustomersQuery({ pageSize: 999 })
+  const customers = customersData?.data || []
 
-  // State for freight types
-  const [freightTypes, setFreightTypes] = useState<Array<{ id: string; name: string; code: string }>>([])
-  const [isLoadingFreightTypes, setIsLoadingFreightTypes] = useState(true)
-
-  // State for order form
-  const [order, setOrder] = useState<Partial<Order>>({
-    poNumber: "",
-    supplier: "",
-    importer: "",
-    status: "Pending",
-    cargoStatus: "instruction-sent",
-    freightType: "Sea Freight",
-    cargoStatusComment: "",
-    origin: "", // Add origin field
-    destination: "", // Add destination field
+  const [formData, setFormData] = useState<Partial<Order>>({
+    customer_id: initialData.customer_id || "",
+    customer_name: initialData.customer_name || "",
+    po_number: initialData.po_number || "",
+    order_date: initialData.order_date || format(new Date(), "yyyy-MM-dd"),
+    status: initialData.status || "Pending",
+    freight_type: initialData.freight_type || "Ocean",
+    origin_address: initialData.origin_address || {
+      street: "",
+      city: "",
+      postalCode: "",
+      country: "",
+    },
+    destination_address: initialData.destination_address || {
+      street: "",
+      city: "",
+      postalCode: "",
+      country: "",
+    },
+    total_value: initialData.total_value || 0,
+    currency: initialData.currency || "USD",
+    expected_delivery_date: initialData.expected_delivery_date || "",
+    notes: initialData.notes || "",
   })
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // State for order financials
-  const [financials, setFinancials] = useState({
-    commercialValue: 0,
-    customsDuties: 0,
-    customsVAT: 0, // Auto-calculated (15% of commercial value)
-    handlingFees: 0,
-    shippingCost: 0,
-    documentationFee: 0, // From rate card
-    communicationFee: 0, // From rate card
-    facilityFee: 0, // From rate card (percentage)
-    agencyFee: 0, // From rate card (percentage)
-    notes: "",
-  })
-
-  const [customerRateCard, setCustomerRateCard] = useState<any>(null)
-
-  // State for UI
-  const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState<{ [key: string]: string }>({})
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
-  const [customersFetchError, setCustomersFetchError] = useState<string | null>(null)
-
-  // Fetch customers on component mount
-  React.useEffect(() => {
-    fetchCustomers()
-    fetchFreightTypes()
-  }, [])
-
-  // Fetch customers directly from Supabase
-  const fetchCustomers = async () => {
-    setIsLoadingCustomers(true)
-    setCustomersFetchError(null)
-
-    try {
-      const { data, error } = await supabase.from("customers").select("*").order("name")
-
-      if (error) {
-        console.error("Error fetching customers:", error)
-        setCustomersFetchError("Failed to load customers")
-        // Use fallback customers
-        setCustomers([
-          {
-            id: "demo-1",
-            name: "ABC Trading Company",
-            contactPerson: "John Smith",
-            email: "john@abctrading.com",
-            phone: "+1-555-0123",
-            address: {
-              street: "123 Business Ave",
-              city: "New York",
-              postalCode: "10001",
-              country: "USA",
-            },
-            totalOrders: 15,
-            totalSpent: 125000,
-            vatNumber: "US123456789",
-            importersCode: "IMP001",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: "demo-2",
-            name: "Global Imports Ltd",
-            contactPerson: "Sarah Johnson",
-            email: "sarah@globalimports.com",
-            phone: "+1-555-0456",
-            address: {
-              street: "456 Commerce St",
-              city: "Los Angeles",
-              postalCode: "90210",
-              country: "USA",
-            },
-            totalOrders: 8,
-            totalSpent: 75000,
-            vatNumber: "US987654321",
-            importersCode: "IMP002",
-            createdAt: new Date().toISOString(),
-          },
-        ])
-      } else {
-        setCustomers(data || [])
-      }
-    } catch (error) {
-      console.error("Error:", error)
-      setCustomersFetchError("Failed to load customers")
-      // Use fallback customers on error
-      setCustomers([
-        {
-          id: "fallback-1",
-          name: "Demo Customer 1",
-          contactPerson: "Demo Contact",
-          email: "demo1@example.com",
-          phone: "+1-555-0001",
-          address: {
-            street: "123 Demo St",
-            city: "Demo City",
-            postalCode: "12345",
-            country: "USA",
-          },
-          totalOrders: 0,
-          totalSpent: 0,
-          createdAt: new Date().toISOString(),
-        },
-      ])
-    } finally {
-      setIsLoadingCustomers(false)
+  useEffect(() => {
+    if (initialData) {
+      setFormData((prev) => ({ ...prev, ...initialData }))
     }
-  }
+  }, [initialData])
 
-  const fetchFreightTypes = async () => {
-    setIsLoadingFreightTypes(true)
-    try {
-      const { data, error } = await supabase
-        .from("freight_types")
-        .select("id, name, code")
-        .eq("active", true)
-        .order("name")
-
-      if (error) {
-        console.error("Error fetching freight types:", error)
-        // Fallback to hardcoded options
-        setFreightTypes([
-          { id: "1", name: "Sea Freight", code: "SEA" },
-          { id: "2", name: "Air Freight", code: "AIR" },
-          { id: "3", name: "EXW", code: "EXW" },
-          { id: "4", name: "FOB", code: "FOB" },
-        ])
-      } else {
-        setFreightTypes(data || [])
-      }
-    } catch (error) {
-      console.error("Error:", error)
-      // Use fallback data
-      setFreightTypes([
-        { id: "1", name: "Sea Freight", code: "SEA" },
-        { id: "2", name: "Air Freight", code: "AIR" },
-        { id: "3", name: "EXW", code: "EXW" },
-        { id: "4", name: "FOB", code: "FOB" },
-      ])
-    } finally {
-      setIsLoadingFreightTypes(false)
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { id, value } = e.target
+    if (id.startsWith("origin_address.")) {
+      const field = id.split(".")[1] as keyof typeof formData.origin_address
+      setFormData((prev) => ({
+        ...prev,
+        origin_address: { ...prev.origin_address!, [field]: value },
+      }))
+    } else if (id.startsWith("destination_address.")) {
+      const field = id.split(".")[1] as keyof typeof formData.destination_address
+      setFormData((prev) => ({
+        ...prev,
+        destination_address: { ...prev.destination_address!, [field]: value },
+      }))
+    } else {
+      setFormData((prev) => ({ ...prev, [id]: value }))
     }
+    setErrors((prev) => {
+      const newErrors = { ...prev }
+      delete newErrors[id]
+      return newErrors
+    })
   }
 
-  // Generate a unique PO number
-  function generatePONumber() {
-    const prefix = "PO"
-    const timestamp = Date.now().toString().slice(-6)
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0")
-    return `${prefix}-${timestamp}-${random}`
+  const handleSelectChange = (id: keyof Order, value: string) => {
+    setFormData((prev) => ({ ...prev, [id]: value }))
+    setErrors((prev) => {
+      const newErrors = { ...prev }
+      delete newErrors[id]
+      return newErrors
+    })
   }
 
-  // Handle form field changes
-  const handleChange = (field: string, value: string) => {
-    setOrder((prev) => ({ ...prev, [field]: value }))
-    setErrors((prev) => ({ ...prev, [field]: "" }))
+  const handleDateChange = (id: keyof Order, date: Date | undefined) => {
+    setFormData((prev) => ({
+      ...prev,
+      [id]: date ? format(date, "yyyy-MM-dd") : "",
+    }))
+    setErrors((prev) => {
+      const newErrors = { ...prev }
+      delete newErrors[id]
+      return newErrors
+    })
   }
 
-  // Validate form fields
   const validateForm = () => {
-    const newErrors: { [key: string]: string } = {}
-    if (!order.poNumber) newErrors.poNumber = "PO Number is required"
-    if (!order.supplier) newErrors.supplier = "Supplier is required"
-    if (!order.importer) newErrors.importer = "Importer is required"
-    if (!order.origin) newErrors.origin = "Origin is required"
-    if (!order.destination) newErrors.destination = "Destination is required"
+    const newErrors: Record<string, string> = {}
+    if (!formData.customer_id) newErrors.customer_id = "Customer is required"
+    if (!formData.po_number?.trim()) newErrors.po_number = "PO Number is required"
+    if (!formData.order_date) newErrors.order_date = "Order Date is required"
+    if (!formData.origin_address?.street?.trim()) newErrors["origin_address.street"] = "Origin street is required"
+    if (!formData.origin_address?.city?.trim()) newErrors["origin_address.city"] = "Origin city is required"
+    if (!formData.origin_address?.country?.trim()) newErrors["origin_address.country"] = "Origin country is required"
+    if (!formData.destination_address?.street?.trim())
+      newErrors["destination_address.street"] = "Destination street is required"
+    if (!formData.destination_address?.city?.trim())
+      newErrors["destination_address.city"] = "Destination city is required"
+    if (!formData.destination_address?.country?.trim())
+      newErrors["destination_address.country"] = "Destination country is required"
+    if (!formData.total_value || formData.total_value <= 0) newErrors.total_value = "Total Value must be greater than 0"
+    if (!formData.currency?.trim()) newErrors.currency = "Currency is required"
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  // Calculate financial totals
-  const calculateFinancials = () => {
-    const customsVAT = financials.commercialValue * 0.15
-    const totalDisbursements =
-      financials.customsDuties +
-      customsVAT +
-      financials.handlingFees +
-      financials.shippingCost +
-      financials.documentationFee +
-      financials.communicationFee
-    const facilityFeeAmount = (totalDisbursements * financials.facilityFee) / 100
-    const agencyFeeAmount = (totalDisbursements * financials.agencyFee) / 100
-    const subtotal = totalDisbursements + facilityFeeAmount + agencyFeeAmount
-    const vat = subtotal * 0.15
-    const total = subtotal + vat
-
-    return {
-      customsVAT,
-      totalDisbursements,
-      facilityFeeAmount,
-      agencyFeeAmount,
-      subtotal,
-      vat,
-      total,
-    }
-  }
-
-  // Handle financial field changes
-  const handleFinancialChange = (field: string, value: string) => {
-    const numericValue = Number.parseFloat(value) || 0
-    setFinancials((prev) => {
-      const updated = { ...prev, [field]: numericValue }
-      // Auto-calculate customs VAT when commercial value changes
-      if (field === "commercialValue") {
-        updated.customsVAT = numericValue * 0.15
-      }
-      return updated
-    })
-  }
-
-  // Fetch customer rate card when customer changes
-  const fetchCustomerRateCard = async (customerName: string) => {
-    try {
-      const customer = customers.find((c) => c.name === customerName)
-      if (customer?.rateCard) {
-        const rateCard = customer.rateCard
-        const freightType = order.freightType || "Air Freight"
-        const rates = freightType === "Air Freight" ? rateCard.airFreight : rateCard.seaFreight
-
-        setCustomerRateCard(rateCard)
-        setFinancials((prev) => ({
-          ...prev,
-          documentationFee: rates.documentationFee,
-          communicationFee: rates.communicationFee,
-          facilityFee: rates.facilityFee,
-          agencyFee: rates.agencyFee,
-        }))
-      }
-    } catch (error) {
-      console.error("Error fetching customer rate card:", error)
-    }
-  }
-
-  // Watch for customer and freight type changes to update rate card
-  React.useEffect(() => {
-    if (order.importer) {
-      fetchCustomerRateCard(order.importer)
-    }
-  }, [order.importer, order.freightType, customers])
-
-  // Handle form submission - Save directly to Supabase
-  const handleSubmit = async (e: React.MouseEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validateForm()) return
-
-    setLoading(true)
-    try {
-      // Prepare order data for Supabase - include all required fields
-      const orderData = {
-        order_number: order.poNumber,
-        po_number: order.poNumber,
-        supplier: order.supplier,
-        importer: order.importer,
-        origin: order.origin || "Unknown", // Provide default value
-        destination: order.destination || "Unknown", // Provide default value
-        status: order.status || "Pending",
-        cargo_status: order.cargoStatus || "instruction-sent",
-        freight_type: order.freightType || "Sea Freight",
-        cargo_status_comment: order.cargoStatusComment || "",
-        total_value: 0,
-        customer_name: order.importer,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-
-      const { data, error } = await supabase.from("orders").insert([orderData]).select().single()
-
-      if (error) {
-        console.error("Supabase error:", error)
-        toast({
-          title: "Error",
-          description: `Failed to create order: ${error.message}`,
-          variant: "destructive",
-        })
-        return
-      }
-
+    if (!validateForm()) {
       toast({
-        title: "Success",
-        description: `Order ${orderData.order_number} created successfully!`,
-      })
-
-      router.push("/orders")
-    } catch (error) {
-      console.error("Error creating order:", error)
-      toast({
-        title: "Error",
-        description: "Failed to create order. Please try again.",
+        title: "Validation Error",
+        description: "Please fill in all required fields correctly.",
         variant: "destructive",
       })
-    } finally {
-      setLoading(false)
+      return
+    }
+
+    const selectedCustomer = customers.find((c) => c.id === formData.customer_id)
+    const customerName = selectedCustomer ? selectedCustomer.name : formData.customer_name // Fallback if not found
+
+    const orderToCreate: Partial<Order> = {
+      ...formData,
+      customer_name: customerName, // Ensure customer_name is set
+      total_value: Number.parseFloat(formData.total_value as any), // Ensure it's a number
+    }
+
+    try {
+      const result = await createOrderMutation.mutateAsync(orderToCreate)
+      toast({
+        title: "Success",
+        description: `Order ${result.po_number} created successfully!`,
+      })
+      if (onSuccess) {
+        onSuccess(result)
+      } else {
+        router.push(`/orders/${result.id}`)
+      }
+    } catch (error) {
+      console.error("Failed to create order:", error)
+      toast({
+        title: "Error",
+        description: `Failed to create order: ${(error as Error).message}`,
+        variant: "destructive",
+      })
     }
   }
 
+  const freightTypes: FreightType[] = ["Air", "Ocean", "Road", "Rail", "Multimodal"]
+  const orderStatuses: OrderStatus[] = [
+    "Pending",
+    "Processing",
+    "In Transit",
+    "Customs Clearance",
+    "Delivered",
+    "Completed",
+    "Cancelled",
+    "On Hold",
+    "Exception",
+  ]
+  const currencies = ["USD", "EUR", "GBP", "ZAR"] // Example currencies
+
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Create New Order</h1>
-          <div className="flex space-x-2">
-            <Button variant="outline" onClick={() => router.push("/orders")}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleSubmit} disabled={loading}>
-              {loading ? "Saving..." : "Save Order"}
-            </Button>
-          </div>
+    <form onSubmit={handleSubmit} className="space-y-6 p-6 bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">Create New Order</h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Customer Information */}
+        <div className="space-y-2">
+          <Label htmlFor="customer_id" className={errors.customer_id ? "text-red-500" : ""}>
+            Customer *
+          </Label>
+          {isLoadingCustomers ? (
+            <div className="flex items-center space-x-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading customers...</span>
+            </div>
+          ) : (
+            <Select value={formData.customer_id} onValueChange={(value) => handleSelectChange("customer_id", value)}>
+              <SelectTrigger id="customer_id" className={errors.customer_id ? "border-red-500" : ""}>
+                <SelectValue placeholder="Select a customer" />
+              </SelectTrigger>
+              <SelectContent>
+                {customers.map((customer) => (
+                  <SelectItem key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {errors.customer_id && <p className="text-xs text-red-500">{errors.customer_id}</p>}
         </div>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Order Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="information" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="information">Order Information</TabsTrigger>
-                  <TabsTrigger value="financials">Order Financials</TabsTrigger>
-                  <TabsTrigger value="documents">Documents</TabsTrigger>
-                </TabsList>
+        {/* PO Number */}
+        <div className="space-y-2">
+          <Label htmlFor="po_number" className={errors.po_number ? "text-red-500" : ""}>
+            PO Number *
+          </Label>
+          <Input
+            id="po_number"
+            value={formData.po_number}
+            onChange={handleInputChange}
+            className={errors.po_number ? "border-red-500" : ""}
+          />
+          {errors.po_number && <p className="text-xs text-red-500">{errors.po_number}</p>}
+        </div>
 
-                <TabsContent value="information" className="mt-6">
-                  <form className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="poNumber">PO Number</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            id="poNumber"
-                            value={order.poNumber || ""}
-                            onChange={(e) => handleChange("poNumber", e.target.value)}
-                            aria-label="PO Number"
-                            required
-                            placeholder="Enter PO number or generate one"
-                            className={errors.poNumber ? "border-red-500" : ""}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => handleChange("poNumber", generatePONumber())}
-                          >
-                            Generate
-                          </Button>
-                        </div>
-                        {errors.poNumber && <p className="text-red-500 text-xs mt-1">{errors.poNumber}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="supplier">Supplier</Label>
-                        <Input
-                          id="supplier"
-                          value={order.supplier || ""}
-                          onChange={(e) => handleChange("supplier", e.target.value)}
-                          required
-                          className={errors.supplier ? "border-red-500" : ""}
-                        />
-                        {errors.supplier && <p className="text-red-500 text-xs mt-1">{errors.supplier}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="importer">Importer</Label>
-                        <Select
-                          value={order.importer || ""}
-                          onValueChange={(value) => handleChange("importer", value)}
-                          disabled={isLoadingCustomers}
-                        >
-                          <SelectTrigger className={errors.importer ? "border-red-500" : ""}>
-                            <SelectValue placeholder="Select importer" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {isLoadingCustomers ? (
-                              <SelectItem value="loading" disabled>
-                                Loading customers...
-                              </SelectItem>
-                            ) : customersFetchError ? (
-                              <SelectItem value="error" disabled>
-                                Error loading customers - using fallback data
-                              </SelectItem>
-                            ) : customers && customers.length > 0 ? (
-                              customers.map((customer) => (
-                                <SelectItem key={customer.id} value={customer.name}>
-                                  {customer.name}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="no-customers" disabled>
-                                No customers available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        {errors.importer && <p className="text-red-500 text-xs mt-1">{errors.importer}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="origin">Origin</Label>
-                        <Input
-                          id="origin"
-                          value={order.origin || ""}
-                          onChange={(e) => handleChange("origin", e.target.value)}
-                          required
-                          placeholder="Enter origin location"
-                          className={errors.origin ? "border-red-500" : ""}
-                        />
-                        {errors.origin && <p className="text-red-500 text-xs mt-1">{errors.origin}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="destination">Destination</Label>
-                        <Input
-                          id="destination"
-                          value={order.destination || ""}
-                          onChange={(e) => handleChange("destination", e.target.value)}
-                          required
-                          placeholder="Enter destination location"
-                          className={errors.destination ? "border-red-500" : ""}
-                        />
-                        {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="freightType">Freight Type</Label>
-                        <Select
-                          value={order.freightType || "Sea Freight"}
-                          onValueChange={(value) => handleChange("freightType", value as FreightType)}
-                          disabled={isLoadingFreightTypes}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select freight type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {isLoadingFreightTypes ? (
-                              <SelectItem value="loading" disabled>
-                                Loading freight types...
-                              </SelectItem>
-                            ) : freightTypes.length > 0 ? (
-                              freightTypes.map((freightType) => (
-                                <SelectItem key={freightType.id} value={freightType.name}>
-                                  {freightType.name}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="no-types" disabled>
-                                No freight types available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="status">Order Status</Label>
-                        <Select
-                          value={order.status || "Pending"}
-                          onValueChange={(value) => handleChange("status", value as Status)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Pending">Pending</SelectItem>
-                            <SelectItem value="In Progress">In Progress</SelectItem>
-                            <SelectItem value="Completed">Completed</SelectItem>
-                            <SelectItem value="Cancelled">Cancelled</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2 md:col-span-1">
-                        <Label htmlFor="cargoStatus">Cargo Status</Label>
-                        <Select
-                          value={order.cargoStatus || "instruction-sent"}
-                          onValueChange={(value) => handleChange("cargoStatus", value as CargoStatus)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select cargo status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="instruction-sent">Instruction Sent to Agent</SelectItem>
-                            <SelectItem value="agent-response">Agent Response</SelectItem>
-                            <SelectItem value="at-origin">At Origin</SelectItem>
-                            <SelectItem value="cargo-departed">Cargo Departed</SelectItem>
-                            <SelectItem value="in-transit">In Transit</SelectItem>
-                            <SelectItem value="at-destination">At Destination</SelectItem>
-                            <SelectItem value="delivered">Delivered</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2 md:col-span-1">
-                        <Label htmlFor="cargoStatusNotes">Cargo Status Notes</Label>
-                        <Textarea
-                          id="cargoStatusNotes"
-                          placeholder="Add notes about the cargo status"
-                          value={order.cargoStatusComment || ""}
-                          onChange={(e) => handleChange("cargoStatusComment", e.target.value)}
-                          className="resize-y"
-                        />
-                      </div>
-                    </div>
-                  </form>
-                </TabsContent>
+        {/* Order Date */}
+        <div className="space-y-2">
+          <Label htmlFor="order_date" className={errors.order_date ? "text-red-500" : ""}>
+            Order Date *
+          </Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !formData.order_date && "text-muted-foreground",
+                  errors.order_date && "border-red-500",
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {formData.order_date ? format(new Date(formData.order_date), "PPP") : <span>Pick a date</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={formData.order_date ? new Date(formData.order_date) : undefined}
+                onSelect={(date) => handleDateChange("order_date", date)}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          {errors.order_date && <p className="text-xs text-red-500">{errors.order_date}</p>}
+        </div>
 
-                <TabsContent value="financials" className="mt-6">
-                  <div className="space-y-6">
-                    {/* Financial Form */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="commercialValue">Commercial Value (R)</Label>
-                        <Input
-                          id="commercialValue"
-                          type="number"
-                          step="0.01"
-                          value={financials.commercialValue}
-                          onChange={(e) => handleFinancialChange("commercialValue", e.target.value)}
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="customsDuties">Customs Duties (R)</Label>
-                        <Input
-                          id="customsDuties"
-                          type="number"
-                          step="0.01"
-                          value={financials.customsDuties}
-                          onChange={(e) => handleFinancialChange("customsDuties", e.target.value)}
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="customsVAT">Customs VAT (15% of commercial value)</Label>
-                        <Input
-                          id="customsVAT"
-                          type="number"
-                          step="0.01"
-                          value={calculateFinancials().customsVAT.toFixed(2)}
-                          readOnly
-                          className="bg-gray-50"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="handlingFees">Handling Fees (R)</Label>
-                        <Input
-                          id="handlingFees"
-                          type="number"
-                          step="0.01"
-                          value={financials.handlingFees}
-                          onChange={(e) => handleFinancialChange("handlingFees", e.target.value)}
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="shippingCost">Shipping Cost (R)</Label>
-                        <Input
-                          id="shippingCost"
-                          type="number"
-                          step="0.01"
-                          value={financials.shippingCost}
-                          onChange={(e) => handleFinancialChange("shippingCost", e.target.value)}
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="documentationFee">Documentation Fee ({order.freightType || "Air"}) (R)</Label>
-                        <Input
-                          id="documentationFee"
-                          type="number"
-                          step="0.01"
-                          value={financials.documentationFee.toFixed(2)}
-                          readOnly
-                          className="bg-gray-50"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="communicationFee">Communication Fee ({order.freightType || "Air"}) (R)</Label>
-                        <Input
-                          id="communicationFee"
-                          type="number"
-                          step="0.01"
-                          value={financials.communicationFee.toFixed(2)}
-                          readOnly
-                          className="bg-gray-50"
-                        />
-                      </div>
-                    </div>
+        {/* Status */}
+        <div className="space-y-2">
+          <Label htmlFor="status">Status</Label>
+          <Select value={formData.status} onValueChange={(value) => handleSelectChange("status", value as OrderStatus)}>
+            <SelectTrigger id="status">
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              {orderStatuses.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-                    {/* Notes - Full Width */}
-                    <div className="space-y-2">
-                      <Label htmlFor="financialNotes">Notes</Label>
-                      <Textarea
-                        id="financialNotes"
-                        placeholder="Add any financial notes or comments..."
-                        value={financials.notes}
-                        onChange={(e) => handleFinancialChange("notes", e.target.value)}
-                        className="resize-y min-h-[100px]"
-                      />
-                    </div>
+        {/* Freight Type */}
+        <div className="space-y-2">
+          <Label htmlFor="freight_type">Freight Type</Label>
+          <Select
+            value={formData.freight_type}
+            onValueChange={(value) => handleSelectChange("freight_type", value as FreightType)}
+          >
+            <SelectTrigger id="freight_type">
+              <SelectValue placeholder="Select freight type" />
+            </SelectTrigger>
+            <SelectContent>
+              {freightTypes.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-                    {/* Summary Section */}
-                    <div className="border-t pt-6">
-                      <h3 className="text-lg font-semibold mb-4">Financial Summary</h3>
-                      <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-                        <div className="flex justify-between">
-                          <span>Total Disbursements:</span>
-                          <span>R {calculateFinancials().totalDisbursements.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Facility Fee ({financials.facilityFee}%):</span>
-                          <span>R {calculateFinancials().facilityFeeAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Agency Fee ({financials.agencyFee}%):</span>
-                          <span>R {calculateFinancials().agencyFeeAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between border-t pt-2">
-                          <span>Subtotal:</span>
-                          <span>R {calculateFinancials().subtotal.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>VAT (15%):</span>
-                          <span>R {calculateFinancials().vat.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                          <span>Total:</span>
-                          <span className="text-green-600">R {calculateFinancials().total.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
+        {/* Total Value */}
+        <div className="space-y-2">
+          <Label htmlFor="total_value" className={errors.total_value ? "text-red-500" : ""}>
+            Total Value *
+          </Label>
+          <Input
+            id="total_value"
+            type="number"
+            value={formData.total_value}
+            onChange={handleInputChange}
+            className={errors.total_value ? "border-red-500" : ""}
+          />
+          {errors.total_value && <p className="text-xs text-red-500">{errors.total_value}</p>}
+        </div>
 
-                <TabsContent value="documents" className="mt-6">
-                  <NewOrderDocumentUpload />
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
+        {/* Currency */}
+        <div className="space-y-2">
+          <Label htmlFor="currency" className={errors.currency ? "text-red-500" : ""}>
+            Currency *
+          </Label>
+          <Select value={formData.currency} onValueChange={(value) => handleSelectChange("currency", value)}>
+            <SelectTrigger id="currency" className={errors.currency ? "border-red-500" : ""}>
+              <SelectValue placeholder="Select currency" />
+            </SelectTrigger>
+            <SelectContent>
+              {currencies.map((currency) => (
+                <SelectItem key={currency} value={currency}>
+                  {currency}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.currency && <p className="text-xs text-red-500">{errors.currency}</p>}
+        </div>
+
+        {/* Expected Delivery Date */}
+        <div className="space-y-2">
+          <Label htmlFor="expected_delivery_date">Expected Delivery Date</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !formData.expected_delivery_date && "text-muted-foreground",
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {formData.expected_delivery_date ? (
+                  format(new Date(formData.expected_delivery_date), "PPP")
+                ) : (
+                  <span>Pick a date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={formData.expected_delivery_date ? new Date(formData.expected_delivery_date) : undefined}
+                onSelect={(date) => handleDateChange("expected_delivery_date", date)}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
-    </div>
+
+      {/* Origin Address */}
+      <div className="space-y-4 border p-4 rounded-lg">
+        <h3 className="text-lg font-semibold text-gray-700">Origin Address</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="origin_address.street" className={errors["origin_address.street"] ? "text-red-500" : ""}>
+              Street *
+            </Label>
+            <Input
+              id="origin_address.street"
+              value={formData.origin_address?.street || ""}
+              onChange={handleInputChange}
+              className={errors["origin_address.street"] ? "border-red-500" : ""}
+            />
+            {errors["origin_address.street"] && (
+              <p className="text-xs text-red-500">{errors["origin_address.street"]}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="origin_address.city" className={errors["origin_address.city"] ? "text-red-500" : ""}>
+              City *
+            </Label>
+            <Input
+              id="origin_address.city"
+              value={formData.origin_address?.city || ""}
+              onChange={handleInputChange}
+              className={errors["origin_address.city"] ? "border-red-500" : ""}
+            />
+            {errors["origin_address.city"] && <p className="text-xs text-red-500">{errors["origin_address.city"]}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="origin_address.postalCode">Postal Code</Label>
+            <Input
+              id="origin_address.postalCode"
+              value={formData.origin_address?.postalCode || ""}
+              onChange={handleInputChange}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="origin_address.country" className={errors["origin_address.country"] ? "text-red-500" : ""}>
+              Country *
+            </Label>
+            <Input
+              id="origin_address.country"
+              value={formData.origin_address?.country || ""}
+              onChange={handleInputChange}
+              className={errors["origin_address.country"] ? "border-red-500" : ""}
+            />
+            {errors["origin_address.country"] && (
+              <p className="text-xs text-red-500">{errors["origin_address.country"]}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Destination Address */}
+      <div className="space-y-4 border p-4 rounded-lg">
+        <h3 className="text-lg font-semibold text-gray-700">Destination Address</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label
+              htmlFor="destination_address.street"
+              className={errors["destination_address.street"] ? "text-red-500" : ""}
+            >
+              Street *
+            </Label>
+            <Input
+              id="destination_address.street"
+              value={formData.destination_address?.street || ""}
+              onChange={handleInputChange}
+              className={errors["destination_address.street"] ? "border-red-500" : ""}
+            />
+            {errors["destination_address.street"] && (
+              <p className="text-xs text-red-500">{errors["destination_address.street"]}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label
+              htmlFor="destination_address.city"
+              className={errors["destination_address.city"] ? "text-red-500" : ""}
+            >
+              City *
+            </Label>
+            <Input
+              id="destination_address.city"
+              value={formData.destination_address?.city || ""}
+              onChange={handleInputChange}
+              className={errors["destination_address.city"] ? "border-red-500" : ""}
+            />
+            {errors["destination_address.city"] && (
+              <p className="text-xs text-red-500">{errors["destination_address.city"]}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="destination_address.postalCode">Postal Code</Label>
+            <Input
+              id="destination_address.postalCode"
+              value={formData.destination_address?.postalCode || ""}
+              onChange={handleInputChange}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label
+              htmlFor="destination_address.country"
+              className={errors["destination_address.country"] ? "text-red-500" : ""}
+            >
+              Country *
+            </Label>
+            <Input
+              id="destination_address.country"
+              value={formData.destination_address?.country || ""}
+              onChange={handleInputChange}
+              className={errors["destination_address.country"] ? "border-red-500" : ""}
+            />
+            {errors["destination_address.country"] && (
+              <p className="text-xs text-red-500">{errors["destination_address.country"]}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div className="space-y-2">
+        <Label htmlFor="notes">Notes</Label>
+        <Textarea id="notes" value={formData.notes} onChange={handleInputChange} rows={3} />
+      </div>
+
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
+        <Button type="submit" disabled={createOrderMutation.isPending}>
+          {createOrderMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Create Order
+        </Button>
+      </div>
+    </form>
   )
 }

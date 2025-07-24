@@ -65,7 +65,7 @@ export const customersApi = {
     search?: string
   }): Promise<PaginatedResponse<Customer[]>> {
     try {
-      return await apiClient.get<PaginatedResponse<Customer[]>>("/customers", params)
+      return await apiClient.get<PaginatedResponse<Customer[]>>("/api/customers", params)
     } catch (error) {
       console.warn("API call failed, using mock customers data:", error)
 
@@ -83,7 +83,7 @@ export const customersApi = {
   // Get a single customer by ID
   async getCustomer(id: string): Promise<ApiResponse<Customer>> {
     try {
-      return await apiClient.get<ApiResponse<Customer>>(`/customers/${id}`)
+      return await apiClient.get<ApiResponse<Customer>>(`/api/customers/${id}`)
     } catch (error) {
       console.warn(`API call failed for customer ${id}, using mock data:`, error)
 
@@ -99,7 +99,7 @@ export const customersApi = {
   // Create a new customer
   async createCustomer(customerData: Partial<Customer>): Promise<ApiResponse<Customer>> {
     try {
-      return await apiClient.post<ApiResponse<Customer>>("/customers", customerData)
+      return await apiClient.post<ApiResponse<Customer>>("/api/customers", customerData)
     } catch (error) {
       console.warn("API call failed for customer creation, using mock response:", error)
 
@@ -132,7 +132,7 @@ export const customersApi = {
   // Update an existing customer
   async updateCustomer(id: string, customerData: Partial<Customer>): Promise<ApiResponse<Customer>> {
     try {
-      return await apiClient.put<ApiResponse<Customer>>(`/customers/${id}`, customerData)
+      return await apiClient.put<ApiResponse<Customer>>(`/api/customers/${id}`, customerData)
     } catch (error) {
       console.warn(`API call failed for customer update ${id}, using mock response:`, error)
 
@@ -150,7 +150,7 @@ export const customersApi = {
   // Delete a customer
   async deleteCustomer(id: string): Promise<ApiResponse<void>> {
     try {
-      return await apiClient.delete<ApiResponse<void>>(`/customers/${id}`)
+      return await apiClient.delete<ApiResponse<void>>(`/api/customers/${id}`)
     } catch (error) {
       console.warn(`API call failed for customer deletion ${id}, using mock response:`, error)
 
@@ -172,7 +172,7 @@ export const customersApi = {
     },
   ): Promise<PaginatedResponse<Order[]>> {
     try {
-      return await apiClient.get<PaginatedResponse<Order[]>>(`/customers/${customerId}/orders`, params)
+      return await apiClient.get<PaginatedResponse<Order[]>>(`/api/customers/${customerId}/orders`, params)
     } catch (error) {
       console.warn(`API call failed for customer orders ${customerId}, using mock data:`, error)
 
@@ -189,7 +189,7 @@ export const customersApi = {
   // Get rate card for a customer
   async getCustomerRateCard(customerId: string): Promise<ApiResponse<RateItem[]>> {
     try {
-      return await apiClient.get<ApiResponse<RateItem[]>>(`/customers/${customerId}/rate-card`)
+      return await apiClient.get<ApiResponse<RateItem[]>>(`/api/customers/${customerId}/rate-card`)
     } catch (error) {
       console.warn(`API call failed for customer rate card ${customerId}, using mock data:`, error)
 
@@ -204,7 +204,7 @@ export const customersApi = {
   // Update rate card for a customer
   async updateCustomerRateCard(customerId: string, rateItems: RateItem[]): Promise<ApiResponse<RateItem[]>> {
     try {
-      return await apiClient.put<ApiResponse<RateItem[]>>(`/customers/${customerId}/rate-card`, rateItems)
+      return await apiClient.post<ApiResponse<RateItem[]>>(`/api/customers/${customerId}/rate-card`, rateItems)
     } catch (error) {
       console.warn(`API call failed for customer rate card update ${customerId}, using mock response:`, error)
 
@@ -216,3 +216,5 @@ export const customersApi = {
     }
   },
 }
+
+export const { getCustomerRateCard, updateCustomerRateCard } = customersApi

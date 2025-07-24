@@ -1,9 +1,8 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter, useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,12 +14,17 @@ import { ArrowLeft, ExternalLink, Ship, Package, Calendar, MapPin, AlertCircle }
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/lib/toast"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Spinner } from "@/components/ui/spinner"
+import { ErrorDisplay } from "@/components/ErrorDisplay"
+import { supabase } from "@/lib/supabaseClient"
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
+import type { CargoStatusHistory } from "@/types/models"
 
-export default function CargoStatusDetails({ params }: { params: { id: string } }) {
+export default function CargoStatusDetails() {
   const router = useRouter()
+  const params = useParams()
   const { user } = useAuth()
-  const supabase = createClientComponentClient()
+  const orderId = params.id as string
   const [order, setOrder] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -32,20 +36,22 @@ export default function CargoStatusDetails({ params }: { params: { id: string } 
     shippingLine: "",
     location: "",
   })
-  const [statusHistory, setStatusHistory] = useState<any[]>([])
+  const [statusHistory, setStatusHistory] = useState<CargoStatusHistory[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchOrderDetails()
-  }, [params.id])
+  }, [orderId])
 
   const fetchOrderDetails = async () => {
     setIsLoading(true)
+    setError(null)
     try {
       // Fetch order details
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .select("*")
-        .eq("id", params.id)
+        .eq("id", orderId)
         .single()
 
       if (orderError) {
@@ -59,15 +65,16 @@ export default function CargoStatusDetails({ params }: { params: { id: string } 
         return
       }
 
-      // Fetch status history
+      // Fetch status history from cargo_status_history
       const { data: historyData, error: historyError } = await supabase
-        .from("cargo_status_history")
+        .from("cargo_status_history") // Changed to cargo_status_history
         .select("*")
-        .eq("order_id", params.id)
+        .eq("order_id", orderId)
         .order("timestamp", { ascending: false })
 
       if (historyError) {
         console.error("Error fetching status history:", historyError)
+        setError(historyError.message || "Failed to load cargo status history.")
       }
 
       // Add shipping information to the order
@@ -111,7 +118,7 @@ export default function CargoStatusDetails({ params }: { params: { id: string } 
             timestamp: orderData.updatedAt || orderData.createdAt,
             comments: `Status updated to ${orderData.cargoStatus}`,
             location: enhancedOrder.location,
-            updatedBy: "System",
+            updated_by: "System",
           },
         ]
         setStatusHistory(mockHistory)
@@ -161,30 +168,26 @@ export default function CargoStatusDetails({ params }: { params: { id: string } 
           cargoStatusComment: formData.comments,
           updatedAt: new Date().toISOString(),
         })
-        .eq("id", params.id)
+        .eq("id", orderId)
 
       if (updateError) {
         throw new Error(`Failed to update order: ${updateError.message}`)
       }
 
-      // Check if cargo_status_history table exists
-      const { error: tableCheckError } = await supabase.from("cargo_status_history").select("id").limit(1)
+      // Add to history in cargo_status_history
+      const { error: historyError } = await supabase.from("cargo_status_history").insert({
+        // Changed to cargo_status_history
+        order_id: orderId,
+        status: formData.cargoStatus,
+        comments: formData.comments,
+        location: formData.location,
+        timestamp: new Date().toISOString(),
+        updated_by: user?.id || "system",
+        updated_by_name: user ? `${user.name} ${user.surname}` : "System",
+      })
 
-      // If the table exists, add to history
-      if (!tableCheckError) {
-        const { error: historyError } = await supabase.from("cargo_status_history").insert({
-          order_id: params.id,
-          status: formData.cargoStatus,
-          comments: formData.comments,
-          location: formData.location,
-          timestamp: new Date().toISOString(),
-          updated_by: user?.id || "system",
-          updated_by_name: user ? `${user.name} ${user.surname}` : "System",
-        })
-
-        if (historyError) {
-          console.error("Error adding to history:", historyError)
-        }
+      if (historyError) {
+        console.error("Error adding to history:", historyError)
       }
 
       toast({
@@ -223,12 +226,39 @@ export default function CargoStatusDetails({ params }: { params: { id: string } 
     return <Badge className={color}>{label}</Badge>
   }
 
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "delivered":
+        return "success"
+      case "at-destination":
+      case "in-transit":
+        return "default"
+      case "at-origin":
+      case "cargo-departed":
+        return "secondary"
+      case "instruction-sent":
+      case "agent-response":
+        return "outline"
+      default:
+        return "info"
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="p-6">
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+          <Spinner />
+          <span className="ml-4 text-lg text-muted-foreground">Loading cargo status details...</span>
         </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto py-8">
+        <ErrorDisplay message={error} />
       </div>
     )
   }
@@ -462,33 +492,36 @@ export default function CargoStatusDetails({ params }: { params: { id: string } 
         </CardHeader>
         <CardContent>
           {statusHistory.length === 0 ? (
-            <p className="text-muted-foreground">No status history available.</p>
+            <p className="text-center text-gray-500 py-4">No cargo status history found for this order.</p>
           ) : (
-            <div className="space-y-4">
-              {statusHistory.map((history) => (
-                <div key={history.id} className="border-l-2 border-blue-500 pl-4 pb-4">
-                  <div className="flex items-center mb-1">
-                    <Package className="h-4 w-4 mr-2 text-blue-500" />
-                    <span className="font-medium">
-                      {history.status.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-500 mb-1">
-                    {format(new Date(history.timestamp), "MMM dd, yyyy HH:mm")}
-                  </div>
-                  {history.location && (
-                    <div className="flex items-center text-sm text-gray-700 mb-1">
-                      <MapPin className="h-3 w-3 mr-1 text-gray-500" />
-                      {history.location}
-                    </div>
-                  )}
-                  {history.comments && <p className="text-sm text-gray-700 mt-1">{history.comments}</p>}
-                  <div className="text-xs text-gray-400 mt-1">
-                    Updated by: {history.updated_by_name || history.updatedBy}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Timestamp</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Details</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {statusHistory.map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell>{format(new Date(entry.timestamp), "PPP p")}</TableCell>
+                    <TableCell>{entry.status}</TableCell>
+                    <TableCell>{entry.location || "N/A"}</TableCell>
+                    <TableCell>
+                      {entry.details ? (
+                        <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto max-h-24">
+                          {JSON.stringify(entry.details, null, 2)}
+                        </pre>
+                      ) : (
+                        "N/A"
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

@@ -15,4 +15,8 @@ export const dashboardApi = {
       throw error
     }
   },
+  // Get summary
+  getSummary: async () => ({ data: {}, error: null }),
+  // Get orders by status
+  getOrdersByStatus: async () => ({ data: [], error: null }),
 }

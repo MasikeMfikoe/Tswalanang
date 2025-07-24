@@ -267,7 +267,11 @@ export default function ClientPortalPage() {
             <p className="text-sm text-blue-600 mt-1">{stats.activeOrders} active</p>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => router.push("/client-portal/orders")}>
+            <Button
+              variant="outline"
+              className="w-full bg-transparent"
+              onClick={() => router.push("/client-portal/orders")}
+            >
               View Orders
             </Button>
           </CardFooter>
@@ -286,7 +290,11 @@ export default function ClientPortalPage() {
             <p className="text-sm text-gray-500">In transit</p>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => router.push("/shipment-tracker")}>
+            <Button
+              variant="outline"
+              className="w-full bg-transparent"
+              onClick={() => router.push("/shipment-tracker")}
+            >
               Track Shipments
             </Button>
           </CardFooter>
@@ -305,7 +313,11 @@ export default function ClientPortalPage() {
             <p className="text-sm text-gray-500">Available documents</p>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => router.push("/client-portal/documents")}>
+            <Button
+              variant="outline"
+              className="w-full bg-transparent"
+              onClick={() => router.push("/client-portal/documents")}
+            >
               View Documents
             </Button>
           </CardFooter>

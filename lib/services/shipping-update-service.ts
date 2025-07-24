@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
-import { ShippingAPIFactory } from "@/lib/shipping-lines/shipping-api-factory"
+import { shippingApiFactory } from "@/lib/shipping-lines/shipping-api-factory"
 import type { ShipmentUpdate, ShippingLine, UpdateConfig } from "@/types/shipping"
 import { v4 as uuidv4 } from "uuid"
 
@@ -40,8 +40,8 @@ export class ShippingUpdateService {
       }
 
       // Get credentials and API client
-      const credentials = ShippingAPIFactory.getCredentials(shippingLine)
-      const apiClient = ShippingAPIFactory.getApiClient(shippingLine, credentials)
+      const credentials = shippingApiFactory.getCredentials(shippingLine)
+      const apiClient = shippingApiFactory.getApiClient(shippingLine, credentials)
 
       // Get status from API
       let status
@@ -192,4 +192,15 @@ export class ShippingUpdateService {
 
     return configs[shippingLine] || configs.other
   }
+
+  // Get shipment updates by tracking number and carrier
+  async getShipmentUpdates(trackingNumber: string, carrier: string) {
+    const api = shippingApiFactory.getApi(carrier)
+    if (!api) {
+      throw new Error(`No API found for carrier: ${carrier}`)
+    }
+    return api.trackShipment(trackingNumber)
+  }
 }
+
+export const shippingUpdateService = new ShippingUpdateService()

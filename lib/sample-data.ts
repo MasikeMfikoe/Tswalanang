@@ -1,7 +1,7 @@
 import type { Order, Customer, Document, Delivery, CourierOrder } from "@/types/models"
 
 // Sample orders data
-export const orders: Order[] = [
+export const sampleOrders: Order[] = [
   {
     id: "PO-2024-001",
     poNumber: "PO001",
@@ -41,7 +41,7 @@ export const orders: Order[] = [
 ]
 
 // Sample customers data
-export const customers: Customer[] = [
+export const sampleCustomers: Customer[] = [
   {
     id: "CUST-001",
     name: "Acme Corp",

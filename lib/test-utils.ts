@@ -86,3 +86,7 @@ export const mockPaginatedResponse = (data: any[], page = 1, pageSize = 10, tota
 // Re-export everything from testing-library
 export * from "@testing-library/react"
 export { customRender as render }
+
+export function renderWithProviders(ui: React.ReactElement, options?: any) {
+  return { ...ui, ...options }
+}

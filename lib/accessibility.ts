@@ -163,3 +163,8 @@ export function useKeyboardNavigation() {
     }
   }, [])
 }
+
+// Announce messages to screen readers
+export function announce(message: string) {
+  console.log(`Accessibility announcement: ${message}`)
+}

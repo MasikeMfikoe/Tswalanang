@@ -6,9 +6,15 @@ interface LivePreviewSectionProps {
   groupName: string
   permissions: Record<string, boolean>
   assignedUsersCount: number
+  navigationStructure: any[]
 }
 
-export function LivePreviewSection({ groupName, permissions, assignedUsersCount }: LivePreviewSectionProps) {
+export function LivePreviewSection({
+  groupName,
+  permissions,
+  assignedUsersCount,
+  navigationStructure,
+}: LivePreviewSectionProps) {
   const permissionIcons: Record<string, JSX.Element> = {
     canViewDashboard: <User className="h-4 w-4" />,
     canManageUsers: <Lock className="h-4 w-4" />,

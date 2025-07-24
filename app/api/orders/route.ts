@@ -1,174 +1,92 @@
-import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import type { Order } from "@/types/models" // Assuming Order type is defined here
+import { type NextRequest, NextResponse } from "next/server"
+import { createServerClient } from "@/lib/supabase/server"
+import type { Order } from "@/types/models"
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const status = searchParams.get("status")
-  const customerName = searchParams.get("customerName")
-  const limit = Number.parseInt(searchParams.get("limit") || "10", 10)
-  const offset = Number.parseInt(searchParams.get("offset") || "0", 10)
-
-  const supabaseRouteHandler = createRouteHandlerClient({ cookies })
-
+// GET: Fetch all orders with optional filtering and pagination
+export async function GET(request: NextRequest) {
   try {
-    let query = supabaseRouteHandler.from("orders").select("*", { count: "exact" })
+    const supabase = createServerClient()
+    const { searchParams } = new URL(request.url)
+
+    const page = Number.parseInt(searchParams.get("page") || "1")
+    const pageSize = Number.parseInt(searchParams.get("pageSize") || "10")
+    const search = searchParams.get("search") || ""
+    const status = searchParams.get("status") || ""
+    const customerId = searchParams.get("customerId") || ""
+
+    const offset = (page - 1) * pageSize
+
+    let query = supabase.from("orders").select("*, documents:documents(*)", { count: "exact" })
+
+    if (search) {
+      query = query.or(
+        `po_number.ilike.%${search}%,customer_name.ilike.%${search}%,origin_address->>city.ilike.%${search}%,destination_address->>city.ilike.%${search}%`,
+      )
+    }
 
     if (status) {
       query = query.eq("status", status)
     }
 
-    if (customerName) {
-      query = query.ilike("customer_name", `%${customerName}%`) // Assuming column is customer_name in DB
+    if (customerId) {
+      query = query.eq("customer_id", customerId)
     }
 
-    query = query.range(offset, offset + limit - 1) // Supabase range is inclusive
-    query = query.order("created_at", { ascending: false }) // Default sort, assuming created_at in DB
-
-    const { data, error, count } = await query
+    const {
+      data: orders,
+      error,
+      count,
+    } = await query.range(offset, offset + pageSize - 1).order("created_at", { ascending: false })
 
     if (error) {
       console.error("Error fetching orders:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: "Failed to fetch orders", details: error.message }, { status: 500 })
     }
+
+    const totalPages = count ? Math.ceil(count / pageSize) : 0
 
     return NextResponse.json({
-      data: data as Order[],
+      data: orders,
       total: count,
-      limit,
-      offset,
+      page,
+      pageSize,
+      totalPages,
+      success: true,
     })
   } catch (error) {
-    console.error("Unexpected error in GET /api/orders:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+    console.error("Error in GET /api/orders:", error)
+    return NextResponse.json({ error: "Internal server error", details: (error as Error).message }, { status: 500 })
   }
 }
 
-export async function POST(request: Request) {
-  const newOrder: Partial<Order> = await request.json()
-  const supabaseRouteHandler = createRouteHandlerClient({ cookies })
-
+// POST: Create a new order
+export async function POST(request: NextRequest) {
   try {
-    // Add server-side generated fields
-    newOrder.createdAt = new Date().toISOString()
-    newOrder.updatedAt = new Date().toISOString() // Use updatedAt for consistency
+    const supabase = createServerClient()
+    const newOrder: Partial<Order> = await request.json()
 
-    // Map frontend fields to database column names if they differ (e.g., camelCase to snake_case)
-    const orderToInsert = {
-      ...newOrder,
-      customer_name: newOrder.customerName, // Example mapping
-      po_number: newOrder.poNumber,
-      freight_type: newOrder.freightType,
-      cargo_status: newOrder.cargoStatus,
-      cargo_status_comment: newOrder.cargoStatusComment,
-      total_value: newOrder.totalValue,
-      created_at: newOrder.createdAt,
-      updated_at: newOrder.updatedAt,
-      shipping_address: newOrder.shippingAddress,
-      billing_address: newOrder.billingAddress,
-      payment_status: newOrder.paymentStatus,
-      delivery_date: newOrder.deliveryDate,
-      tracking_number: newOrder.trackingNumber,
-      financial_notes: newOrder.financialNotes,
-      commercial_value: newOrder.commercialValue,
-      customs_duties: newOrder.customsDuties,
-      handling_fees: newOrder.handlingFees,
-      shipping_cost: newOrder.shippingCost,
-      documentation_fee: newOrder.documentationFee,
-      communication_fee: newOrder.communicationFee,
-      // Ensure all fields from Order interface are mapped if they exist in DB
+    // Ensure required fields are present
+    if (
+      !newOrder.customer_id ||
+      !newOrder.po_number ||
+      !newOrder.origin_address ||
+      !newOrder.destination_address ||
+      !newOrder.total_value ||
+      !newOrder.currency
+    ) {
+      return NextResponse.json({ error: "Missing required order fields" }, { status: 400 })
     }
 
-    const { data, error } = await supabaseRouteHandler.from("orders").insert(orderToInsert).select()
+    const { data, error } = await supabase.from("orders").insert([newOrder]).select().single()
 
     if (error) {
-      console.error("Error inserting new order:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error("Error creating order:", error)
+      return NextResponse.json({ error: "Failed to create order", details: error.message }, { status: 500 })
     }
 
-    return NextResponse.json(data[0] as Order, { status: 201 })
+    return NextResponse.json({ data, success: true, message: "Order created successfully" }, { status: 201 })
   } catch (error) {
-    console.error("Unexpected error in POST /api/orders:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
-  }
-}
-
-export async function PATCH(request: Request) {
-  const { id, ...updates }: Partial<Order> & { id: string } = await request.json()
-  const supabaseRouteHandler = createRouteHandlerClient({ cookies })
-
-  if (!id) {
-    return NextResponse.json({ error: "Order ID is required for update" }, { status: 400 })
-  }
-
-  try {
-    updates.updatedAt = new Date().toISOString() // Update last update timestamp
-
-    // Map frontend fields to database column names if they differ
-    const updatesToApply: Record<string, any> = {
-      ...updates,
-      customer_name: updates.customerName,
-      po_number: updates.poNumber,
-      freight_type: updates.freightType,
-      cargo_status: updates.cargoStatus,
-      cargo_status_comment: updates.cargoStatusComment,
-      total_value: updates.totalValue,
-      updated_at: updates.updatedAt,
-      shipping_address: updates.shippingAddress,
-      billing_address: updates.billingAddress,
-      payment_status: updates.paymentStatus,
-      delivery_date: updates.deliveryDate,
-      tracking_number: updates.trackingNumber,
-      financial_notes: updates.financialNotes,
-      commercial_value: updates.commercialValue,
-      customs_duties: updates.customsDuties,
-      handling_fees: updates.handlingFees,
-      shipping_cost: updates.shippingCost,
-      documentation_fee: updates.documentationFee,
-      communication_fee: updates.communicationFee,
-    }
-
-    // Remove undefined values to prevent Supabase from trying to set them to null
-    Object.keys(updatesToApply).forEach((key) => updatesToApply[key] === undefined && delete updatesToApply[key])
-
-    const { data, error } = await supabaseRouteHandler.from("orders").update(updatesToApply).eq("id", id).select()
-
-    if (error) {
-      console.error(`Error updating order ${id}:`, error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    if (!data || data.length === 0) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 })
-    }
-
-    return NextResponse.json(data[0] as Order, { status: 200 })
-  } catch (error) {
-    console.error(`Unexpected error in PATCH /api/orders/${id}:`, error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
-  }
-}
-
-export async function DELETE(request: Request) {
-  const { id }: { id: string } = await request.json()
-  const supabaseRouteHandler = createRouteHandlerClient({ cookies })
-
-  if (!id) {
-    return NextResponse.json({ error: "Order ID is required for deletion" }, { status: 400 })
-  }
-
-  try {
-    const { error } = await supabaseRouteHandler.from("orders").delete().eq("id", id)
-
-    if (error) {
-      console.error(`Error deleting order ${id}:`, error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ message: "Order deleted successfully" }, { status: 200 })
-  } catch (error) {
-    console.error(`Unexpected error in DELETE /api/orders/${id}:`, error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+    console.error("Error in POST /api/orders:", error)
+    return NextResponse.json({ error: "Internal server error", details: (error as Error).message }, { status: 500 })
   }
 }

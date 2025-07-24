@@ -2,7 +2,7 @@ import type { ShipmentType, TrackingResult, TrackingData } from "@/types/trackin
 
 // This is a simplified mock for MSC API integration.
 // In a real scenario, this would involve actual API calls to MSC.
-export class MscApi {
+export class MSCAPI {
   async trackShipment(
     trackingNumber: string,
     options?: { shipmentType?: ShipmentType; carrierHint?: string },

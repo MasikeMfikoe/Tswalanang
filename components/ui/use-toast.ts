@@ -1,6 +1,8 @@
 "use client"
 
-import * as React from "react"
+import type * as React from "react"
+import { useContext } from "react"
+import { ToastContext } from "./toast-context"
 
 export interface Toast {
   id: string
@@ -53,15 +55,9 @@ export const toast = ({ title, description, variant = "default" }: Omit<Toast, "
 }
 
 export const useToast = () => {
-  const [toasts, setToasts] = React.useState<Toast[]>([])
-
-  React.useEffect(() => {
-    return toastManager.subscribe(setToasts)
-  }, [])
-
-  return {
-    toast,
-    toasts,
-    dismiss: (id: string) => toastManager.removeToast(id),
+  const context = useContext(ToastContext)
+  if (!context) {
+    throw new Error("useToast must be used within a ToastProvider")
   }
+  return context
 }

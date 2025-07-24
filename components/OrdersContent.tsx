@@ -1,333 +1,287 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent } from "@/components/ui/card"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { supabase } from "@/lib/supabase"
+import { Search, Plus, Eye, Trash2, FileText } from "lucide-react"
+import { useOrdersQuery, useDeleteOrderMutation } from "@/hooks/useOrdersQuery"
 import { useToast } from "@/components/ui/use-toast"
-import { ArrowLeft, Eye, RefreshCw, Search } from "lucide-react"
-
-// Define the Order type to match Supabase data
-type Order = {
-  id: string
-  order_number?: string
-  po_number?: string
-  supplier?: string
-  importer?: string
-  status?: string
-  cargo_status?: string
-  freight_type?: string
-  total_value?: number
-  customer_name?: string
-  origin?: string
-  destination?: string
-  created_at: string
-  updated_at?: string
-}
+import { useRouter } from "next/navigation"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationLink,
+  PaginationNext,
+} from "@/components/ui/pagination"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import type { OrderStatus } from "@/types/models"
 
 export function OrdersContent() {
   const router = useRouter()
   const { toast } = useToast()
+
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [orders, setOrders] = useState<Order[]>([])
-  const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<OrderStatus>("Pending") // Updated default value
 
-  // Fetch orders from Supabase
-  const fetchOrders = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
+  const { data, isLoading, isError, error } = useOrdersQuery({
+    page,
+    pageSize,
+    search: searchTerm,
+    status: statusFilter === "Pending" ? undefined : statusFilter, // Updated condition
+  })
 
-      const { data, error: supabaseError } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false })
+  const deleteOrderMutation = useDeleteOrderMutation()
 
-      if (supabaseError) {
-        throw supabaseError
-      }
-
-      console.log("Fetched orders from Supabase:", data)
-      setOrders(data || [])
-
-      if (data && data.length === 0) {
-        toast({
-          title: "No Orders Found",
-          description: "No orders have been created yet. Create your first order!",
-        })
-      }
-    } catch (error: any) {
-      console.error("Error fetching orders:", error)
-      setError(error.message || "Failed to fetch orders")
-      toast({
-        title: "Error",
-        description: "Failed to load orders from database",
-        variant: "destructive",
-      })
-      setOrders([])
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Initialize component and fetch orders
-  useEffect(() => {
-    fetchOrders()
-  }, [])
-
-  // Filter orders whenever search term, status filter, or orders change
-  useEffect(() => {
-    filterOrders()
-  }, [searchTerm, statusFilter, orders])
-
-  const filterOrders = () => {
-    let filtered = orders
-
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (order) =>
-          order.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.po_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.supplier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.importer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.origin?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.destination?.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-    }
-
-    // Filter by status
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((order) => order.status?.toLowerCase() === statusFilter.toLowerCase())
-    }
-
-    setFilteredOrders(filtered)
-  }
-
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat("en-ZA", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-    }).format(date)
-  }
-
-  // Get badge variant based on status
-  const getStatusColor = (status?: string) => {
-    if (!status) return "bg-gray-500"
-
-    switch (status.toLowerCase()) {
-      case "completed":
-        return "bg-green-500"
-      case "in progress":
-        return "bg-blue-500"
-      case "pending":
-        return "bg-yellow-500"
-      case "cancelled":
-        return "bg-red-500"
-      default:
-        return "bg-gray-500"
-    }
-  }
-
-  const capitalizeFirst = (str: string) => {
-    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
-  }
-
-  const handleRefresh = () => {
-    fetchOrders()
-    toast({
-      title: "Success",
-      description: "Orders refreshed successfully",
-    })
-  }
+  const orders = data?.data || []
+  const totalOrders = data?.total || 0
+  const totalPages = data?.totalPages || 1
 
   const handleViewOrder = (orderId: string) => {
     router.push(`/orders/${orderId}`)
   }
 
-  // Add this new function to refresh data when returning from order details
-  const handleReturnFromOrder = () => {
-    fetchOrders() // Refresh the orders list
+  const handleEditOrder = (orderId: string) => {
+    // Implement edit functionality or navigate to edit page
+    toast({
+      title: "Edit Order",
+      description: `Editing order ${orderId} (functionality to be implemented).`,
+    })
   }
 
-  // Add useEffect to refresh when component becomes visible again
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        // Page became visible again, refresh data
-        fetchOrders()
+  const handleDeleteOrder = async (orderId: string, poNumber: string) => {
+    if (confirm(`Are you sure you want to delete order ${poNumber}? This action cannot be undone.`)) {
+      try {
+        await deleteOrderMutation.mutateAsync(orderId)
+        toast({
+          title: "Success",
+          description: `Order ${poNumber} deleted successfully.`,
+        })
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: `Failed to delete order: ${(err as Error).message}`,
+          variant: "destructive",
+        })
       }
     }
+  }
 
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
+  const getStatusBadgeVariant = (status: OrderStatus) => {
+    switch (status) {
+      case "Completed":
+      case "Delivered":
+        return "default"
+      case "In Transit":
+      case "Processing":
+        return "secondary"
+      case "Pending":
+      case "On Hold":
+        return "outline"
+      case "Cancelled":
+      case "Exception":
+        return "destructive"
+      case "Customs Clearance":
+        return "info" // Assuming 'info' variant exists or can be styled
+      default:
+        return "outline"
     }
-  }, [])
+  }
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">All Shipment Orders</h1>
-            <p className="text-muted-foreground">View and manage all shipment orders</p>
+      <Card>
+        <CardHeader>
+          <CardTitle>Orders</CardTitle>
+          <CardDescription>Loading orders...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           </div>
-        </div>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-center h-32">
-              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-muted-foreground">Loading shipment orders...</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        </CardContent>
+      </Card>
     )
   }
 
-  return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header Section */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">All Shipment Orders</h1>
-          <p className="text-muted-foreground">View and manage all shipment orders</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => router.push("/create-order")} className="bg-black text-white hover:bg-gray-800">
-            Create Order
-          </Button>
-          <Button variant="outline" onClick={handleRefresh}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          <Button variant="outline" onClick={() => router.push("/dashboard")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Return to Dashboard
-          </Button>
-        </div>
-      </div>
-
+  if (isError) {
+    return (
       <Card>
+        <CardHeader>
+          <CardTitle>Orders</CardTitle>
+          <CardDescription>Error loading orders.</CardDescription>
+        </CardHeader>
         <CardContent>
-          {/* Error Display */}
-          {error && (
-            <div className="mb-4 p-4 bg-red-100 text-red-800 rounded-md">
-              <p className="font-semibold">Error loading orders</p>
-              <p className="text-sm">{error}</p>
-            </div>
-          )}
-
-          {/* Filters and Controls Row */}
-          <div className="mt-6 mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search orders..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="in progress">In Progress</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="text-center py-8 text-red-500">
+            <p>Error: {error?.message || "An unexpected error occurred."}</p>
+            <Button onClick={() => window.location.reload()} className="mt-4">
+              Retry
+            </Button>
           </div>
-
-          {/* Data Table */}
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order Number</TableHead>
-                  <TableHead>PO Number</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Origin → Destination</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex flex-col items-center justify-center text-muted-foreground">
-                        <p className="text-lg font-medium">No shipment orders found</p>
-                        <p className="text-sm">
-                          {searchTerm || statusFilter !== "all"
-                            ? "Try adjusting your search or filters"
-                            : "Create your first shipment order to get started"}
-                        </p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredOrders.map((order) => (
-                    <TableRow key={order.id} className="hover:bg-muted/50 transition-colors">
-                      <TableCell className="font-medium">{order.order_number || order.po_number || order.id}</TableCell>
-                      <TableCell>{order.po_number || order.order_number || "N/A"}</TableCell>
-                      <TableCell>{order.customer_name || order.importer || "N/A"}</TableCell>
-                      <TableCell>
-                        {order.origin && order.destination
-                          ? `${order.origin} → ${order.destination}`
-                          : order.origin || order.destination || "N/A"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={`${getStatusColor(order.status)} text-white`}>
-                          {order.status ? capitalizeFirst(order.status) : "Unknown"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{formatDate(order.created_at)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewOrder(order.id)}
-                          className="hover:bg-muted"
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Results Summary */}
-          {filteredOrders.length > 0 && (
-            <div className="mt-4 text-sm text-muted-foreground">
-              Showing {filteredOrders.length} of {orders.length} shipment orders
-            </div>
-          )}
         </CardContent>
       </Card>
-    </div>
+    )
+  }
+
+  const orderStatuses: OrderStatus[] = [
+    "Pending",
+    "Processing",
+    "In Transit",
+    "Customs Clearance",
+    "Delivered",
+    "Completed",
+    "Cancelled",
+    "On Hold",
+    "Exception",
+  ]
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Orders</CardTitle>
+        <CardDescription>Manage all customer orders and their statuses.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search orders..."
+              className="pl-8"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+            <Select value={statusFilter} onValueChange={(value: OrderStatus) => setStatusFilter(value)}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Filter by Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Pending">All Statuses</SelectItem> {/* Updated value prop */}
+                {orderStatuses.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={() => router.push("/orders/new")} className="w-full md:w-auto">
+              <Plus className="mr-2 h-4 w-4" />
+              Create New Order
+            </Button>
+          </div>
+        </div>
+
+        {orders.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-muted-foreground">No orders found.</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {searchTerm || statusFilter ? "Try adjusting your search or filters." : "Start by creating a new order."}
+            </p>
+            {!searchTerm && !statusFilter && (
+              <Button onClick={() => router.push("/orders/new")} className="mt-4">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Your First Order
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>PO Number</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Origin</TableHead>
+                    <TableHead>Destination</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Value</TableHead>
+                    <TableHead>Documents</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.map((order) => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-medium">{order.po_number}</TableCell>
+                      <TableCell>{order.customer_name}</TableCell>
+                      <TableCell>
+                        {order.origin_address.city}, {order.origin_address.country}
+                      </TableCell>
+                      <TableCell>
+                        {order.destination_address.city}, {order.destination_address.country}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusBadgeVariant(order.status)}>{order.status}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {order.currency} {order.total_value.toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span>{order.documents?.length || 0}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewOrder(order.id)}
+                            title="View Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {/* <Button variant="outline" size="sm" onClick={() => handleEditOrder(order.id)} title="Edit Order">
+                            <Edit className="h-4 w-4" />
+                          </Button> */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteOrder(order.id, order.po_number)}
+                            className="text-red-500 hover:text-red-700"
+                            title="Delete Order"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <Pagination className="mt-6">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious href="#" onClick={() => setPage(Math.max(1, page - 1))} />
+                </PaginationItem>
+                {[...Array(totalPages)].map((_, i) => (
+                  <PaginationItem key={i}>
+                    <PaginationLink href="#" isActive={page === i + 1} onClick={() => setPage(i + 1)}>
+                      {i + 1}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext href="#" onClick={() => setPage(Math.min(totalPages, page + 1))} />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </>
+        )}
+      </CardContent>
+    </Card>
   )
 }

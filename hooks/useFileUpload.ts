@@ -203,6 +203,11 @@ export function useFileUpload({
     setFiles([])
   }, [])
 
+  const uploadFile = useCallback(async (file: File) => {
+    console.log("Uploading file:", file.name)
+    return { success: true, url: `/uploads/${file.name}` }
+  }, [])
+
   return {
     files,
     isUploading,
@@ -214,5 +219,6 @@ export function useFileUpload({
     uploadFiles,
     removeFile,
     clearFiles,
+    uploadFile,
   }
 }

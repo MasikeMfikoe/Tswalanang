@@ -1,3 +1,3 @@
-export default function Loading() {
-  return null
+export default function ShipmentTrackerLoading() {
+  return <div>Loading shipment tracker...</div>
 }

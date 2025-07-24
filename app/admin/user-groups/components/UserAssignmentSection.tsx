@@ -8,23 +8,34 @@ import { UserIcon } from "lucide-react"
 import { useState } from "react"
 
 interface UserAssignmentSectionProps {
-  allUsers: { id: string; name: string; email: string }[]
-  assignedUserIds: Set<string>
-  onUserAssignmentChange: (userId: string, isAssigned: boolean) => void
+  groupId: string
+  isDefaultGroup: boolean
 }
 
-export function UserAssignmentSection({
-  allUsers,
-  assignedUserIds,
-  onUserAssignmentChange,
-}: UserAssignmentSectionProps) {
+export function UserAssignmentSection({ groupId, isDefaultGroup }: UserAssignmentSectionProps) {
   const [searchTerm, setSearchTerm] = useState("")
+
+  // Mock data - replace with actual data fetching
+  const allUsers = [
+    { id: "user1", name: "Alice Smith", email: "alice@example.com" },
+    { id: "user2", name: "Bob Johnson", email: "bob@example.com" },
+    { id: "user3", name: "Charlie Brown", email: "charlie@example.com" },
+    { id: "user4", name: "Diana Prince", email: "diana@example.com" },
+    { id: "user5", name: "Eve Adams", email: "eve@example.com" },
+  ]
+
+  const assignedUserIds = new Set(["user1", "user2"]) // Example assigned users
 
   const filteredUsers = allUsers.filter(
     (user) =>
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()),
   )
+
+  const handleUserAssignmentChange = (userId: string, isAssigned: boolean) => {
+    console.log(`User ${userId} assigned to group ${groupId}: ${isAssigned}`)
+    // Implement logic to update user group assignments in your data store
+  }
 
   return (
     <Card className="w-full">
@@ -47,10 +58,12 @@ export function UserAssignmentSection({
                       <p className="text-sm text-gray-500">{user.email}</p>
                     </div>
                   </div>
-                  <Checkbox
-                    checked={assignedUserIds.has(user.id)}
-                    onCheckedChange={(checked) => onUserAssignmentChange(user.id, checked as boolean)}
-                  />
+                  {!isDefaultGroup && (
+                    <Checkbox
+                      checked={assignedUserIds.has(user.id)}
+                      onCheckedChange={(checked) => handleUserAssignmentChange(user.id, checked as boolean)}
+                    />
+                  )}
                 </div>
               ))}
             </div>

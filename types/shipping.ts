@@ -48,3 +48,15 @@ export interface UpdateConfig {
   priority: number // 1-5, with 1 being highest priority
   enabled: boolean
 }
+
+// Shipment interface
+export interface Shipment {
+  id: string
+  tracking_number: string
+  status: string
+  carrier: string
+  origin: string
+  destination: string
+  eta: string
+  events: any[]
+}

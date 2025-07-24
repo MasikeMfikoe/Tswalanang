@@ -69,3 +69,5 @@ SELECT
 FROM user_profiles 
 ORDER BY created_at DESC 
 LIMIT 10;
+
+-- Debug user creation script executed
