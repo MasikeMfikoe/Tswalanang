@@ -1,7 +1,7 @@
 "use client"
 
 import {
-  BarChart,
+  BarChart as ReBarChart,
   Bar,
   XAxis,
   YAxis,
@@ -31,7 +31,7 @@ export function Charts({ type, data, title, xAxisDataKey, series }: ChartProps) 
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           {type === "bar" ? (
-            <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <ReBarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey={xAxisDataKey} />
               <YAxis />
@@ -40,7 +40,7 @@ export function Charts({ type, data, title, xAxisDataKey, series }: ChartProps) 
               {series.map((s, index) => (
                 <Bar key={index} dataKey={s.dataKey} fill={s.color} name={s.name} />
               ))}
-            </BarChart>
+            </ReBarChart>
           ) : (
             <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -63,5 +63,28 @@ export function Charts({ type, data, title, xAxisDataKey, series }: ChartProps) 
         </ResponsiveContainer>
       </CardContent>
     </Card>
+  )
+}
+
+// -----------------------------------------------------------------------------
+// Simple wrapper used by pages that just need a quick bar chart without
+// passing the full props object (e.g. CustomerSummary).
+// -----------------------------------------------------------------------------
+interface SimpleBarData {
+  name: string
+  value: number
+}
+
+export function BarChart({ data }: { data: SimpleBarData[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <ReBarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="name" />
+        <YAxis allowDecimals={false} />
+        <Tooltip />
+        <Bar dataKey="value" fill="#0EA5E9" name="Value" />
+      </ReBarChart>
+    </ResponsiveContainer>
   )
 }

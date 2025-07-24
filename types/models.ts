@@ -8,7 +8,11 @@ export type CargoStatus =
   | "in-transit"
   | "at-destination"
   | "delivered"
-export type FreightType = "Air Freight" | "Sea Freight" | "EXW" | "FOB"
+export type FreightType = {
+  id: string
+  name: string
+  description?: string
+}
 export type Priority = "High" | "Medium" | "Low"
 export type ServiceType = "Express" | "Standard" | "Economy" | "Next Day"
 export type EstimateStatus = "Draft" | "Sent" | "Accepted" | "Rejected"
@@ -16,19 +20,39 @@ export type EstimateStatus = "Draft" | "Sent" | "Accepted" | "Rejected"
 // Order model
 export interface Order {
   id: string
-  poNumber: string
-  supplier: string
-  importer: string
-  status: Status
-  cargoStatus: CargoStatus
-  freightType: FreightType
-  cargoStatusComment?: string
+  poNumber: string // Added from mock data
+  supplier: string // Added from mock data
+  importer: string // Added from mock data
+  status: Status // Changed to Status type
+  cargoStatus: CargoStatus // Added from mock data
+  freightType: FreightType // Changed to FreightType type
+  cargoStatusComment?: string // Added from mock data
   totalValue: number
   customerName: string
+  customerId?: string // Added for linking to customers
   createdAt: string
-  updatedAt?: string
+  updatedAt?: string // Changed from lastUpdate to updatedAt for consistency
   items?: OrderItem[]
   documents?: Document[]
+  currency: string // Added from mock data
+  lastUpdate: string // Kept for backward compatibility if needed, though updatedAt is preferred
+  shippingAddress: string // Added from mock data
+  billingAddress: string // Added from mock data
+  paymentStatus: string // Added from mock data
+  deliveryDate: string // Added from mock data
+  trackingNumber: string // Added from mock data
+  carrier: string // Added from mock data
+  notes: string // Added from mock data
+  cost?: number // Added financial columns
+  price?: number // Added financial columns
+  profit?: number // Added financial columns
+  commercialValue?: number // Added from add_financial_columns_to_orders.sql
+  customsDuties?: number // Added from add_financial_columns_to_orders.sql
+  handlingFees?: number // Added from add_financial_columns_to_orders.sql
+  shippingCost?: number // Added from add_financial_columns_to_orders.sql
+  documentationFee?: number // Added from add_financial_columns_to_orders.sql
+  communicationFee?: number // Added from add_financial_columns_to_orders.sql
+  financialNotes?: string // Added from add_financial_columns_to_orders.sql
 }
 
 export interface OrderItem {
