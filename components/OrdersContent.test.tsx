@@ -1,79 +1,158 @@
-import { render, screen, waitFor } from "@testing-library/react"
-import { OrdersContent } from "./OrdersContent"
-import { getOrders } from "@/lib/api/ordersApi" // Mock this import
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import jest from "jest" // Declare the jest variable
+import { render, screen, fireEvent, waitFor } from "@/lib/test-utils"
+import { OrdersContent } from "@/components/OrdersContent"
+import { ordersApi } from "@/lib/api/ordersApi"
+import { mockPaginatedResponse, generateMockOrder } from "@/lib/test-utils"
 
-// Mock the API call
+// Mock the ordersApi
 jest.mock("@/lib/api/ordersApi", () => ({
-  getOrders: jest.fn(() =>
-    Promise.resolve({
-      data: [
-        {
-          id: "ORD001",
-          customerName: "Test Customer 1",
-          status: "Pending",
-          totalValue: 100,
-          currency: "USD",
-          createdAt: "2024-01-01T00:00:00Z",
-          lastUpdate: "2024-01-01T00:00:00Z",
-        },
-        {
-          id: "ORD002",
-          customerName: "Test Customer 2",
-          status: "Delivered",
-          totalValue: 200,
-          currency: "USD",
-          createdAt: "2024-01-02T00:00:00Z",
-          lastUpdate: "2024-01-02T00:00:00Z",
-        },
-      ],
-      total: 2,
-      limit: 10,
-      offset: 0,
-    }),
-  ),
+  ordersApi: {
+    getOrders: jest.fn(),
+  },
 }))
 
-const queryClient = new QueryClient()
-
 describe("OrdersContent", () => {
-  it("renders orders correctly", async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <OrdersContent />
-      </QueryClientProvider>,
-    )
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
 
-    // Check for loading state initially
-    expect(screen.getByText(/Loading orders.../i)).toBeInTheDocument()
+  it("renders loading state initially", () => {
+    // Mock the API response
+    const mockOrders = Array(5)
+      .fill(null)
+      .map(() => generateMockOrder())
+    ;(ordersApi.getOrders as jest.Mock).mockResolvedValue(mockPaginatedResponse(mockOrders))
 
-    // Wait for data to load and assert content
+    render(<OrdersContent />)
+
+    // Check if loading state is shown
+    expect(screen.getByText(/loading/i)).toBeInTheDocument()
+  })
+
+  it("renders orders after loading", async () => {
+    // Mock the API response
+    const mockOrders = Array(5)
+      .fill(null)
+      .map(() => generateMockOrder())
+    ;(ordersApi.getOrders as jest.Mock).mockResolvedValue(mockPaginatedResponse(mockOrders))
+
+    render(<OrdersContent />)
+
+    // Wait for loading to finish
     await waitFor(() => {
-      expect(screen.getByText("ORD001")).toBeInTheDocument()
-      expect(screen.getByText("Test Customer 1")).toBeInTheDocument()
-      expect(screen.getByText("Pending")).toBeInTheDocument()
-      expect(screen.getByText("$100.00")).toBeInTheDocument()
+      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
+    })
 
-      expect(screen.getByText("ORD002")).toBeInTheDocument()
-      expect(screen.getByText("Test Customer 2")).toBeInTheDocument()
-      expect(screen.getByText("Delivered")).toBeInTheDocument()
-      expect(screen.getByText("$200.00")).toBeInTheDocument()
+    // Check if orders are rendered
+    mockOrders.forEach((order) => {
+      expect(screen.getByText(order.poNumber)).toBeInTheDocument()
     })
   })
 
-  it("displays error message on fetch failure", async () => {
-    // Mock a failed API call
-    ;(getOrders as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error("API Error")))
+  it("filters orders by search term", async () => {
+    // Mock the API response
+    const mockOrders = [generateMockOrder({ poNumber: "PO-12345" }), generateMockOrder({ poNumber: "PO-67890" })]
+    ;(ordersApi.getOrders as jest.Mock).mockResolvedValue(mockPaginatedResponse(mockOrders))
 
-    render(
-      <QueryClientProvider client={queryClient}>
-        <OrdersContent />
-      </QueryClientProvider>,
-    )
+    render(<OrdersContent />)
 
+    // Wait for loading to finish
     await waitFor(() => {
-      expect(screen.getByText(/Failed to load orders/i)).toBeInTheDocument()
+      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
+    })
+
+    // Enter search term
+    const searchInput = screen.getByPlaceholderText(/search orders/i)
+    fireEvent.change(searchInput, { target: { value: "12345" } })
+
+    // Check if only matching order is shown
+    expect(screen.getByText("PO-12345")).toBeInTheDocument()
+    expect(screen.queryByText("PO-67890")).not.toBeInTheDocument()
+  })
+
+  it("filters orders by status", async () => {
+    // Mock the API response
+    const mockOrders = [
+      generateMockOrder({ status: "Completed", poNumber: "PO-12345" }),
+      generateMockOrder({ status: "In Progress", poNumber: "PO-67890" }),
+    ]
+    ;(ordersApi.getOrders as jest.Mock).mockResolvedValue(mockPaginatedResponse(mockOrders))
+
+    render(<OrdersContent />)
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
+    })
+
+    // Select status filter
+    const statusFilter = screen.getByText(/filter by status/i)
+    fireEvent.click(statusFilter)
+    fireEvent.click(screen.getByText("Completed"))
+
+    // Check if only matching order is shown
+    expect(screen.getByText("PO-12345")).toBeInTheDocument()
+    expect(screen.queryByText("PO-67890")).not.toBeInTheDocument()
+  })
+
+  it("shows empty state when no orders match filters", async () => {
+    // Mock the API response
+    const mockOrders = [generateMockOrder({ poNumber: "PO-12345" }), generateMockOrder({ poNumber: "PO-67890" })]
+    ;(ordersApi.getOrders as jest.Mock).mockResolvedValue(mockPaginatedResponse(mockOrders))
+
+    render(<OrdersContent />)
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
+    })
+
+    // Enter search term that won't match any orders
+    const searchInput = screen.getByPlaceholderText(/search orders/i)
+    fireEvent.change(searchInput, { target: { value: "no-match" } })
+
+    // Check if empty state is shown
+    expect(screen.getByText(/no orders found/i)).toBeInTheDocument()
+  })
+
+  it("handles pagination correctly", async () => {
+    // Mock the API response for first page
+    const mockOrders1 = Array(5)
+      .fill(null)
+      .map(() => generateMockOrder())
+    ;(ordersApi.getOrders as jest.Mock).mockResolvedValueOnce(mockPaginatedResponse(mockOrders1, 1, 5, 10))
+
+    // Mock the API response for second page
+    const mockOrders2 = Array(5)
+      .fill(null)
+      .map(() => generateMockOrder())
+    ;(ordersApi.getOrders as jest.Mock).mockResolvedValueOnce(mockPaginatedResponse(mockOrders2, 2, 5, 10))
+
+    render(<OrdersContent />)
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
+    })
+
+    // Check if first page orders are rendered
+    mockOrders1.forEach((order) => {
+      expect(screen.getByText(order.poNumber)).toBeInTheDocument()
+    })
+
+    // Click next page button
+    fireEvent.click(screen.getByText("Next"))
+
+    // Check if API was called with correct page
+    expect(ordersApi.getOrders).toHaveBeenCalledWith(expect.objectContaining({ page: 2 }))
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
+    })
+
+    // Check if second page orders are rendered
+    mockOrders2.forEach((order) => {
+      expect(screen.getByText(order.poNumber)).toBeInTheDocument()
     })
   })
 })

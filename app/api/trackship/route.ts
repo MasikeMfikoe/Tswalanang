@@ -20,12 +20,12 @@ export async function POST(request: NextRequest) {
     const result = await trackShipService.trackShipment(trackingNumber, carrier)
 
     return NextResponse.json(result)
-  } catch (error: any) {
+  } catch (error) {
     console.error("TrackShip API route error:", error)
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
+        error: "Internal server error",
       },
       { status: 500 },
     )

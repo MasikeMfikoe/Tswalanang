@@ -67,8 +67,3 @@ export function useToast() {
 
 // Also export the toast function directly
 export { toast }
-
-// Additional function for showing toast messages
-export function showToast(message: string, type: "success" | "error" | "info") {
-  console.log(`Toast (${type}): ${message}`)
-}

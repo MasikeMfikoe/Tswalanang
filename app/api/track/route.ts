@@ -1,43 +1,58 @@
-import { NextResponse } from "next/server"
-import { UnifiedTrackingService } from "@/lib/services/unified-tracking-service"
-import { GoCometService } from "@/lib/services/gocomet-service"
-import { MaerskAPI } from "@/lib/shipping-lines/maersk-api"
-import { MSCAPI } from "@/lib/shipping-lines/msc-api"
-import { TrackShipService } from "@/lib/services/trackship-service"
-import { MockTrackingService } from "@/lib/services/mock-tracking-service"
-import { SearatesService } from "@/lib/services/searates-service"
-import { WebScrapingService } from "@/lib/services/web-scraping-service"
+import { type NextRequest, NextResponse } from "next/server"
+import { MultiProviderTrackingService } from "@/lib/services/multi-provider-tracking-service"
+import { detectShipmentInfo } from "@/lib/services/container-detection-service"
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const trackingNumber = searchParams.get("trackingNumber")
-  const provider = searchParams.get("provider")
-  const gocometToken = searchParams.get("gocometToken") // Get GoComet token from query params
-
-  if (!trackingNumber) {
-    return NextResponse.json({ error: "Tracking number is required" }, { status: 400 })
-  }
-
+export async function POST(request: NextRequest) {
   try {
-    const unifiedTrackingService = new UnifiedTrackingService(
-      new GoCometService(),
-      new MaerskAPI(),
-      new MSCAPI(),
-      new TrackShipService(),
-      new MockTrackingService(),
-      new SearatesService(),
-      new WebScrapingService(),
-    )
+    const { trackingNumber } = await request.json()
 
-    const trackingData = await unifiedTrackingService.trackShipment(trackingNumber, provider, gocometToken || undefined) // Pass token
-
-    if (!trackingData) {
-      return NextResponse.json({ message: "No tracking data found for this number." }, { status: 404 })
+    if (!trackingNumber) {
+      return NextResponse.json({ success: false, error: "Tracking number is required" }, { status: 400 })
     }
 
-    return NextResponse.json(trackingData)
-  } catch (error) {
-    console.error("Error tracking shipment:", error)
-    return NextResponse.json({ error: "Failed to retrieve tracking information." }, { status: 500 })
+    // Auto-detect shipment type and carrier hint
+    const detectedInfo = detectShipmentInfo(trackingNumber)
+    const shipmentType = detectedInfo.type
+    const carrierHint = detectedInfo.carrierHint
+
+    console.log(
+      `[API/Track] Received request for: ${trackingNumber}, Detected Type: ${shipmentType}, Carrier Hint: ${carrierHint}`,
+    )
+
+    const multiProviderTrackingService = new MultiProviderTrackingService()
+    const result = await multiProviderTrackingService.trackShipment(trackingNumber, {
+      shipmentType,
+      carrierHint,
+      // preferScraping: false, // As per the prompt, we are focusing on API first
+    })
+
+    if (result.success) {
+      console.log(`[API/Track] Tracking successful for ${trackingNumber}. Source: ${result.source}`)
+      return NextResponse.json({
+        success: true,
+        data: result.data,
+        source: result.source,
+        isLiveData: result.isLiveData,
+        scrapedAt: result.scrapedAt,
+      })
+    } else {
+      console.error(`[API/Track] Tracking failed for ${trackingNumber}. Error: ${result.error}`)
+      return NextResponse.json({
+        success: false,
+        error: result.error,
+        source: result.source,
+        fallbackOptions: result.fallbackOptions,
+      })
+    }
+  } catch (error: any) {
+    console.error("[API/Track] Uncaught API error:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Internal server error during tracking.",
+        details: error.message || "Unknown error",
+      },
+      { status: 500 },
+    )
   }
 }

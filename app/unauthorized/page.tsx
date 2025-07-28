@@ -71,7 +71,7 @@ export default function UnauthorizedPage() {
                   ? "Go to Shipment Tracker"
                   : "Go to Dashboard"}
             </Button>
-            <Button variant="outline" onClick={handleLoginAsDifferentUser} className="w-full bg-transparent">
+            <Button variant="outline" onClick={handleLoginAsDifferentUser} className="w-full">
               Login as Different User
             </Button>
           </div>

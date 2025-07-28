@@ -1,120 +1,153 @@
-import type { ShipmentType, TrackingResult, TrackingData } from "@/types/tracking"
+import { BaseShippingAPI } from "./base-shipping-api"
+import type { ContainerStatus, ShippingLineCredentials } from "@/types/shipping"
 
-// This is a simplified mock for Maersk API integration.
-// In a real scenario, this would involve actual API calls to Maersk.
-export class MaerskAPI {
-  async trackShipment(
-    trackingNumber: string,
-    options?: { shipmentType?: ShipmentType; carrierHint?: string },
-  ): Promise<TrackingResult> {
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
+export class MaerskAPI extends BaseShippingAPI {
+  private authToken: string | null = null
+  private tokenExpiry: Date | null = null
 
-    if (trackingNumber.startsWith("MAEU")) {
-      // Simulate successful tracking for a specific Maersk number
-      if (trackingNumber === "MAEU1234567") {
-        const mockData: TrackingData = {
-          shipmentNumber: "MAEU1234567",
-          status: "In Transit",
-          carrier: "Maersk",
-          containerNumber: "MAEU1234567",
-          containerType: "40' HC",
-          weight: "20,000 kg",
-          origin: "Shanghai, China",
-          destination: "Rotterdam, Netherlands",
-          pol: "CNSHA",
-          pod: "NLRTM",
-          eta: "2025-08-15",
-          etd: "2025-07-20",
-          lastLocation: "Suez Canal",
-          timeline: [
-            {
-              location: "Shanghai, China",
-              terminal: "Yangshan Port",
-              events: [
-                {
-                  timestamp: "2025-07-18T10:00:00Z",
-                  date: "2025-07-18",
-                  time: "10:00",
-                  location: "Shanghai, China",
-                  description: "Cargo received at origin terminal",
-                  status: "Cargo Received",
-                  type: "cargo-received",
-                },
-                {
-                  timestamp: "2025-07-20T14:30:00Z",
-                  date: "2025-07-20",
-                  time: "14:30",
-                  location: "Shanghai, China",
-                  description: "Vessel departed from Shanghai",
-                  status: "Departed",
-                  vessel: "Maersk Triple E",
-                  voyage: "V123",
-                  type: "vessel-departure",
-                },
-              ],
-            },
-            {
-              location: "Suez Canal",
-              events: [
-                {
-                  timestamp: "2025-08-05T08:00:00Z",
-                  date: "2025-08-05",
-                  time: "08:00",
-                  location: "Suez Canal",
-                  description: "Passed through Suez Canal",
-                  status: "In Transit",
-                  type: "event",
-                },
-              ],
-            },
-            {
-              location: "Rotterdam, Netherlands",
-              terminal: "APM Terminals Maasvlakte II",
-              events: [
-                {
-                  timestamp: "2025-08-15T06:00:00Z",
-                  date: "2025-08-15",
-                  time: "06:00",
-                  location: "Rotterdam, Netherlands",
-                  description: "Vessel arrived at destination port",
-                  status: "Arrived",
-                  vessel: "Maersk Triple E",
-                  voyage: "V123",
-                  type: "vessel-arrival",
-                },
-              ],
-            },
-          ],
-          documents: [
-            { type: "Bill of Lading", url: "/placeholder.svg?height=100&width=100", description: "Original BL" },
-            {
-              type: "Commercial Invoice",
-              url: "/placeholder.svg?height=100&width=100",
-              description: "Invoice for customs",
-            },
-          ],
-          details: {
-            packages: "200 cartons",
-            dimensions: "12m x 2.3m x 2.7m",
-            shipmentType: "ocean",
-            freeDaysBeforeDemurrage: 7,
-          },
-        }
-        return { success: true, data: mockData, source: "Maersk API", isLiveData: true }
-      } else {
-        return {
-          success: false,
-          error: "No live tracking information found for this Maersk number.",
-          source: "Maersk API",
-          isLiveData: false,
-          fallbackOptions: {
-            carrier: "Maersk",
-            trackingUrl: `https://www.maersk.com/tracking/${trackingNumber}`,
-          },
-        }
+  constructor(credentials: ShippingLineCredentials) {
+    super("maersk", credentials)
+  }
+
+  async authenticate(): Promise<boolean> {
+    try {
+      // Check if credentials are properly configured
+      if (!this.credentials.clientId || !this.credentials.clientSecret || !this.credentials.baseUrl) {
+        console.log("Maersk API credentials not configured")
+        return false
       }
+
+      if (this.credentials.clientId === "undefined" || this.credentials.clientSecret === "undefined") {
+        console.log("Maersk API credentials are undefined")
+        return false
+      }
+
+      // Check if we have a valid token
+      if (this.authToken && this.tokenExpiry && this.tokenExpiry > new Date()) {
+        return true
+      }
+
+      // Authenticate with Maersk API
+      const response = await fetch(`${this.credentials.baseUrl}/oauth2/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: this.credentials.clientId || "",
+          client_secret: this.credentials.clientSecret || "",
+        }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`Maersk authentication failed: ${response.status} ${response.statusText}`, errorText)
+        return false
+      }
+
+      const data = await response.json()
+      this.authToken = data.access_token
+
+      // Set token expiry (usually 1 hour)
+      const expiresIn = data.expires_in || 3600
+      this.tokenExpiry = new Date(Date.now() + expiresIn * 1000)
+
+      return true
+    } catch (error) {
+      console.error("Maersk authentication error:", error)
+      return false
     }
-    return { success: false, error: "Not a Maersk tracking number.", source: "Maersk API", isLiveData: false }
+  }
+
+  async getContainerStatus(containerNumber: string): Promise<ContainerStatus> {
+    const isAuthenticated = await this.authenticate()
+    if (!isAuthenticated) {
+      throw new Error("Failed to authenticate with Maersk API")
+    }
+
+    try {
+      const response = await fetch(`${this.credentials.baseUrl}/shipping/v2/containers/${containerNumber}/tracking`, {
+        headers: {
+          Authorization: `Bearer ${this.authToken}`,
+          Accept: "application/json",
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to get container status: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      // Extract the latest event
+      const latestEvent = data.events && data.events.length > 0 ? data.events[0] : null
+
+      if (!latestEvent) {
+        throw new Error("No tracking events found")
+      }
+
+      return {
+        containerNumber,
+        status: this.normalizeStatus(latestEvent.eventType),
+        location: `${latestEvent.location.city}, ${latestEvent.location.country}`,
+        timestamp: latestEvent.eventDateTime,
+        vessel: data.vessel?.name,
+        voyage: data.vessel?.voyage,
+        eta: data.estimatedArrival?.dateTime,
+        details: latestEvent.eventDescription,
+        raw: data,
+      }
+    } catch (error) {
+      console.error(`Error fetching Maersk container status for ${containerNumber}:`, error)
+      throw error
+    }
+  }
+
+  async getBookingStatus(bookingReference: string): Promise<ContainerStatus> {
+    const isAuthenticated = await this.authenticate()
+    if (!isAuthenticated) {
+      throw new Error("Failed to authenticate with Maersk API")
+    }
+
+    try {
+      const response = await fetch(`${this.credentials.baseUrl}/shipping/v2/bookings/${bookingReference}/tracking`, {
+        headers: {
+          Authorization: `Bearer ${this.authToken}`,
+          Accept: "application/json",
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to get booking status: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      // Extract container number and latest event
+      const containerNumber =
+        data.containers && data.containers.length > 0 ? data.containers[0].containerNumber : bookingReference
+
+      const latestEvent = data.events && data.events.length > 0 ? data.events[0] : null
+
+      if (!latestEvent) {
+        throw new Error("No tracking events found")
+      }
+
+      return {
+        containerNumber,
+        status: this.normalizeStatus(latestEvent.eventType),
+        location: `${latestEvent.location.city}, ${latestEvent.location.country}`,
+        timestamp: latestEvent.eventDateTime,
+        vessel: data.vessel?.name,
+        voyage: data.vessel?.voyage,
+        eta: data.estimatedArrival?.dateTime,
+        details: latestEvent.eventDescription,
+        raw: data,
+      }
+    } catch (error) {
+      console.error(`Error fetching Maersk booking status for ${bookingReference}:`, error)
+      throw error
+    }
   }
 }

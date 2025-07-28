@@ -56,7 +56,3 @@ SELECT
 FROM customers c
 JOIN customer_rate_cards crc ON c.id = crc.customer_id
 ORDER BY c.name;
-
--- Placeholder content for scripts/populate_existing_customers_rate_cards.sql
--- Example: INSERT INTO customer_rate_cards (customer_id, origin, destination, rate, currency, valid_from, valid_to) VALUES ('customer-id-1', 'NYC', 'LAX', 100.00, 'USD', '2023-01-01', '2023-12-31');
-SELECT 'Populating existing customers rate cards';

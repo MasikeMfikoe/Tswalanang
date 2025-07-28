@@ -178,7 +178,6 @@ export class ApiClient {
   // GET request
   async get<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
     const url = this.buildUrlWithParams(endpoint, params)
-    console.log(`GET ${url}`)
 
     const response = await this.fetchWithRetry(url, {
       method: "GET",
@@ -190,10 +189,7 @@ export class ApiClient {
 
   // POST request
   async post<T>(endpoint: string, data?: any): Promise<T> {
-    const url = this.buildUrl(endpoint)
-    console.log(`POST ${url}`, data)
-
-    const response = await this.fetchWithRetry(url, {
+    const response = await this.fetchWithRetry(this.buildUrl(endpoint), {
       method: "POST",
       headers: this.config.headers,
       body: data ? JSON.stringify(data) : undefined,
@@ -204,10 +200,7 @@ export class ApiClient {
 
   // PUT request
   async put<T>(endpoint: string, data?: any): Promise<T> {
-    const url = this.buildUrl(endpoint)
-    console.log(`PUT ${url}`, data)
-
-    const response = await this.fetchWithRetry(url, {
+    const response = await this.fetchWithRetry(this.buildUrl(endpoint), {
       method: "PUT",
       headers: this.config.headers,
       body: data ? JSON.stringify(data) : undefined,
@@ -218,10 +211,7 @@ export class ApiClient {
 
   // PATCH request
   async patch<T>(endpoint: string, data?: any): Promise<T> {
-    const url = this.buildUrl(endpoint)
-    console.log(`PATCH ${url}`, data)
-
-    const response = await this.fetchWithRetry(url, {
+    const response = await this.fetchWithRetry(this.buildUrl(endpoint), {
       method: "PATCH",
       headers: this.config.headers,
       body: data ? JSON.stringify(data) : undefined,
@@ -232,10 +222,7 @@ export class ApiClient {
 
   // DELETE request
   async delete<T>(endpoint: string): Promise<T> {
-    const url = this.buildUrl(endpoint)
-    console.log(`DELETE ${url}`)
-
-    const response = await this.fetchWithRetry(url, {
+    const response = await this.fetchWithRetry(this.buildUrl(endpoint), {
       method: "DELETE",
       headers: this.config.headers,
     })
@@ -270,6 +257,6 @@ export class ApiClient {
 }
 
 // Create and export a singleton instance
-export const apiClientInstance = new ApiClient()
+export const apiClient = new ApiClient()
 
 export type { ApiConfig }

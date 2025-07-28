@@ -1,4 +1,3 @@
-import type { BaseShippingAPI } from "./base-shipping-api"
 import { MaerskAPI } from "./maersk-api"
 import { MSCAPI } from "./msc-api"
 import type { ShippingLine, ShippingLineCredentials } from "@/types/shipping"
@@ -62,17 +61,4 @@ export class ShippingAPIFactory {
         throw new Error(`Unsupported shipping line: ${shippingLine}`)
     }
   }
-
-  getApi(carrier: string): BaseShippingAPI | null {
-    switch (carrier.toLowerCase()) {
-      case "maersk":
-        return new MaerskAPI()
-      case "msc":
-        return new MSCAPI()
-      default:
-        return null
-    }
-  }
 }
-
-export const shippingApiFactory = new ShippingAPIFactory()

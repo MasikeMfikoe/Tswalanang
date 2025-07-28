@@ -1,63 +1,72 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardTitle } from "@/components/ui/card"
-import { useToast } from "@/components/ui/use-toast"
-import DocumentManagement from "@/components/DocumentManagement" // Ensure this is the default export
-import { DocumentUpload } from "@/components/DocumentUpload" // Assuming this component handles the actual upload logic
-import { useDocuments } from "@/hooks/useDocumentsQuery" // Import the hook for fetching documents
-import { PageHeader } from "@/components/ui/page-header"
-import ProtectedRoute from "@/components/ProtectedRoute"
+import { useRouter } from "next/navigation"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { documents } from "@/lib/sample-data"
 
 export default function DocumentsPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const { toast } = useToast()
+  const router = useRouter()
+  const [search, setSearch] = useState("")
+  const [typeFilter, setTypeFilter] = useState("All")
 
-  // Fetch all documents for the admin view
-  const { data: documentsData, isLoading, error, refetch } = useDocuments({})
-  const documents = documentsData || []
-
-  const handleUploadSuccess = async () => {
-    toast({
-      title: "Document Uploaded",
-      description: "Your document has been successfully uploaded.",
-      variant: "default",
-    })
-    await refetch() // Refetch documents after successful upload
-  }
-
-  const filteredDocuments = documents.filter(
-    (doc) =>
-      doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.type.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const filteredDocuments = documents.filter((doc) => {
+    return (
+      (typeFilter === "All" || doc.type === typeFilter) &&
+      (doc.name.toLowerCase().includes(search.toLowerCase()) ||
+        doc.poNumber.toLowerCase().includes(search.toLowerCase()))
+    )
+  })
 
   return (
-    <ProtectedRoute requiredPermission={{ module: "documents", action: "view" }}>
-      <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-gray-950">
-        <PageHeader title="Document Management" description="Manage all uploaded documents across all orders." />
-        {isLoading ? (
-          <main className="flex-1 p-6 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-            <span className="ml-4 text-lg text-muted-foreground">Loading documents...</span>
-          </main>
-        ) : error ? (
-          <main className="flex-1 p-6 flex items-center justify-center">
-            <Card className="w-full max-w-md p-6 text-center">
-              <CardTitle className="text-red-500">Error Loading Documents</CardTitle>
-              <CardContent>
-                <p>{error.message || "Failed to load documents. Please try again."}</p>
-              </CardContent>
-            </Card>
-          </main>
-        ) : (
-          <main className="flex-1 p-6">
-            <DocumentManagement documents={filteredDocuments} isEditing={true} showOrderIdColumn={true} />
-            {/* DocumentUpload component for general document uploads */}
-            <DocumentUpload onUploadComplete={handleUploadSuccess} />
-          </main>
-        )}
+    <div className="h-full overflow-y-auto">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Documents</h1>
+          <Button variant="outline" onClick={() => router.push("/dashboard")}>
+            Return to Dashboard
+          </Button>
+        </div>
+
+        <div className="flex space-x-4 mb-6">
+          <Input
+            placeholder="Search by Document Name or PO Number"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-1/2"
+          />
+          <Select onValueChange={setTypeFilter} value={typeFilter}>
+            <SelectTrigger className="w-1/3">
+              <SelectValue placeholder="Filter by Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All</SelectItem>
+              <SelectItem value="Invoice">Invoice</SelectItem>
+              <SelectItem value="Shipping Document">Shipping Document</SelectItem>
+              <SelectItem value="Customs Form">Customs Form</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-4">
+          {filteredDocuments.map((doc) => (
+            <div key={doc.id} className="flex justify-between items-center p-4 border rounded-lg">
+              <div>
+                <p className="font-semibold">{doc.name}</p>
+                <p className="text-sm text-gray-600">Type: {doc.type}</p>
+                <p className="text-sm text-gray-500">Upload Date: {doc.uploadDate}</p>
+                <Link href={`/orders/${doc.poNumber}`} className="text-blue-600 hover:underline">
+                  PO Number: {doc.poNumber}
+                </Link>
+              </div>
+              <Button onClick={() => router.push(`/documents/${doc.id}`)}>View Document</Button>
+            </div>
+          ))}
+        </div>
       </div>
-    </ProtectedRoute>
+    </div>
   )
 }

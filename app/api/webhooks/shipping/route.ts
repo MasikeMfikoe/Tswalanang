@@ -10,7 +10,6 @@ export async function POST(request: Request) {
 
     // Parse the request body
     const body = await request.json()
-    console.log("Received shipping webhook:", body)
 
     // Determine which shipping line sent the webhook
     const shippingLine = determineShippingLine(request.headers)

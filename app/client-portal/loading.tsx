@@ -1,3 +1,3 @@
-export default function ClientPortalLoading() {
-  return <div>Loading client portal...</div>
+export default function Loading() {
+  return null
 }

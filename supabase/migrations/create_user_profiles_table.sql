@@ -1,9 +1,10 @@
 -- Create user_profiles table
 CREATE TABLE IF NOT EXISTS user_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT UNIQUE NOT NULL,
-  full_name TEXT,
-  role TEXT DEFAULT 'user',
+  username TEXT,
+  name TEXT,
+  surname TEXT,
+  role TEXT NOT NULL DEFAULT 'guest',
   department TEXT,
   page_access TEXT[] DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

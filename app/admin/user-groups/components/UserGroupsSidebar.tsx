@@ -1,46 +1,41 @@
 "use client"
 
+import type { UserGroup } from "@/types/auth"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { PlusCircle, Users } from "lucide-react"
-
-interface UserGroup {
-  id: string
-  name: string
-}
+import { cn } from "@/lib/utils"
+import { Shield, ShieldAlert, Users } from "lucide-react"
 
 interface UserGroupsSidebarProps {
-  userGroups: UserGroup[]
-  onSelectGroup: (groupId: string) => void
-  onNewGroup: () => void
-  selectedGroupId: string | null
+  groups: UserGroup[]
+  selectedGroup: UserGroup | null
+  onSelectGroup: (group: UserGroup) => void
 }
 
-export function UserGroupsSidebar({ userGroups, onSelectGroup, onNewGroup, selectedGroupId }: UserGroupsSidebarProps) {
+export default function UserGroupsSidebar({ groups, selectedGroup, onSelectGroup }: UserGroupsSidebarProps) {
   return (
-    <div className="w-64 border-r bg-gray-50/50 p-4 flex flex-col">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold flex items-center gap-2">
-          <Users className="h-5 w-5" /> User Groups
-        </h2>
-        <Button variant="ghost" size="icon" onClick={onNewGroup} aria-label="Create new group">
-          <PlusCircle className="h-5 w-5" />
+    <div className="space-y-1">
+      {groups.map((group) => (
+        <Button
+          key={group.id}
+          variant="ghost"
+          className={cn("w-full justify-start", selectedGroup?.id === group.id && "bg-muted font-medium")}
+          onClick={() => onSelectGroup(group)}
+        >
+          {group.name === "Super Admin" ? (
+            <ShieldAlert className="mr-2 h-4 w-4" />
+          ) : group.isDefault ? (
+            <Shield className="mr-2 h-4 w-4" />
+          ) : (
+            <Users className="mr-2 h-4 w-4" />
+          )}
+          <span className="flex-1 text-left">{group.name}</span>
+          {group.isDefault && (
+            <span className="ml-2 text-xs bg-muted-foreground/20 px-1.5 py-0.5 rounded text-muted-foreground">
+              Default
+            </span>
+          )}
         </Button>
-      </div>
-      <ScrollArea className="flex-1 pr-2">
-        <div className="space-y-2">
-          {userGroups.map((group) => (
-            <Button
-              key={group.id}
-              variant={selectedGroupId === group.id ? "secondary" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => onSelectGroup(group.id)}
-            >
-              {group.name}
-            </Button>
-          ))}
-        </div>
-      </ScrollArea>
+      ))}
     </div>
   )
 }

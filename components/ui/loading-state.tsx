@@ -1,5 +1,6 @@
 import type React from "react"
 import { Loader2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface LoadingStateProps {
@@ -9,7 +10,6 @@ interface LoadingStateProps {
   className?: string
   spinnerSize?: number
   spinnerClassName?: string
-  message?: string
 }
 
 export function LoadingState({
@@ -19,7 +19,6 @@ export function LoadingState({
   className,
   spinnerSize = 24,
   spinnerClassName,
-  message = "Loading...",
 }: LoadingStateProps) {
   if (!loading) {
     return <>{children}</>
@@ -30,9 +29,8 @@ export function LoadingState({
   }
 
   return (
-    <div className={`flex flex-col items-center justify-center py-10 ${className}`}>
-      <Loader2 className={`h-8 w-8 animate-spin text-blue-500 ${spinnerClassName}`} />
-      <p className="mt-3 text-gray-600">{message}</p>
+    <div className={cn("flex items-center justify-center p-8", className)}>
+      <Loader2 className={cn("animate-spin text-primary", spinnerClassName)} size={spinnerSize} />
     </div>
   )
 }

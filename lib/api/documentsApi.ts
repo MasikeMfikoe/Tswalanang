@@ -1,183 +1,83 @@
 import { apiClient } from "./apiClient"
 import type { Document, ApiResponse, PaginatedResponse } from "@/types/models"
 
-// Mock documents data for fallback
-let mockDocuments: Document[] = [
-  {
-    id: "doc-mock-1",
-    order_id: "ord-1",
-    file_name: "Bill_of_Lading_ABC.pdf",
-    file_url: "/placeholder.svg?height=100&width=100&text=BOL",
-    document_type: "Bill of Lading",
-    uploaded_at: "2023-01-15T10:00:00Z",
-    uploaded_by: "John Doe",
-    status: "Approved",
-    notes: "Original document",
-  },
-  {
-    id: "doc-mock-2",
-    order_id: "ord-2",
-    file_name: "Commercial_Invoice_XYZ.pdf",
-    file_url: "/placeholder.svg?height=100&width=100&text=Invoice",
-    document_type: "Commercial Invoice",
-    uploaded_at: "2023-02-01T11:30:00Z",
-    uploaded_by: "Jane Smith",
-    status: "Pending",
-    notes: "Awaiting customs review",
-  },
-  {
-    id: "doc-mock-3",
-    order_id: "ord-1",
-    file_name: "Packing_List_ABC.pdf",
-    file_url: "/placeholder.svg?height=100&width=100&text=Packing+List",
-    document_type: "Packing List",
-    uploaded_at: "2023-01-16T14:00:00Z",
-    uploaded_by: "John Doe",
-    status: "Approved",
-    notes: "Verified contents",
-  },
-]
-
 // Documents API service
 export const documentsApi = {
-  // Upload and process a new document
+  // Get all documents with optional filtering
+  async getDocuments(params?: {
+    page?: number
+    pageSize?: number
+    type?: string
+    orderId?: string
+    search?: string
+  }): Promise<PaginatedResponse<Document[]>> {
+    try {
+      return await apiClient.get<PaginatedResponse<Document[]>>("/documents", params)
+    } catch (error) {
+      console.error("Error fetching documents:", error)
+      throw error
+    }
+  },
+
+  // Get a single document by ID
+  async getDocument(id: string): Promise<ApiResponse<Document>> {
+    try {
+      return await apiClient.get<ApiResponse<Document>>(`/documents/${id}`)
+    } catch (error) {
+      console.error(`Error fetching document ${id}:`, error)
+      throw error
+    }
+  },
+
+  // Upload a document
   async uploadDocument(
     file: File,
-    orderId: string,
-    documentType: Document["document_type"],
-    uploadedBy: string,
-    notes?: string,
+    metadata: {
+      orderId: string
+      type: string
+      name?: string
+    },
   ): Promise<ApiResponse<Document>> {
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("orderId", orderId)
-      formData.append("documentType", documentType)
-      formData.append("uploadedBy", uploadedBy)
-      if (notes) {
-        formData.append("notes", notes)
-      }
-
-      return await apiClient.post<ApiResponse<Document>>("/api/documents/process", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      })
+      return await apiClient.uploadFile<ApiResponse<Document>>("/documents/upload", file, metadata)
     } catch (error) {
-      console.warn("API call failed for document upload, using mock response:", error)
-      const newDoc: Document = {
-        id: `doc-mock-${Date.now()}`,
-        order_id: orderId,
-        file_name: file.name,
-        file_url: URL.createObjectURL(file), // Create a temporary URL for preview
-        document_type: documentType,
-        uploaded_at: new Date().toISOString(),
-        uploaded_by: uploadedBy,
-        status: "Pending",
-        notes: notes,
-      }
-      mockDocuments.push(newDoc)
-      return {
-        data: newDoc,
-        success: true,
-        message: "Document uploaded successfully (mock data)",
-      }
+      console.error("Error uploading document:", error)
+      throw error
     }
   },
 
   // Delete a document
-  async deleteDocument(documentId: string, filePath?: string): Promise<ApiResponse<void>> {
+  async deleteDocument(id: string): Promise<ApiResponse<void>> {
     try {
-      const params = new URLSearchParams({ id: documentId })
-      if (filePath) {
-        // Extract path from full URL if necessary, or ensure it's just the path
-        const pathInStorage = filePath.split("/documents/").pop() || filePath
-        params.append("filePath", pathInStorage)
-      }
-      return await apiClient.delete<ApiResponse<void>>(`/api/documents/delete?${params.toString()}`)
+      return await apiClient.delete<ApiResponse<void>>(`/documents/${id}`)
     } catch (error) {
-      console.warn(`API call failed for document deletion ${documentId}, using mock response:`, error)
-      const initialLength = mockDocuments.length
-      mockDocuments = mockDocuments.filter((doc) => doc.id !== documentId)
-      if (mockDocuments.length < initialLength) {
-        return {
-          data: undefined,
-          success: true,
-          message: "Document deleted successfully (mock data)",
-        }
-      }
-      return {
-        success: false,
-        message: "Document not found for mock deletion",
-        error: "Not Found",
-      }
+      console.error(`Error deleting document ${id}:`, error)
+      throw error
     }
   },
 
-  // Get all documents (for admin view)
-  async getAllDocuments(params?: {
-    page?: number
-    pageSize?: number
-    search?: string
-    orderId?: string
-    documentType?: string
-  }): Promise<PaginatedResponse<Document[]>> {
+  // Get client pack documents for an order
+  async getClientPackDocuments(orderId: string, freightType?: string): Promise<ApiResponse<Document[]>> {
     try {
-      return await apiClient.get<PaginatedResponse<Document[]>>("/api/documents", params)
+      const params: Record<string, string> = {}
+      if (freightType) {
+        params.freightType = freightType
+      }
+
+      return await apiClient.get<ApiResponse<Document[]>>(`/documents/client-pack/${orderId}`, params)
     } catch (error) {
-      console.warn("API call failed for all documents, using mock data:", error)
-
-      let filteredDocs = [...mockDocuments]
-      if (params?.orderId) {
-        filteredDocs = filteredDocs.filter((doc) => doc.order_id === params.orderId)
-      }
-      if (params?.documentType) {
-        filteredDocs = filteredDocs.filter((doc) => doc.document_type === params.documentType)
-      }
-      if (params?.search) {
-        const searchTerm = params.search.toLowerCase()
-        filteredDocs = filteredDocs.filter(
-          (doc) =>
-            doc.file_name.toLowerCase().includes(searchTerm) ||
-            doc.uploaded_by.toLowerCase().includes(searchTerm) ||
-            doc.notes?.toLowerCase().includes(searchTerm),
-        )
-      }
-
-      const total = filteredDocs.length
-      const page = params?.page || 1
-      const pageSize = params?.pageSize || 10
-      const startIndex = (page - 1) * pageSize
-      const endIndex = startIndex + pageSize
-      const paginatedData = filteredDocs.slice(startIndex, endIndex)
-      const totalPages = Math.ceil(total / pageSize)
-
-      return {
-        data: paginatedData,
-        total: total,
-        page: page,
-        pageSize: pageSize,
-        totalPages: totalPages,
-      }
+      console.error(`Error fetching client pack documents for order ${orderId}:`, error)
+      throw error
     }
   },
 
-  // Get documents for a specific client (client portal)
-  async getClientDocuments(clientId: string): Promise<ApiResponse<{ customerName: string; documents: Document[] }>> {
+  // Process document (OCR, data extraction)
+  async processDocument(documentId: string): Promise<ApiResponse<any>> {
     try {
-      return await apiClient.get<ApiResponse<{ customerName: string; documents: Document[] }>>(
-        `/api/client-portal/documents?clientId=${clientId}`,
-      )
+      return await apiClient.post<ApiResponse<any>>(`/documents/${documentId}/process`)
     } catch (error) {
-      console.warn(`API call failed for client documents for client ${clientId}, using mock data:`, error)
-      return {
-        success: true,
-        data: {
-          customerName: "Mock Client Company",
-          documents: mockDocuments.filter((doc) => doc.order_id === "ord-1"), // Example: filter some mock docs
-        },
-        message: "Client documents retrieved successfully (mock data)",
-      }
+      console.error(`Error processing document ${documentId}:`, error)
+      throw error
     }
   },
 }

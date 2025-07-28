@@ -65,9 +65,3 @@ WHERE relname = 'user_profiles';
 
 -- Success message
 SELECT 'RLS policies fixed - ready for user creation' as message;
-
--- This file was left out for brevity. Assume it is correct and does not need any modifications.
--- Placeholder content for supabase/migrations/fix_user_profiles_rls_infinite_recursion.sql
--- This script would typically fix RLS policies that cause infinite loops or incorrect behavior.
--- Example: Re-evaluating policies or adding `USING` clauses.
-SELECT 'User profiles RLS fixed for infinite recursion';

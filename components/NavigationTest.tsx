@@ -1,41 +1,80 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-export function NavigationTest() {
+export default function NavigationTest() {
   const router = useRouter()
+  const [logs, setLogs] = useState<string[]>([])
 
-  const navigateTo = (path: string) => {
-    router.push(path)
+  const addLog = (message: string) => {
+    setLogs((prev) => [...prev, `${new Date().toISOString()}: ${message}`])
   }
 
   return (
-    <Card className="w-full max-w-md text-center">
+    <Card className="mb-6">
       <CardHeader>
-        <CardTitle className="text-2xl font-bold">Navigation Test</CardTitle>
-        <CardDescription>Test different navigation paths within the application.</CardDescription>
+        <CardTitle>Navigation Test</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <Button onClick={() => navigateTo("/dashboard")} className="w-full">
-          Go to Dashboard
-        </Button>
-        <Button onClick={() => navigateTo("/orders")} className="w-full">
-          Go to Orders
-        </Button>
-        <Button onClick={() => navigateTo("/customers")} className="w-full">
-          Go to Customers
-        </Button>
-        <Button onClick={() => navigateTo("/admin/users")} className="w-full">
-          Go to Admin Users
-        </Button>
-        <Button onClick={() => navigateTo("/non-existent-page")} className="w-full" variant="outline">
-          Go to Non-Existent Page (404)
-        </Button>
-        <Button onClick={() => navigateTo("/dashboard/error")} className="w-full" variant="destructive">
-          Trigger Dashboard Error
-        </Button>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <h3 className="font-medium mb-2">Test Navigation Methods:</h3>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  addLog("Using router.push('/orders/new-order')")
+                  router.push("/orders/new-order")
+                }}
+                className="w-full"
+              >
+                router.push
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  addLog("Using window.location.href")
+                  window.location.href = "/orders/new-order"
+                }}
+                className="w-full"
+              >
+                window.location.href
+              </Button>
+
+              <Link href="/orders/new-order" onClick={() => addLog("Using Next.js Link")}>
+                <Button variant="outline" className="w-full">
+                  Next.js Link
+                </Button>
+              </Link>
+
+              <a href="/orders/new-order" onClick={() => addLog("Using regular anchor tag")}>
+                <Button variant="outline" className="w-full">
+                  Regular anchor tag
+                </Button>
+              </a>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-medium mb-2">Navigation Logs:</h3>
+            <div className="bg-gray-100 p-2 rounded-md h-[200px] overflow-y-auto">
+              {logs.length > 0 ? (
+                logs.map((log, index) => (
+                  <div key={index} className="text-xs mb-1">
+                    {log}
+                  </div>
+                ))
+              ) : (
+                <div className="text-gray-500 text-xs">No navigation attempts yet</div>
+              )}
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )

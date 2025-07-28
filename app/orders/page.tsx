@@ -1,20 +1,14 @@
-import { OrdersContent } from "@/components/OrdersContent"
-import ProtectedRoute from "@/components/ProtectedRoute"
-import { PageHeader } from "@/components/ui/page-header"
+import dynamic from "next/dynamic"
 
-export default function OrdersPage() {
+const OrderList = dynamic(() => import("@/components/OrderList"))
+
+const OrdersPage = () => {
   return (
-    <ProtectedRoute requiredPermission={{ module: "orders", action: "view" }}>
-      <div className="flex-1 space-y-4 p-8 pt-6">
-        <PageHeader
-          title="Orders"
-          description="Manage all customer orders and their statuses."
-          showActionButton={true}
-          actionButtonText="Create New Order"
-          actionButtonLink="/orders/new"
-        />
-        <OrdersContent />
-      </div>
-    </ProtectedRoute>
+    <div>
+      <h1>Orders</h1>
+      <OrderList />
+    </div>
   )
 }
+
+export default OrdersPage

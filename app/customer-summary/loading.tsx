@@ -1,3 +1,3 @@
-export default function CustomerSummaryLoading() {
-  return <div>Loading customer summary...</div>
+export default function Loading() {
+  return null
 }

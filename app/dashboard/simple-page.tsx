@@ -1,54 +1,62 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { DollarSign, Package, Truck, Users } from "lucide-react"
+"use client"
 
-export default function SimplePage() {
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+
+export default function SimpleDashboardPage() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    // Simulate loading
+    const timer = setTimeout(() => {
+      setIsLoading(false)
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [])
+
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-gray-950">
-      <header className="bg-white dark:bg-gray-900 shadow-sm py-4 px-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Dashboard</h1>
-      </header>
-      <main className="flex-1 p-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-            <Package className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">2,350</div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">+20.1% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$45,231.89</div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">+15.5% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Deliveries Completed</CardTitle>
-            <Truck className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">1,890</div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">+18.2% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
-            <Users className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">120</div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">+5% from last month</p>
-          </CardContent>
-        </Card>
-      </main>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+
+      {isLoading ? (
+        <div className="animate-pulse space-y-4">
+          <div className="h-12 bg-gray-200 rounded"></div>
+          <div className="h-24 bg-gray-200 rounded"></div>
+          <div className="h-24 bg-gray-200 rounded"></div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h2 className="text-lg font-medium">Welcome to TSW SmartLog Dashboard</h2>
+            <p className="text-gray-500">This is a simplified dashboard page for troubleshooting.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h3 className="font-medium">Total Orders</h3>
+              <p className="text-2xl font-bold">24</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h3 className="font-medium">Active Orders</h3>
+              <p className="text-2xl font-bold">12</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h3 className="font-medium">Completed Orders</h3>
+              <p className="text-2xl font-bold">8</p>
+            </div>
+          </div>
+
+          <div className="flex justify-between">
+            <button className="bg-black text-white px-4 py-2 rounded" onClick={() => router.push("/orders")}>
+              View Orders
+            </button>
+            <button className="bg-gray-200 px-4 py-2 rounded" onClick={() => router.push("/")}>
+              Back to Home
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

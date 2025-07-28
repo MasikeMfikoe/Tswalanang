@@ -1,18 +1,8 @@
 "use client"
 
 import React from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-
-interface ErrorBoundaryProps {
-  children: React.ReactNode
-  fallback: React.ReactNode
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean
-  error: Error | null
-}
+import { type ErrorBoundaryProps, type ErrorBoundaryState, handleError } from "@/lib/errorHandling"
+import { ErrorDisplay } from "@/components/ErrorDisplay"
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -21,38 +11,56 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    // Update state so the next render will show the fallback UI.
+    // Update state so the next render will show the fallback UI
     return { hasError: true, error }
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // You can also log the error to an error reporting service
-    console.error("Uncaught error in ErrorBoundary:", error, errorInfo)
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // Log the error to an error reporting service
+    const { component, onError } = this.props
+
+    handleError(error, {
+      component,
+      action: "render",
+      data: { componentStack: info.componentStack },
+    })
+
+    if (onError) {
+      onError(error, info)
+    }
   }
 
   render() {
-    if (this.state.hasError) {
+    const { hasError, error } = this.state
+    const { children, fallback } = this.props
+
+    if (hasError) {
       // You can render any custom fallback UI
-      return (
-        this.props.fallback || (
-          <Card className="w-full max-w-md mx-auto text-center">
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold text-red-600">Something went wrong.</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-gray-700 dark:text-gray-300">
-                An unexpected error occurred. Please try refreshing the page.
-              </p>
-              {this.state.error && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Error: {this.state.error.message}</p>
-              )}
-              <Button onClick={() => window.location.reload()}>Refresh Page</Button>
-            </CardContent>
-          </Card>
-        )
-      )
+      if (fallback) {
+        return fallback
+      }
+
+      return <ErrorDisplay title="Something went wrong" message={error?.message || "An unexpected error occurred"} />
     }
 
-    return this.props.children
+    return children
   }
+}
+
+// Functional component wrapper for ErrorBoundary
+export function withErrorBoundary<P extends object>(
+  Component: React.ComponentType<P>,
+  errorBoundaryProps?: Omit<ErrorBoundaryProps, "children">,
+) {
+  const displayName = Component.displayName || Component.name || "Component"
+
+  const ComponentWithErrorBoundary = (props: P) => (
+    <ErrorBoundary {...errorBoundaryProps} component={displayName}>
+      <Component {...props} />
+    </ErrorBoundary>
+  )
+
+  ComponentWithErrorBoundary.displayName = `withErrorBoundary(${displayName})`
+
+  return ComponentWithErrorBoundary
 }

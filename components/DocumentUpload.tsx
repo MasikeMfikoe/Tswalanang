@@ -1,20 +1,11 @@
 "use client"
 
-import { Label } from "@/components/ui/label"
-
 import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Upload, Loader2, X, Eye, FileText, AlertCircle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
@@ -35,15 +26,7 @@ interface UploadedDocument {
   order_id?: string
 }
 
-interface DocumentUploadProps {
-  onUploadSuccess: (doc: { id: string; name: string; type: string; url: string }) => void
-}
-
-export function DocumentUpload({
-  isEditing,
-  orderId,
-  onUploadSuccess,
-}: DocumentUploadProps & { isEditing: boolean; orderId: string }) {
+export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; orderId: string }) {
   const { toast } = useToast()
   const [dragActive, setDragActive] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<UploadedDocument | null>(null)
@@ -73,9 +56,6 @@ export function DocumentUpload({
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-  const [fileName, setFileName] = useState("")
-  const [file, setFile] = useState<File | null>(null)
-  const [isOpen, setIsOpen] = useState(false)
 
   // Debug: Log component props
   useEffect(() => {
@@ -244,10 +224,10 @@ export function DocumentUpload({
       console.log("🔗 Generated public URL:", urlData.publicUrl)
 
       // Save document metadata to database
-      const documentTypeObj = documentTypes.find((type) => type.id === selectedType)
+      const documentType = documentTypes.find((type) => type.id === selectedType)
       const documentData = {
         name: file.name,
-        type: documentTypeObj?.name || selectedType,
+        type: documentType?.name || selectedType,
         url: urlData.publicUrl,
         order_id: orderId,
       }
@@ -309,61 +289,6 @@ export function DocumentUpload({
     } finally {
       setIsUploading(false)
       setUploadProgress(0)
-    }
-  }
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault()
-    if (!file || !fileName.trim() || !selectedType) {
-      toast({
-        title: "Missing Information",
-        description: "Please provide a file, document name, and type.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsUploading(true)
-    toast({
-      title: "Uploading Document",
-      description: `Uploading ${fileName}...`,
-      duration: 3000,
-    })
-
-    try {
-      // Simulate file upload to a storage service (e.g., Vercel Blob, S3)
-      // In a real application, you'd send the file to an API route that handles storage
-      await new Promise((resolve) => setTimeout(resolve, 2000)) // Simulate network delay
-
-      const mockDocumentId = `doc_${Date.now()}`
-      const mockDocumentUrl = `/placeholder.pdf?name=${encodeURIComponent(fileName)}` // Placeholder URL
-
-      onUploadSuccess({
-        id: mockDocumentId,
-        name: fileName,
-        type: selectedType,
-        url: mockDocumentUrl,
-      })
-
-      toast({
-        title: "Upload Successful",
-        description: `${fileName} has been uploaded.`,
-      })
-
-      // Reset form
-      setFileName("")
-      setSelectedType("")
-      setFile(null)
-      setIsOpen(false)
-    } catch (error) {
-      console.error("Upload error:", error)
-      toast({
-        title: "Upload Failed",
-        description: "There was an error uploading your document. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsUploading(false)
     }
   }
 
@@ -682,69 +607,6 @@ export function DocumentUpload({
           </div>
         </DialogContent>
       </Dialog>
-      {/* Upload Document Dialog */}
-      {isEditing && (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Upload className="mr-2 h-4 w-4" /> Upload Document
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Upload New Document</DialogTitle>
-              <DialogDescription>Fill in the details and upload your document.</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="file" className="text-right">
-                  File
-                </Label>
-                <Input id="file" type="file" className="col-span-3" onChange={handleFileChange} />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="fileName" className="text-right">
-                  Document Name
-                </Label>
-                <Input
-                  id="fileName"
-                  value={fileName}
-                  onChange={(e) => setFileName(e.target.value)}
-                  placeholder="e.g., Bill of Lading for ORD123"
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="documentType" className="text-right">
-                  Document Type
-                </Label>
-                <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select document type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Bill of Lading">Bill of Lading</SelectItem>
-                    <SelectItem value="Commercial Invoice">Commercial Invoice</SelectItem>
-                    <SelectItem value="Packing List">Packing List</SelectItem>
-                    <SelectItem value="Customs Declaration">Customs Declaration</SelectItem>
-                    <SelectItem value="Proof of Delivery">Proof of Delivery</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button type="submit" disabled={isUploading}>
-                {isUploading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...
-                  </>
-                ) : (
-                  "Upload Document"
-                )}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   )
 }

@@ -1,84 +1,74 @@
 # Deployment Checklist
 
-This checklist outlines key considerations and steps for deploying the TSW Smartlog application.
+## Pre-Deployment Checks
 
-## Code Quality & Best Practices
-- [ ] All code adheres to established coding standards (ESLint, Prettier).
-- [ ] Type safety is enforced (TypeScript errors resolved).
-- [ ] No `any` types are used without justification.
-- [ ] Sensitive information (API keys, secrets) are stored in environment variables, not hardcoded.
-- [ ] Unused imports, variables, and dead code are removed.
-- [ ] Code is well-commented where necessary, especially for complex logic.
+### Code Quality
+- [ ] All linting issues resolved
+- [ ] Code formatting is consistent
+- [ ] No console.log statements in production code
+- [ ] No commented-out code
 
-## Testing
-- [ ] Unit tests are written for critical components and functions.
-- [ ] Integration tests cover key user flows and API interactions.
-- [ ] All tests pass successfully.
-- [ ] Test coverage meets defined thresholds (if applicable).
-- [ ] End-to-end tests are implemented for core functionalities.
+### Testing
+- [ ] All unit tests pass
+- [ ] Integration tests pass
+- [ ] Manual testing of affected features completed
+- [ ] Cross-browser testing completed
 
-## Feature-Specific Checks
-### User Management
-- [ ] User creation, editing, and deletion workflows are functional.
-- [ ] Role-based access control (RBAC) is correctly implemented and tested.
-- [ ] Client user linking to customers is working as expected.
-- [ ] User authentication (login/logout) is secure and robust.
+### Feature-Specific Checks
+- [ ] Orders feature fully functional
+  - [ ] Order list loads correctly
+  - [ ] Order details page works
+  - [ ] Create order form works
+  - [ ] Edit order functionality works
+  
+- [ ] Courier Orders feature fully functional
+  - [ ] Courier order list loads correctly
+  - [ ] Courier order details page works
+  - [ ] Create courier order form works
+  
+- [ ] Navigation works correctly for all features
+  - [ ] Orders navigation links work
+  - [ ] Courier Orders navigation links work
+  - [ ] No broken links
 
-### Order Management
-- [ ] New order creation process is smooth and validates input correctly.
-- [ ] Order details viewing and editing are functional.
-- [ ] Order status updates are reflected accurately.
-- [ ] Financial columns (cost, price, profit) are correctly calculated and displayed.
+### Performance
+- [ ] Bundle size is acceptable
+- [ ] Page load times are acceptable
+- [ ] No memory leaks identified
 
-### Document Management
-- [ ] Document upload and processing (OCR) is working.
-- [ ] Document viewing and deletion are functional.
-- [ ] Client pack generation is accurate.
+## Deployment Process
 
-### Shipment Tracking
-- [ ] Auto-detection of shipping lines/airlines is accurate.
-- [ ] Integration with GoComet, SeaRates, Maersk, etc., is functional.
-- [ ] Live tracking updates are displayed correctly.
-- [ ] Milestone achievement logic (green ticks) is accurate based on dates/times.
-- [ ] Manual tracking updates are possible if needed.
+1. **Feature Flags**
+   - [ ] Set appropriate feature flags for new features
+   - [ ] Ensure old code paths are preserved for rollback
 
-### Estimates & Rate Cards
-- [ ] Estimate generation and editing are functional.
-- [ ] Customer-specific rate cards are applied correctly.
-- [ ] API connection for estimates is stable.
+2. **Deployment Steps**
+   - [ ] Deploy to staging environment first
+   - [ ] Verify all functionality in staging
+   - [ ] Deploy to production during low-traffic period
+   - [ ] Monitor error rates after deployment
 
-### Dashboard & Reporting
-- [ ] Dashboard KPIs and charts display accurate, live data.
-- [ ] Customer summary reports generate correctly.
-- [ ] Audit trail logs relevant actions.
+3. **Post-Deployment**
+   - [ ] Verify critical paths in production
+   - [ ] Monitor performance metrics
+   - [ ] Check error logs for new errors
 
-### API Endpoints
-- [ ] All API routes are tested and return expected responses.
-- [ ] API authentication and authorization are enforced.
-- [ ] Error handling for API routes is robust.
-- [ ] Webhooks (e.g., for shipping updates) are configured and tested.
+## Rollback Plan
 
-## Performance
-- [ ] Page load times are optimized (e.g., image optimization, lazy loading).
-- [ ] Data fetching is efficient (e.g., server components, caching strategies).
-- [ ] Bundle size is minimized.
-- [ ] Lighthouse scores are acceptable.
+If issues are detected:
 
-## Security
-- [ ] All dependencies are up-to-date and free of known vulnerabilities.
-- [ ] Input validation is performed on both client and server sides.
-- [ ] Protection against common web vulnerabilities (XSS, CSRF, SQL injection).
-- [ ] Environment variables are securely managed.
+1. Disable problematic features using feature flags
+2. If necessary, roll back to previous version
+3. Document the issue and create a plan to fix
 
-## Infrastructure & Deployment
-- [ ] Vercel project is correctly configured.
-- [ ] Environment variables are set in Vercel.
-- [ ] Supabase database is configured and accessible.
-- [ ] Database migrations are applied successfully.
-- [ ] Monitoring and logging are set up.
-- [ ] Backup and recovery procedures are in place.
+## Feature-Specific Considerations
 
-## Post-Deployment
-- [ ] Monitor application performance and errors.
-- [ ] Gather user feedback.
-- [ ] Plan for future iterations and improvements.
+### When Modifying Order Details
+- [ ] Verify that Courier Orders are not affected
+- [ ] Check that navigation between features works
+- [ ] Ensure shared components still work for both features
+
+### When Modifying Courier Orders
+- [ ] Verify that Order Details are not affected
+- [ ] Check that navigation between features works
+- [ ] Ensure shared components still work for both features

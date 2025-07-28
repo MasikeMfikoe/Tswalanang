@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-export default function DebugOrdersSchemaPage() {
+export default function DebugOrdersSchema() {
   const [orders, setOrders] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)

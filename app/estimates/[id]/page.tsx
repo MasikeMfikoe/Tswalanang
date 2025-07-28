@@ -188,7 +188,7 @@ export default function EstimateDetailsPage() {
           </Link>
           <Button
             variant="outline"
-            className="text-red-500 hover:text-red-600 bg-transparent"
+            className="text-red-500 hover:text-red-600"
             onClick={() => setShowDeleteDialog(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />

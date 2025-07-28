@@ -60,9 +60,3 @@ export function generateSecureToken(orderId: string, expiryDays = 7): string {
 
   return Buffer.from(JSON.stringify(tokenData)).toString("base64")
 }
-
-// Placeholder content for lib/qr-code-utils.ts
-export function generateQrCode(data: string) {
-  console.log(`Generating QR code for: ${data}`)
-  return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-}

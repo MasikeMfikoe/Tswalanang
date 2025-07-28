@@ -7,7 +7,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   try {
     const orderId = params.id
     const body = await request.json()
-    const { recipientEmail, recipientName, senderEmail, senderName, notificationType, message, recipient } = body
+    const { recipientEmail, recipientName, senderEmail, senderName, notificationType } = body
 
     // Validate input based on notification type
     if (notificationType === "recipient" && (!recipientEmail || !recipientName)) {
@@ -89,24 +89,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       updateData = {
         notify_sender_on_confirm: true,
         sender_confirmation_sent_at: new Date().toISOString(),
-      }
-    } else if (notificationType === "custom") {
-      // Send custom notification
-      console.log(`Sending notification for Order ${orderId} to ${recipient}: "${message}"`)
-      emailSent = true // Assuming email sent for simplicity
-      updateData = {
-        custom_notification_sent_at: new Date().toISOString(),
-      }
-    } else {
-      // Handle general notification type
-      console.log(`Sending notification for Courier Order ${orderId}:`)
-      console.log(`Type: ${notificationType || "General"}`)
-      console.log(`Message: ${message}`)
-
-      // Simulate a successful send
-      emailSent = true
-      updateData = {
-        general_notification_sent_at: new Date().toISOString(),
       }
     }
 

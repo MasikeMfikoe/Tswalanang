@@ -1,207 +1,271 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PlusCircle, Trash2, Save } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { defaultRates, defaultFreightTypes } from "@/lib/sample-rates"
+import type { RateItem, FreightType } from "@/types/rates"
 import { useToast } from "@/components/ui/use-toast"
-
-interface RateCardEntry {
-  id: string
-  origin: string
-  destination: string
-  freightType: string
-  ratePerKg: number
-  ratePerCbm: number
-  minCharge: number
-  currency: string
-}
+import { Plus, Pencil, Save, X } from "lucide-react"
 
 export default function RateCardPage() {
-  const [rateCard, setRateCard] = useState<RateCardEntry[]>([
-    {
-      id: "1",
-      origin: "Shanghai",
-      destination: "Rotterdam",
-      freightType: "ocean",
-      ratePerKg: 2.5,
-      ratePerCbm: 150,
-      minCharge: 500,
-      currency: "USD",
-    },
-    {
-      id: "2",
-      origin: "New York",
-      destination: "London",
-      freightType: "air",
-      ratePerKg: 5.0,
-      ratePerCbm: 300,
-      minCharge: 200,
-      currency: "USD",
-    },
-  ])
+  const [rates, setRates] = useState<RateItem[]>(defaultRates)
+  const [freightTypes, setFreightTypes] = useState<FreightType[]>(defaultFreightTypes)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [newRate, setNewRate] = useState<Partial<RateItem>>({
+    name: "",
+    seaFreight: 0,
+    airFreight: 0,
+    isPercentage: false,
+  })
+  const [newFreightType, setNewFreightType] = useState<string>("")
+  const router = useRouter()
   const { toast } = useToast()
 
-  const handleAddRow = () => {
-    setRateCard([
-      ...rateCard,
-      {
-        id: `new-${Date.now()}`,
-        origin: "",
-        destination: "",
-        freightType: "",
-        ratePerKg: 0,
-        ratePerCbm: 0,
-        minCharge: 0,
-        currency: "USD",
-      },
-    ])
-  }
-
-  const handleRemoveRow = (idToRemove: string) => {
-    setRateCard(rateCard.filter((row) => row.id !== idToRemove))
+  const handleSave = (id: string, updatedRate: RateItem) => {
+    setRates(rates.map((rate) => (rate.id === id ? updatedRate : rate)))
+    setEditingId(null)
     toast({
-      title: "Row Removed",
-      description: "The rate card entry has been removed.",
-      variant: "destructive",
+      title: "Success",
+      description: "Rate updated successfully",
     })
   }
 
-  const handleInputChange = (id: string, field: keyof RateCardEntry, value: string | number) => {
-    setRateCard(
-      rateCard.map((row) =>
-        row.id === id
-          ? {
-              ...row,
-              [field]:
-                field === "ratePerKg" || field === "ratePerCbm" || field === "minCharge"
-                  ? Number.parseFloat(value as string) || 0
-                  : value,
-            }
-          : row,
-      ),
-    )
+  const handleAddRate = () => {
+    if (newRate.name) {
+      const newRateItem: RateItem = {
+        id: newRate.name.toLowerCase().replace(/\s+/g, "-"),
+        name: newRate.name,
+        seaFreight: Number(newRate.seaFreight) || 0,
+        airFreight: Number(newRate.airFreight) || 0,
+        isPercentage: newRate.isPercentage || false,
+        percentageBase: newRate.isPercentage ? "totalDisbursements" : undefined,
+      }
+      setRates([...rates, newRateItem])
+      setNewRate({
+        name: "",
+        seaFreight: 0,
+        airFreight: 0,
+        isPercentage: false,
+      })
+      toast({
+        title: "Success",
+        description: "New rate added successfully",
+      })
+    }
   }
 
-  const handleSaveRateCard = () => {
-    // In a real application, you would send this data to your backend API
-    console.log("Saving Rate Card:", rateCard)
-    toast({
-      title: "Rate Card Saved",
-      description: "Your rate card changes have been saved successfully.",
-    })
+  const handleAddFreightType = () => {
+    if (newFreightType) {
+      const newType: FreightType = {
+        id: newFreightType.toLowerCase().replace(/\s+/g, "-"),
+        name: newFreightType,
+      }
+      setFreightTypes([...freightTypes, newType])
+      setNewFreightType("")
+      toast({
+        title: "Success",
+        description: "New freight type added successfully",
+      })
+    }
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-gray-950 p-6">
-      <header className="bg-white dark:bg-gray-900 shadow-sm py-4 px-6 flex items-center justify-between mb-6 rounded-lg">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Global Rate Card</h1>
-        <Button onClick={handleSaveRateCard}>
-          <Save className="mr-2 h-4 w-4" /> Save Rate Card
-        </Button>
-      </header>
-      <main className="flex-1">
-        <Card>
-          <CardHeader>
-            <CardTitle>Manage Global Rates</CardTitle>
-            <CardDescription>Define standard shipping rates for all customers.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Origin</TableHead>
-                  <TableHead>Destination</TableHead>
-                  <TableHead>Freight Type</TableHead>
-                  <TableHead>Rate/Kg</TableHead>
-                  <TableHead>Rate/CBM</TableHead>
-                  <TableHead>Min Charge</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead className="w-[50px] text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rateCard.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>
-                      <Input value={row.origin} onChange={(e) => handleInputChange(row.id, "origin", e.target.value)} />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        value={row.destination}
-                        onChange={(e) => handleInputChange(row.id, "destination", e.target.value)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={row.freightType}
-                        onValueChange={(value) => handleInputChange(row.id, "freightType", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="air">Air Freight</SelectItem>
-                          <SelectItem value="ocean">Ocean Freight</SelectItem>
-                          <SelectItem value="road">Road Freight</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        value={row.ratePerKg}
-                        onChange={(e) => handleInputChange(row.id, "ratePerKg", e.target.value)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        value={row.ratePerCbm}
-                        onChange={(e) => handleInputChange(row.id, "ratePerCbm", e.target.value)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        value={row.minCharge}
-                        onChange={(e) => handleInputChange(row.id, "minCharge", e.target.value)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={row.currency}
-                        onValueChange={(value) => handleInputChange(row.id, "currency", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Currency" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="USD">USD</SelectItem>
-                          <SelectItem value="EUR">EUR</SelectItem>
-                          <SelectItem value="GBP">GBP</SelectItem>
-                          <SelectItem value="ZAR">ZAR</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleRemoveRow(row.id)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <Button onClick={handleAddRow} className="mt-4 w-full">
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Row
+    <div className="h-full overflow-y-auto">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Rate Card Management</h1>
+          <div className="flex space-x-2">
+            <Button variant="outline" onClick={() => router.push("/dashboard")}>
+              Return to Dashboard
             </Button>
-          </CardContent>
-        </Card>
-      </main>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add New Rate
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Rate</DialogTitle>
+                  <DialogDescription>Add a new rate to the rate card.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Rate Name</Label>
+                    <Input
+                      id="name"
+                      value={newRate.name}
+                      onChange={(e) => setNewRate({ ...newRate, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="seaFreight">Sea Freight Rate</Label>
+                      <Input
+                        id="seaFreight"
+                        type="number"
+                        value={newRate.seaFreight}
+                        onChange={(e) => setNewRate({ ...newRate, seaFreight: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="airFreight">Air Freight Rate</Label>
+                      <Input
+                        id="airFreight"
+                        type="number"
+                        value={newRate.airFreight}
+                        onChange={(e) => setNewRate({ ...newRate, airFreight: Number(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isPercentage"
+                      checked={newRate.isPercentage}
+                      onCheckedChange={(checked) => setNewRate({ ...newRate, isPercentage: !!checked })}
+                    />
+                    <Label htmlFor="isPercentage">Is Percentage</Label>
+                  </div>
+                  <Button onClick={handleAddRate}>Add Rate</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Rates</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {rates.map((rate) => (
+                  <div key={rate.id} className="border rounded-lg p-4">
+                    {editingId === rate.id ? (
+                      <div className="space-y-4">
+                        <Input
+                          value={rate.name}
+                          onChange={(e) => handleSave(rate.id, { ...rate, name: e.target.value })}
+                        />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Sea Freight</Label>
+                            <Input
+                              type="number"
+                              value={rate.seaFreight}
+                              onChange={(e) => handleSave(rate.id, { ...rate, seaFreight: Number(e.target.value) })}
+                            />
+                          </div>
+                          <div>
+                            <Label>Air Freight</Label>
+                            <Input
+                              type="number"
+                              value={rate.airFreight}
+                              onChange={(e) => handleSave(rate.id, { ...rate, airFreight: Number(e.target.value) })}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                          <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
+                            <X className="w-4 h-4 mr-2" />
+                            Cancel
+                          </Button>
+                          <Button size="sm" onClick={() => handleSave(rate.id, rate)}>
+                            <Save className="w-4 h-4 mr-2" />
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <h3 className="font-medium">{rate.name}</h3>
+                          <Button size="sm" variant="ghost" onClick={() => setEditingId(rate.id)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Sea Freight:</span>{" "}
+                            {rate.isPercentage ? `${rate.seaFreight}%` : `R${rate.seaFreight}`}
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Air Freight:</span>{" "}
+                            {rate.isPercentage ? `${rate.airFreight}%` : `R${rate.airFreight}`}
+                          </div>
+                        </div>
+                        {rate.isPercentage && (
+                          <div className="text-sm text-muted-foreground">
+                            Percentage based on: {rate.percentageBase}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Freight Types</CardTitle>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Type
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add New Freight Type</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="freightType">Freight Type Name</Label>
+                        <Input
+                          id="freightType"
+                          value={newFreightType}
+                          onChange={(e) => setNewFreightType(e.target.value)}
+                        />
+                      </div>
+                      <Button onClick={handleAddFreightType}>Add Freight Type</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {freightTypes.map((type) => (
+                  <div key={type.id} className="flex justify-between items-center p-4 border rounded-lg">
+                    <span>{type.name}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

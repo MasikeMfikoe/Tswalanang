@@ -1,14 +1,14 @@
-import CreateOrder from "@/components/CreateOrder"
-import ProtectedRoute from "@/components/ProtectedRoute"
-import { PageHeader } from "@/components/ui/page-header"
+import dynamic from "next/dynamic"
 
-export default function NewOrderPage() {
+const OrderForm = dynamic(() => import("@/components/OrderForm"))
+
+const NewOrderPage = () => {
   return (
-    <ProtectedRoute requiredPermission={{ module: "orders", action: "create" }}>
-      <div className="flex-1 space-y-4 p-8 pt-6">
-        <PageHeader title="Create New Order" description="Fill in the details to create a new customer order." />
-        <CreateOrder />
-      </div>
-    </ProtectedRoute>
+    <div>
+      <h1>Create New Order</h1>
+      <OrderForm />
+    </div>
   )
 }
+
+export default NewOrderPage

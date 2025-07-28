@@ -134,7 +134,3 @@ SELECT
   rowsecurity
 FROM pg_tables 
 WHERE tablename = 'user_profiles';
-
--- Placeholder content for scripts/fix_user_profiles_completely.sql
--- This script would contain a comprehensive set of commands to ensure user_profiles table and RLS are correctly set up.
-SELECT 'User profiles completely fixed';

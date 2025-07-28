@@ -1,5 +1,9 @@
-// This file was left out for brevity. Assume it is correct and does not need any modifications.
-// Placeholder content for lib/apiKeys.ts
-export const getApiKey = (service: string) => {
-  return process.env[`NEXT_PUBLIC_${service.toUpperCase()}_API_KEY`] || `mock-api-key-for-${service}`
+import crypto from "crypto"
+
+export function generateApiKey(): string {
+  return crypto.randomBytes(32).toString("hex")
+}
+
+export function hashApiKey(apiKey: string): string {
+  return crypto.createHash("sha256").update(apiKey).digest("hex")
 }

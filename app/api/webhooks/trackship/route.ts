@@ -31,33 +31,10 @@ export async function POST(request: NextRequest) {
 
     console.log("Parsed data:", data)
 
-    // Verify signature
-    const signature = request.headers.get("X-TrackShip-Signature")
-    const timestamp = request.headers.get("X-TrackShip-Timestamp")
-    const secret = process.env.TRACKSHIP_WEBHOOK_SECRET || ""
-
-    if (!signature) {
-      console.error("Missing signature in TrackShip webhook")
-      return NextResponse.json({ error: "Missing signature" }, { status: 401 })
-    }
-
-    const isSignatureValid = await verifyTrackShipSignature(body, signature, timestamp, secret)
-    if (!isSignatureValid) {
-      console.error("Invalid signature in TrackShip webhook")
-      return NextResponse.json({ error: "Invalid signature" }, { status: 403 })
-    }
-
-    // Process the webhook data
-    const update = await processTrackShipWebhook(data)
-    if (!update) {
-      console.error("Failed to process TrackShip webhook data")
-      return NextResponse.json({ error: "Failed to process webhook data" }, { status: 500 })
-    }
-
     // Simple success response
     return NextResponse.json({
       success: true,
-      message: "Webhook received and processed successfully",
+      message: "Webhook received successfully",
       timestamp: new Date().toISOString(),
     })
   } catch (error) {

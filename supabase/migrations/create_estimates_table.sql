@@ -1,7 +1,7 @@
 -- Create estimates table
 CREATE TABLE IF NOT EXISTS estimates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    customer_id UUID REFERENCES customers(id),
+    customer_id VARCHAR(255) NOT NULL,
     customer_name VARCHAR(255) NOT NULL,
     customer_email VARCHAR(255) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'Draft',
@@ -19,11 +19,6 @@ CREATE TABLE IF NOT EXISTS estimates (
     subtotal DECIMAL(15,2) NOT NULL DEFAULT 0,
     vat DECIMAL(15,2) NOT NULL DEFAULT 0,
     total_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
-    origin TEXT NOT NULL,
-    destination TEXT NOT NULL,
-    estimated_cost DECIMAL NOT NULL,
-    currency TEXT NOT NULL,
-    valid_until TIMESTAMPTZ,
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -69,11 +64,6 @@ INSERT INTO estimates (
     subtotal,
     vat,
     total_amount,
-    origin,
-    destination,
-    estimated_cost,
-    currency,
-    valid_until,
     notes
 ) VALUES 
 (
@@ -95,11 +85,6 @@ INSERT INTO estimates (
     50641.51,
     7596.23,
     58237.74,
-    'New York',
-    'Los Angeles',
-    58237.74,
-    'USD',
-    '2023-12-31',
     'Priority shipment for manufacturing equipment'
 ),
 (
@@ -121,11 +106,6 @@ INSERT INTO estimates (
     35775.00,
     5366.25,
     41141.25,
-    'Shanghai',
-    'Hong Kong',
-    41141.25,
-    'CNY',
-    '2023-11-30',
     'Standard sea freight shipment'
 ),
 (
@@ -147,11 +127,6 @@ INSERT INTO estimates (
     75525.00,
     11328.75,
     86853.75,
-    'Tokyo',
-    'Osaka',
-    86853.75,
-    'JPY',
-    '2023-10-31',
     'Urgent delivery required for production line'
 );
 

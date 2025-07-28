@@ -5,8 +5,18 @@ WHERE table_name = 'user_profiles'
 ORDER BY ordinal_position;
 
 -- Add email column if it doesn't exist
-ALTER TABLE user_profiles
-ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'user_profiles' AND column_name = 'email'
+    ) THEN
+        ALTER TABLE user_profiles ADD COLUMN email TEXT;
+        RAISE NOTICE 'Added email column to user_profiles table';
+    ELSE
+        RAISE NOTICE 'Email column already exists in user_profiles table';
+    END IF;
+END $$;
 
 -- Update the table structure to match what the app expects
 ALTER TABLE user_profiles 
@@ -14,6 +24,20 @@ ALTER COLUMN username SET NOT NULL,
 ALTER COLUMN name SET NOT NULL,
 ALTER COLUMN surname SET NOT NULL,
 ALTER COLUMN email SET NOT NULL;
+
+-- Add unique constraint on email
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'user_profiles_email_unique'
+    ) THEN
+        ALTER TABLE user_profiles ADD CONSTRAINT user_profiles_email_unique UNIQUE (email);
+        RAISE NOTICE 'Added unique constraint on email column';
+    ELSE
+        RAISE NOTICE 'Email unique constraint already exists';
+    END IF;
+END $$;
 
 -- Add unique constraint on username
 DO $$

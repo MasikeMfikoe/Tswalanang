@@ -1,240 +1,157 @@
 "use client"
-
-import type React from "react"
-
-import { useState, useCallback, useRef } from "react"
+import { useFileUpload } from "@/hooks/useFileUpload"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { useToast } from "@/components/ui/use-toast"
-import { UploadCloud, FileText, XCircle, CheckCircle, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Upload, X, File, Loader2 } from "lucide-react"
 
 interface FileUploadProps {
-  onUploadComplete?: (fileUrls: string[]) => void
+  maxSizeInMB?: number
+  acceptedFileTypes?: string[]
   maxFiles?: number
-  maxFileSizeMb?: number
-  acceptedFileTypes?: string[] // e.g., ["image/jpeg", "application/pdf"]
-  disabled?: boolean
-}
-
-interface UploadedFile {
-  id: string
-  name: string
-  size: number
-  type: string
-  status: "pending" | "uploading" | "uploaded" | "failed"
-  progress: number
-  url?: string // URL after successful upload
-  error?: string
+  onFilesSelected?: (files: File[]) => void
+  onUploadComplete?: (files: File[]) => void
+  onError?: (error: string) => void
+  uploadFn?: (file: File) => Promise<any>
+  className?: string
+  dropzoneText?: string
+  buttonText?: string
+  showFileList?: boolean
 }
 
 export function FileUpload({
+  maxSizeInMB = 5,
+  acceptedFileTypes = [],
+  maxFiles = 1,
+  onFilesSelected,
   onUploadComplete,
-  maxFiles = 5,
-  maxFileSizeMb = 10,
-  acceptedFileTypes = ["image/*", "application/pdf"],
-  disabled = false,
+  onError,
+  uploadFn,
+  className,
+  dropzoneText = "Drag and drop files here, or click to browse",
+  buttonText = "Select Files",
+  showFileList = true,
 }: FileUploadProps) {
-  const [files, setFiles] = useState<UploadedFile[]>([])
-  const [isUploading, setIsUploading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const { toast } = useToast()
+  const {
+    files,
+    isUploading,
+    uploadProgress,
+    dragActive,
+    handleDrag,
+    handleDrop,
+    handleFileChange,
+    uploadFiles,
+    removeFile,
+  } = useFileUpload({
+    maxSizeInMB,
+    acceptedFileTypes,
+    maxFiles,
+    onSuccess: onFilesSelected,
+    onError,
+  })
 
-  const handleFileChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      if (event.target.files) {
-        const newFiles = Array.from(event.target.files)
-        const currentFileCount = files.filter((f) => f.status !== "failed").length
+  const handleUpload = async () => {
+    if (!uploadFn) return
 
-        if (currentFileCount + newFiles.length > maxFiles) {
-          toast({
-            title: "Too Many Files",
-            description: `You can only upload a maximum of ${maxFiles} files.`,
-            variant: "destructive",
-          })
-          return
-        }
+    await uploadFiles(uploadFn)
+    onUploadComplete?.(files)
+  }
 
-        const validFiles: UploadedFile[] = []
-        newFiles.forEach((file) => {
-          if (file.size > maxFileSizeMb * 1024 * 1024) {
-            toast({
-              title: "File Too Large",
-              description: `${file.name} exceeds the maximum size of ${maxFileSizeMb}MB.`,
-              variant: "destructive",
-            })
-            return
-          }
-          if (!acceptedFileTypes.some((type) => file.type.startsWith(type.replace("*", "")) || type === file.type)) {
-            toast({
-              title: "Invalid File Type",
-              description: `${file.name} is not a supported file type.`,
-              variant: "destructive",
-            })
-            return
-          }
-          validFiles.push({
-            id: `${file.name}-${Date.now()}`, // Unique ID for keying
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            status: "pending",
-            progress: 0,
-          })
-        })
-
-        setFiles((prev) => [...prev, ...validFiles])
-        // Clear the input value to allow re-uploading the same file if needed
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ""
-        }
-      }
-    },
-    [files, maxFiles, maxFileSizeMb, acceptedFileTypes, toast],
-  )
-
-  const handleRemoveFile = useCallback((id: string) => {
-    setFiles((prev) => prev.filter((file) => file.id !== id))
-  }, [])
-
-  const handleUpload = useCallback(async () => {
-    setIsUploading(true)
-    const uploadedUrls: string[] = []
-    let allSuccessful = true
-
-    for (let i = 0; i < files.length; i++) {
-      const fileToUpload = files[i]
-      if (fileToUpload.status === "uploaded") {
-        if (fileToUpload.url) uploadedUrls.push(fileToUpload.url)
-        continue // Skip already uploaded files
-      }
-
-      setFiles((prev) => prev.map((f) => (f.id === fileToUpload.id ? { ...f, status: "uploading", progress: 0 } : f)))
-
-      try {
-        // Simulate API call for file upload
-        // In a real application, you would send fileToUpload.file to your backend
-        // const formData = new FormData();
-        // formData.append('file', fileToUpload.file);
-        // const response = await fetch('/api/upload', { method: 'POST', body: formData });
-        // if (!response.ok) throw new Error('Upload failed');
-        // const result = await response.json(); // Assuming API returns { url: "..." }
-
-        // Simulate progress and success
-        for (let p = 0; p <= 100; p += 10) {
-          await new Promise((resolve) => setTimeout(resolve, 100))
-          setFiles((prev) => prev.map((f) => (f.id === fileToUpload.id ? { ...f, progress: p } : f)))
-        }
-
-        const simulatedUrl = `/uploads/${fileToUpload.name}` // Placeholder URL
-        uploadedUrls.push(simulatedUrl)
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileToUpload.id ? { ...f, status: "uploaded", progress: 100, url: simulatedUrl } : f,
-          ),
-        )
-        toast({
-          title: "Upload Successful",
-          description: `${fileToUpload.name} uploaded.`,
-          variant: "success",
-        })
-      } catch (error: any) {
-        console.error("Upload error:", error)
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileToUpload.id
-              ? { ...f, status: "failed", error: error.message || "Upload failed", progress: 0 }
-              : f,
-          ),
-        )
-        toast({
-          title: "Upload Failed",
-          description: `${fileToUpload.name}: ${error.message || "An unknown error occurred."}`,
-          variant: "destructive",
-        })
-        allSuccessful = false
-      }
-    }
-
-    setIsUploading(false)
-    if (onUploadComplete && allSuccessful) {
-      onUploadComplete(uploadedUrls)
-    }
-  }, [files, onUploadComplete, toast])
-
-  const pendingUploads = files.filter((f) => f.status === "pending" || f.status === "failed").length > 0
+  const acceptAttribute =
+    acceptedFileTypes.length > 0
+      ? acceptedFileTypes
+          .filter((type) => type.includes("/")) // Only include MIME types
+          .join(",")
+      : undefined
 
   return (
-    <div className="grid gap-4">
-      <div className="space-y-2">
-        <Label htmlFor="file-upload">Upload Files</Label>
-        <Input
+    <div className={cn("space-y-4", className)}>
+      <div
+        className={cn(
+          "relative border-2 border-dashed rounded-lg p-6 transition-colors",
+          dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25",
+          isUploading && "opacity-50 cursor-not-allowed",
+        )}
+        onDragEnter={handleDrag}
+        onDragOver={handleDrag}
+        onDragLeave={handleDrag}
+        onDrop={handleDrop}
+      >
+        <input
           id="file-upload"
           type="file"
-          multiple
+          multiple={maxFiles > 1}
+          accept={acceptAttribute}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           onChange={handleFileChange}
-          ref={fileInputRef}
-          disabled={disabled || isUploading || files.filter((f) => f.status !== "failed").length >= maxFiles}
-          className="file:text-blue-600 file:bg-blue-50 file:border-blue-200"
+          disabled={isUploading}
+          aria-label="File upload"
         />
-        <p className="text-sm text-muted-foreground">
-          Max {maxFiles} files, up to {maxFileSizeMb}MB each. Supported: {acceptedFileTypes.join(", ")}.
-        </p>
-      </div>
 
-      {files.length > 0 && (
-        <div className="grid gap-3">
-          {files.map((file) => (
-            <div
-              key={file.id}
-              className={cn(
-                "flex items-center justify-between rounded-md border p-3",
-                file.status === "failed" && "border-red-400 bg-red-50",
-                file.status === "uploaded" && "border-green-400 bg-green-50",
-              )}
-            >
-              <div className="flex items-center gap-3">
-                {file.status === "uploading" ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-                ) : file.status === "uploaded" ? (
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                ) : file.status === "failed" ? (
-                  <XCircle className="h-5 w-5 text-red-600" />
-                ) : (
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                )}
-                <div>
-                  <p className="font-medium">{file.name}</p>
-                  <p className="text-sm text-muted-foreground">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-                  {file.status === "uploading" && <Progress value={file.progress} className="w-[100px] h-2 mt-1" />}
-                  {file.status === "failed" && <p className="text-xs text-red-500">{file.error || "Upload failed"}</p>}
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRemoveFile(file.id)}
-                disabled={isUploading}
-                aria-label={`Remove ${file.name}`}
-              >
-                <XCircle className="h-5 w-5 text-gray-500 hover:text-red-500" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {files.length > 0 && pendingUploads && (
-        <Button onClick={handleUpload} disabled={isUploading || disabled}>
+        <div className="flex flex-col items-center justify-center text-center">
           {isUploading ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...
+              <Loader2 className="h-10 w-10 text-primary animate-spin mb-2" />
+              <p className="text-sm text-muted-foreground">Uploading... {Math.round(uploadProgress)}%</p>
+              <Progress value={uploadProgress} className="w-full max-w-xs mt-2" />
             </>
           ) : (
             <>
-              <UploadCloud className="mr-2 h-4 w-4" /> Upload All
+              <Upload className="h-10 w-10 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground mb-1">{dropzoneText}</p>
+              <p className="text-xs text-muted-foreground">
+                {acceptedFileTypes.length > 0 && (
+                  <>
+                    Accepted file types: {acceptedFileTypes.join(", ")}
+                    <br />
+                  </>
+                )}
+                Maximum file size: {maxSizeInMB}MB
+                {maxFiles > 1 && <>, Maximum files: {maxFiles}</>}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {showFileList && files.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Selected Files ({files.length})</p>
+          <ul className="space-y-2">
+            {files.map((file, index) => (
+              <li key={index} className="flex items-center justify-between p-2 border rounded-md">
+                <div className="flex items-center">
+                  <File className="h-4 w-4 mr-2 text-primary" />
+                  <span className="text-sm truncate max-w-[200px]">{file.name}</span>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeFile(index)}
+                  disabled={isUploading}
+                  aria-label={`Remove ${file.name}`}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {uploadFn && files.length > 0 && (
+        <Button onClick={handleUpload} disabled={isUploading || files.length === 0} className="w-full">
+          {isUploading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            <>
+              Upload {files.length} file{files.length !== 1 && "s"}
             </>
           )}
         </Button>

@@ -155,6 +155,12 @@ export default function EstimatesPage() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
+          <Link href="/debug-estimates">
+            <Button variant="outline">
+              <AlertCircle className="mr-2 h-4 w-4" />
+              Debug
+            </Button>
+          </Link>
           <Button variant="outline" asChild>
             <Link href="/dashboard">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -198,7 +204,7 @@ export default function EstimatesPage() {
           ) : error ? (
             <div className="text-center py-8 text-red-500">
               <p>{error}</p>
-              <Button variant="outline" onClick={fetchEstimates} className="mt-4 bg-transparent">
+              <Button variant="outline" onClick={fetchEstimates} className="mt-4">
                 Try Again
               </Button>
             </div>

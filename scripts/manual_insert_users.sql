@@ -44,8 +44,3 @@ INSERT INTO user_profiles (
 SELECT * FROM user_profiles 
 WHERE username IN ('manual_test_user', 'manual_client')
 ORDER BY created_at DESC;
-
--- This file was left out for brevity. Assume it is correct and does not need any modifications.
--- Placeholder content for scripts/manual_insert_users.sql
--- Example: INSERT INTO auth.users (id, email, password) VALUES (gen_random_uuid(), 'test@example.com', 'password');
-SELECT 'Manual user insert script executed';

@@ -1,45 +1,56 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+"use client"
+
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 
 export default function DebugRoutingPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-gray-950 p-6">
-      <header className="bg-white dark:bg-gray-900 shadow-sm py-4 px-6 flex items-center justify-between mb-6 rounded-lg">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Debug Routing</h1>
-      </header>
-      <main className="flex-1">
-        <Card>
-          <CardHeader>
-            <CardTitle>Routing Test Links</CardTitle>
-            <CardDescription>Test various Next.js App Router routing behaviors.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <Link href="/orders/new" passHref>
-              <Button className="w-full justify-start">Go to /orders/new (Layout Test)</Button>
-            </Link>
-            <Link href="/orders/new/simple-page" passHref>
-              <Button className="w-full justify-start">Go to /orders/new/simple-page (Nested Page)</Button>
-            </Link>
-            <Link href="/orders/new-order" passHref>
-              <Button className="w-full justify-start">Go to /orders/new-order (Direct Page)</Button>
-            </Link>
-            <Link href="/dashboard" passHref>
-              <Button className="w-full justify-start">Go to /dashboard</Button>
-            </Link>
-            <Link href="/non-existent-route" passHref>
-              <Button className="w-full justify-start bg-transparent" variant="outline">
-                Go to Non-Existent Route (404)
+    <div className="p-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Navigation Debug Page</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p>This page helps diagnose navigation issues with the "Create New Order" button.</p>
+
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Test Navigation Methods:</h3>
+
+            <div className="flex flex-wrap gap-2">
+              <a href="/orders/new" className="block">
+                <Button variant="outline">Direct Link to New Order</Button>
+              </a>
+
+              <Link href="/orders/new">
+                <Button variant="outline">Next.js Link to New Order</Button>
+              </Link>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  console.log("Using window.location")
+                  window.location.href = "/orders/new"
+                }}
+              >
+                window.location
               </Button>
-            </Link>
-            <Link href="/dashboard/error" passHref>
-              <Button className="w-full justify-start" variant="destructive">
-                Trigger Dashboard Error
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
+            </div>
+
+            <div className="mt-4">
+              <h3 className="text-lg font-medium">Other Navigation Links:</h3>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <Link href="/orders">
+                  <Button variant="outline">Back to Orders</Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button variant="outline">Dashboard</Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

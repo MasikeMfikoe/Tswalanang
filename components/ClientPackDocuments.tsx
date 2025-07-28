@@ -1,78 +1,90 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Search, FileText, Eye, Download, Loader2 } from "lucide-react"
-import { useClientDocumentsQuery } from "@/hooks/useDocumentsQuery"
-import { useToast } from "@/components/ui/use-toast"
-import { getDocumentStatusVariant } from "@/lib/document-utils"
-import { useAuth } from "@/contexts/AuthContext"
+import { Card, CardContent } from "@/components/ui/card"
+import { getClientPackDocuments, getMockClientPackDocuments, type ClientPackDocument } from "@/lib/client-pack-utils"
+import { Download, FileText } from "lucide-react"
 
-export default function ClientPackDocuments() {
-  const { user, isLoading: isAuthLoading } = useAuth()
-  const { toast } = useToast()
+interface ClientPackDocumentsProps {
+  orderId: string
+  freightType?: string
+}
 
-  const [searchTerm, setSearchTerm] = useState("")
+export default function ClientPackDocuments({ orderId, freightType }: ClientPackDocumentsProps) {
+  const [documents, setDocuments] = useState<ClientPackDocument[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [useMockData, setUseMockData] = useState(false)
 
-  const {
-    data: clientDocumentsData,
-    isLoading: isLoadingDocuments,
-    isError: isDocumentsError,
-    error: documentsError,
-  } = useClientDocumentsQuery(user?.id || null)
+  useEffect(() => {
+    async function fetchDocuments() {
+      try {
+        setLoading(true)
+        const docs = await getClientPackDocuments(orderId, freightType)
 
-  const documents = clientDocumentsData?.documents || []
-  const customerName = clientDocumentsData?.customerName || "Your Company"
+        // If no documents are found, use mock data for demonstration
+        if (docs.length === 0) {
+          setUseMockData(true)
+          setDocuments(getMockClientPackDocuments(orderId, freightType))
+        } else {
+          setDocuments(docs)
+        }
 
-  const handleDownload = (fileUrl: string, fileName: string) => {
-    window.open(fileUrl, "_blank")
+        setError(null)
+      } catch (err) {
+        console.error("Error fetching client pack documents:", err)
+        setError("Failed to load documents")
+        setUseMockData(true)
+        setDocuments(getMockClientPackDocuments(orderId, freightType))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDocuments()
+  }, [orderId, freightType])
+
+  const handleViewDocument = (document: ClientPackDocument) => {
+    if (useMockData) {
+      alert("This is a mock document. In a real application, this would open the document.")
+      return
+    }
+    window.open(document.url, "_blank")
   }
 
-  const handleView = (fileUrl: string) => {
-    window.open(fileUrl, "_blank")
+  const handleDownloadDocument = (document: ClientPackDocument) => {
+    if (useMockData) {
+      alert("This is a mock document. In a real application, this would download the document.")
+      return
+    }
+
+    const link = document.createElement("a")
+    link.href = document.url
+    link.download = document.name
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
-  const filteredDocuments = documents.filter(
-    (doc) =>
-      doc.file_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.document_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.order_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.po_number?.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const handleDownloadAll = () => {
+    if (useMockData) {
+      alert("These are mock documents. In a real application, this would download all documents.")
+      return
+    }
 
-  if (isAuthLoading || isLoadingDocuments) {
+    documents.forEach((doc, index) => {
+      // Add a small delay between downloads to prevent browser issues
+      setTimeout(() => handleDownloadDocument(doc), index * 300)
+    })
+  }
+
+  if (loading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Client Documents</CardTitle>
-          <CardDescription>Loading your documents...</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (isDocumentsError) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Client Documents</CardTitle>
-          <CardDescription>Error loading documents.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-red-500">
-            <p>Error: {documentsError?.message || "An unexpected error occurred."}</p>
-            <Button onClick={() => window.location.reload()} className="mt-4">
-              Retry
-            </Button>
+        <CardContent className="p-6">
+          <div className="flex justify-center items-center h-40">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         </CardContent>
       </Card>
@@ -81,85 +93,80 @@ export default function ClientPackDocuments() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Your Documents</CardTitle>
-        <CardDescription>Access all documents related to your orders with {customerName}.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex justify-between items-center mb-6">
-          <div className="relative w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search documents..."
-              className="pl-8"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {filteredDocuments.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-muted-foreground">No documents found.</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              {searchTerm
-                ? "Try adjusting your search."
-                : "Documents will appear here once uploaded by your logistics provider."}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>File Name</TableHead>
-                  <TableHead>Order PO</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Uploaded At</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDocuments.map((doc) => (
-                  <TableRow key={doc.id}>
-                    <TableCell className="font-medium flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      {doc.file_name}
-                    </TableCell>
-                    <TableCell>{(doc as any).po_number || doc.order_id}</TableCell> {/* Use po_number if available */}
-                    <TableCell>{doc.document_type}</TableCell>
-                    <TableCell>{new Date(doc.uploaded_at).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <Badge variant={getDocumentStatusVariant(doc.status)}>{doc.status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleView(doc.file_url)}
-                          title="View Document"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(doc.file_url, doc.file_name)}
-                          title="Download Document"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      <CardContent className="p-6">
+        {useMockData && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded mb-4">
+            <p className="font-medium">Demo Mode</p>
+            <p className="text-sm">Showing mock documents for demonstration purposes.</p>
           </div>
         )}
+
+        {error && !useMockData && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
+        )}
+
+        {documents.length > 0 && (
+          <div className="flex justify-end mb-4">
+            <Button
+              onClick={handleDownloadAll}
+              className="bg-black text-white hover:bg-gray-800 transition-colors flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Download All
+            </Button>
+          </div>
+        )}
+
+        <div className="rounded-md border">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="h-12 px-4 text-left align-middle font-medium">Document Name</th>
+                <th className="h-12 px-4 text-left align-middle font-medium">Type</th>
+                <th className="h-12 px-4 text-left align-middle font-medium">Status</th>
+                <th className="h-12 px-4 text-left align-middle font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {documents.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="p-4 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center py-6">
+                      <FileText className="h-12 w-12 text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-500">No client pack documents available for this order.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                documents.map((doc, index) => (
+                  <tr key={doc.id || index} className="border-b">
+                    <td className="p-4">{doc.name}</td>
+                    <td className="p-4">{doc.type}</td>
+                    <td className="p-4">
+                      <span
+                        className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                          doc.required
+                            ? "bg-red-100 text-red-700 ring-1 ring-inset ring-red-600/20"
+                            : "bg-yellow-100 text-yellow-700 ring-1 ring-inset ring-yellow-600/20"
+                        }`}
+                      >
+                        {doc.required ? "Required" : "Optional"}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <Button variant="outline" size="sm" className="mr-2" onClick={() => handleViewDocument(doc)}>
+                        View
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDownloadDocument(doc)}>
+                        Download
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </CardContent>
     </Card>
   )

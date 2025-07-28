@@ -1,260 +1,296 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import SignaturePad from "@/components/ui/signature-pad" // Assuming a signature pad component
-import { useToast } from "@/components/ui/use-toast"
-import { Loader2 } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import type React from "react"
+
+import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Upload } from "lucide-react"
-import { useParams, useRouter } from "next/navigation"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 
-// Mock data for a delivery
-const mockDelivery = {
-  id: "DEL001",
-  orderId: "ORD001",
-  customerName: "Acme Corp",
-  deliveryAddress: "123 Main St, Anytown, USA",
-  items: ["Package A (10kg)", "Package B (5kg)"],
-  status: "Out for Delivery",
-}
-
-export default function DeliveryConfirmationPage() {
-  const params = useParams()
+export default function DeliveryConfirmationPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string }
+  searchParams: { token: string }
+}) {
   const router = useRouter()
-  const { toast } = useToast()
-  const deliveryId = params.id as string
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+  const [name, setName] = useState("")
+  const [designation, setDesignation] = useState("")
+  const [agreeToTerms, setAgreeToTerms] = useState(false)
+  const signatureRef = useRef<HTMLCanvasElement>(null)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
+  const [orderDetails, setOrderDetails] = useState<any>(null)
 
-  const [delivery, setDelivery] = useState<typeof mockDelivery | null>(null)
-  const [recipientName, setRecipientName] = useState("")
-  const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split("T")[0])
-  const [deliveryTime, setDeliveryTime] = useState(new Date().toTimeString().slice(0, 5))
-  const [notes, setNotes] = useState("")
-  const [isDelivered, setIsDelivered] = useState(false)
-  const [signature, setSignature] = useState<string | null>(null)
-  const [podFile, setPodFile] = useState<File | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-
+  // Fetch order details
   useEffect(() => {
-    // Simulate fetching delivery details
-    setLoading(true)
-    setTimeout(() => {
-      if (deliveryId === mockDelivery.id) {
-        setDelivery(mockDelivery)
-      } else {
-        setDelivery(null) // Not found
+    const fetchOrderDetails = async () => {
+      try {
+        setLoading(true)
+        // In a real implementation, this would validate the token and fetch order details
+        // For now, we'll simulate a successful response
+        setOrderDetails({
+          id: params.id,
+          waybillNo: `WB-${params.id}`,
+          sender: "ABC Company",
+          receiver: "XYZ Corporation",
+          status: "Out for Delivery",
+        })
+      } catch (err) {
+        setError("Failed to load order details. The link may have expired.")
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
-    }, 1000)
-  }, [deliveryId])
-
-  const handleSubmit = async () => {
-    if (!isDelivered) {
-      toast({
-        title: "Error",
-        description: "Please confirm delivery by checking the box.",
-        variant: "destructive",
-      })
-      return
-    }
-    if (!recipientName.trim()) {
-      toast({
-        title: "Error",
-        description: "Recipient name is required.",
-        variant: "destructive",
-      })
-      return
-    }
-    if (!signature) {
-      toast({
-        title: "Error",
-        description: "Recipient signature is required.",
-        variant: "destructive",
-      })
-      return
-    }
-    if (!podFile) {
-      toast({
-        title: "Error",
-        description: "Proof of Delivery (POD) upload is required.",
-        variant: "destructive",
-      })
-      return
     }
 
-    setSubmitting(true)
+    fetchOrderDetails()
+  }, [params.id, searchParams.token])
+
+  // Signature pad functions
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = signatureRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    setIsDrawing(true)
+
+    // Get position
+    let clientX, clientY
+    if ("touches" in e) {
+      clientX = e.touches[0].clientX
+      clientY = e.touches[0].clientY
+    } else {
+      clientX = e.clientX
+      clientY = e.clientY
+    }
+
+    const rect = canvas.getBoundingClientRect()
+    const x = clientX - rect.left
+    const y = clientY - rect.top
+
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+  }
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return
+
+    const canvas = signatureRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    // Get position
+    let clientX, clientY
+    if ("touches" in e) {
+      clientX = e.touches[0].clientX
+      clientY = e.touches[0].clientY
+      e.preventDefault() // Prevent scrolling on touch devices
+    } else {
+      clientX = e.clientX
+      clientY = e.clientY
+    }
+
+    const rect = canvas.getBoundingClientRect()
+    const x = clientX - rect.left
+    const y = clientY - rect.top
+
+    ctx.lineWidth = 2
+    ctx.lineCap = "round"
+    ctx.strokeStyle = "#000"
+
+    ctx.lineTo(x, y)
+    ctx.stroke()
+  }
+
+  const endDrawing = () => {
+    setIsDrawing(false)
+
+    const canvas = signatureRef.current
+    if (!canvas) return
+
+    setSignatureDataUrl(canvas.toDataURL("image/png"))
+  }
+
+  const clearSignature = () => {
+    const canvas = signatureRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setSignatureDataUrl(null)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!name || !designation || !signatureDataUrl || !agreeToTerms) {
+      setError("Please fill in all fields, sign, and agree to the terms.")
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
     try {
-      // Simulate API call to confirm delivery
-      console.log("Confirming delivery:", {
-        deliveryId,
-        recipientName,
-        deliveryDate,
-        deliveryTime,
-        notes,
-        signature,
-        podFile,
-        status: "Delivered",
-      })
-      await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate network delay
+      // In a real implementation, this would send the data to the server
+      // For now, we'll simulate a successful submission
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      toast({
-        title: "Delivery Confirmed",
-        description: `Delivery ${deliveryId} successfully confirmed.`,
-        variant: "success",
-      })
-      router.push(`/delivery-confirmation/success?id=${deliveryId}`)
-    } catch (error) {
-      console.error("Error confirming delivery:", error)
-      toast({
-        title: "Error",
-        description: "Failed to confirm delivery. Please try again.",
-        variant: "destructive",
-      })
+      setSuccess(true)
+
+      // Redirect after a delay
+      setTimeout(() => {
+        router.push("/delivery-confirmation/success")
+      }, 3000)
+    } catch (err) {
+      setError("Failed to submit delivery confirmation. Please try again.")
     } finally {
-      setSubmitting(false)
+      setLoading(false)
     }
   }
 
-  if (loading) {
+  if (loading && !orderDetails) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-        <p className="ml-2">Loading delivery details...</p>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4">Loading order details...</p>
+        </div>
       </div>
     )
   }
 
-  if (!delivery) {
+  if (error && !orderDetails) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="w-full max-w-md text-center">
+      <div className="flex justify-center items-center min-h-screen">
+        <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Delivery Not Found</CardTitle>
+            <CardTitle className="text-red-600">Error</CardTitle>
           </CardHeader>
           <CardContent>
-            <p>The delivery with ID {deliveryId} could not be found.</p>
-            <Button onClick={() => router.push("/deliveries")} className="mt-4">
-              Back to Deliveries
-            </Button>
+            <p>{error}</p>
           </CardContent>
+          <CardFooter>
+            <Button onClick={() => router.push("/")}>Return to Home</Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
+  if (success) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-green-600">Delivery Confirmed!</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>Thank you for confirming your delivery. A confirmation email has been sent to you.</p>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={() => router.push("/")}>Return to Home</Button>
+          </CardFooter>
         </Card>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Delivery Confirmation</CardTitle>
-          <CardDescription>Confirm the successful delivery of shipment #{delivery.orderId}.</CardDescription>
+    <div className="flex justify-center items-center min-h-screen bg-gray-50 p-4">
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <CardTitle>Delivery Confirmation</CardTitle>
+          <CardDescription>
+            Order #{params.id} • Waybill: {orderDetails?.waybillNo}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div>
-            <p>
-              <strong>Customer:</strong> {delivery.customerName}
-            </p>
-            <p>
-              <strong>Address:</strong> {delivery.deliveryAddress}
-            </p>
-            <p>
-              <strong>Items:</strong> {delivery.items.join(", ")}
-            </p>
-          </div>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>}
 
-          <div className="space-y-2">
-            <Label htmlFor="recipient-name">Recipient Name</Label>
-            <Input
-              id="recipient-name"
-              value={recipientName}
-              onChange={(e) => setRecipientName(e.target.value)}
-              placeholder="Enter recipient's full name"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="delivery-date">Delivery Date</Label>
-            <Input
-              id="delivery-date"
-              type="date"
-              value={deliveryDate}
-              onChange={(e) => setDeliveryDate(e.target.value)}
-              defaultValue={new Date().toISOString().split("T")[0]}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="delivery-time">Delivery Time</Label>
-            <Input
-              id="delivery-time"
-              type="time"
-              value={deliveryTime}
-              onChange={(e) => setDeliveryTime(e.target.value)}
-              defaultValue={new Date().toTimeString().slice(0, 5)}
-            />
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="delivered-condition"
-              checked={isDelivered}
-              onCheckedChange={(checked) => setIsDelivered(!!checked)}
-            />
-            <Label htmlFor="delivered-condition">Shipment delivered in good condition</Label>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Additional Notes (Optional)</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any specific observations or issues?"
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="pod-upload">Proof of Delivery (POD) Upload</Label>
-            <div className="flex items-center justify-center w-full border-2 border-dashed border-gray-300 rounded-lg p-6 text-gray-500 cursor-pointer hover:border-gray-400">
-              <input
-                id="pod-upload"
-                type="file"
-                className="sr-only"
-                onChange={(e) => setPodFile(e.target.files ? e.target.files[0] : null)}
-              />
-              <Label htmlFor="pod-upload" className="flex flex-col items-center justify-center cursor-pointer">
-                <Upload className="h-8 w-8 mb-2" />
-                <p className="text-sm">Drag & drop or click to upload POD</p>
-              </Label>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium">From:</p>
+                  <p className="text-sm">{orderDetails?.sender}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">To:</p>
+                  <p className="text-sm">{orderDetails?.receiver}</p>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label>Recipient Signature</Label>
-            <SignaturePad onSave={setSignature} />
-            {signature && <div className="mt-2 text-sm text-gray-500">Signature captured.</div>}
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
 
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting || !isDelivered || !recipientName || !signature || !podFile}
-            className="w-full"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...
-              </>
-            ) : (
-              "Confirm Delivery"
-            )}
-          </Button>
+            <div className="space-y-2">
+              <Label htmlFor="designation">Designation / Title</Label>
+              <Input id="designation" value={designation} onChange={(e) => setDesignation(e.target.value)} required />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="signature">Signature</Label>
+              <div className="border border-gray-300 rounded-md p-2 bg-white">
+                <canvas
+                  ref={signatureRef}
+                  width={450}
+                  height={150}
+                  className="w-full border border-gray-200 rounded touch-none"
+                  onMouseDown={startDrawing}
+                  onMouseMove={draw}
+                  onMouseUp={endDrawing}
+                  onMouseLeave={endDrawing}
+                  onTouchStart={startDrawing}
+                  onTouchMove={draw}
+                  onTouchEnd={endDrawing}
+                />
+                <div className="flex justify-end mt-2">
+                  <Button type="button" variant="outline" onClick={clearSignature} size="sm">
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="terms"
+                checked={agreeToTerms}
+                onCheckedChange={(checked) => setAgreeToTerms(checked === true)}
+              />
+              <label
+                htmlFor="terms"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                I confirm that I have received this delivery in good condition
+              </label>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || !name || !designation || !signatureDataUrl || !agreeToTerms}
+            >
+              {loading ? "Submitting..." : "Confirm Delivery"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

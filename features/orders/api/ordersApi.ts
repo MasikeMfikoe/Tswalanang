@@ -1,40 +1,38 @@
-import type { Order } from "@/types/models" // Assuming you have a types/models.ts file
-
-interface FetchOrdersResponse {
-  data: Order[]
-  total: number
-  page: number
-  limit: number
-  totalPages: number
+// Define types for the Orders feature
+export interface Order {
+  id: string
+  poNumber: string
+  supplier: string
+  importer: string
+  status: string
+  cargoStatus: string
+  freightType: string
+  cargoStatusComment?: string
+  // Add other fields as needed
 }
 
-export async function fetchOrders(
-  page = 1,
-  limit = 10,
-  status?: string,
-  customerId?: string,
-  query?: string,
-): Promise<FetchOrdersResponse> {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    limit: limit.toString(),
-  })
-  if (status) params.append("status", status)
-  if (customerId) params.append("customerId", customerId)
-  if (query) params.append("query", query)
-
-  const response = await fetch(`/api/orders?${params.toString()}`)
+// API functions for Orders
+export async function fetchOrder(orderId: string): Promise<Order> {
+  const response = await fetch(`/api/orders/${orderId}`)
   if (!response.ok) {
-    throw new Error("Failed to fetch orders")
+    throw new Error("Failed to fetch order")
   }
   return response.json()
 }
 
-export async function fetchOrderById(id: string): Promise<Order> {
-  const response = await fetch(`/api/orders/${id}`)
+export async function updateOrder(order: Order): Promise<Order> {
+  const response = await fetch(`/api/orders/${order.id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(order),
+  })
+
   if (!response.ok) {
-    throw new Error(`Failed to fetch order with ID ${id}`)
+    throw new Error("Failed to update order")
   }
+
   return response.json()
 }
 
@@ -46,32 +44,10 @@ export async function createOrder(orderData: Omit<Order, "id">): Promise<Order> 
     },
     body: JSON.stringify(orderData),
   })
+
   if (!response.ok) {
     throw new Error("Failed to create order")
   }
-  return response.json()
-}
 
-export async function updateOrder(id: string, orderData: Partial<Order>): Promise<Order> {
-  const response = await fetch(`/api/orders/${id}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(orderData),
-  })
-  if (!response.ok) {
-    throw new Error(`Failed to update order with ID ${id}`)
-  }
-  return response.json()
-}
-
-export async function deleteOrder(id: string): Promise<{ message: string }> {
-  const response = await fetch(`/api/orders/${id}`, {
-    method: "DELETE",
-  })
-  if (!response.ok) {
-    throw new Error(`Failed to delete order with ID ${id}`)
-  }
   return response.json()
 }

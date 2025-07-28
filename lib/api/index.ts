@@ -5,7 +5,6 @@ export * from "./documentsApi"
 export * from "./deliveriesApi"
 export * from "./courierOrdersApi"
 export * from "./dashboardApi"
-export * from "./estimatesApi"
 
 // Re-export all API services as a single object
 import { apiClient } from "./apiClient"
@@ -15,7 +14,6 @@ import { documentsApi } from "./documentsApi"
 import { deliveriesApi } from "./deliveriesApi"
 import { courierOrdersApi } from "./courierOrdersApi"
 import { dashboardApi } from "./dashboardApi"
-import { estimatesApi } from "./estimatesApi"
 import type { ApiConfig } from "./apiClient"
 
 // Update the default configuration to handle missing API URL
@@ -37,5 +35,4 @@ export const api = {
   deliveries: deliveriesApi,
   courierOrders: courierOrdersApi,
   dashboard: dashboardApi,
-  estimates: estimatesApi,
 }

@@ -294,7 +294,6 @@ function reducer(state: AppState, action: ActionType): AppState {
 interface StateContextType {
   state: AppState
   dispatch: React.Dispatch<ActionType>
-  toggleSidebar: () => void
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined)
@@ -303,11 +302,7 @@ const StateContext = createContext<StateContextType | undefined>(undefined)
 export function StateProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
-  const toggleSidebar = () => {
-    dispatch({ type: "SET_SIDEBAR_OPEN", payload: !state.ui.sidebarOpen })
-  }
-
-  return <StateContext.Provider value={{ state, dispatch, toggleSidebar }}>{children}</StateContext.Provider>
+  return <StateContext.Provider value={{ state, dispatch }}>{children}</StateContext.Provider>
 }
 
 // Create a custom hook to use the context

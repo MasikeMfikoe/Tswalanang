@@ -1,6 +1,6 @@
 "use client"
 
-import { Search, CalendarDays, Bell, Sun, Moon, ChevronDown } from "lucide-react"
+import { Search, Calendar, Bell, Sun, Moon, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -57,8 +57,11 @@ export function DashboardHeader({
 }: DashboardHeaderProps) {
   return (
     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className={`text-3xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>Dashboard Overview</h1>
+      <div>
+        <h1 className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>Dashboard</h1>
+        <p className={`text-sm mt-1 ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
+          Welcome back! Here's what's happening with your logistics operations.
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -82,7 +85,7 @@ export function DashboardHeader({
               variant="outline"
               className={`flex items-center gap-2 ${isDarkMode ? "bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700" : "bg-white hover:bg-gray-100"}`}
             >
-              <CalendarDays className="h-4 w-4" />
+              <Calendar className="h-4 w-4" />
               <span className="hidden sm:inline">
                 {periodOptions.find((opt) => opt.value === selectedPeriod)?.label || "Select Period"}
               </span>
@@ -214,16 +217,6 @@ export function DashboardHeader({
         >
           {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
-
-        {/* Additional Buttons */}
-        <div className="absolute top-4 right-4 z-20 flex gap-2">
-          <Button variant="ghost" className="text-white hover:bg-white/20">
-            <Bell className="h-5 w-5 mr-1" /> Notifications
-          </Button>
-          <Button variant="ghost" className="text-white hover:bg-white/20">
-            <CalendarDays className="h-5 w-5 mr-1" /> Calendar
-          </Button>
-        </div>
       </div>
     </div>
   )

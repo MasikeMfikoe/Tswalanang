@@ -1,7 +1,16 @@
-// This file was left out for brevity. Assume it is correct and does not need any modifications.
-// Placeholder content for providers/QueryProvider.tsx
 "use client"
+
 import type React from "react"
+
+import { QueryClientProvider } from "@tanstack/react-query"
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools"
+import { queryClient } from "@/lib/react-query"
+
 export function QueryProvider({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
+  )
 }

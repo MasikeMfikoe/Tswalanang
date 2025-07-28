@@ -1,63 +1,104 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Package, DollarSign, Clock, Truck } from "lucide-react"
+"use client"
+
+import { Card, CardContent } from "@/components/ui/card"
+import { Package, TrendingUp, CheckCircle, Users } from "lucide-react"
 
 interface KPISummaryCardsProps {
-  totalOrders: number
-  totalRevenue: number
-  avgDeliveryTime: string
-  onTimeDeliveryRate: string
+  isDarkMode: boolean
+  filteredOrders: any[]
+  totalOrderValue: number
+  completedOrders: any[]
+  customers: any[]
 }
 
 export function KPISummaryCards({
-  totalOrders,
-  totalRevenue,
-  avgDeliveryTime,
-  onTimeDeliveryRate,
+  isDarkMode,
+  filteredOrders,
+  totalOrderValue,
+  completedOrders,
+  customers,
 }: KPISummaryCardsProps) {
   return (
-    <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-          <Package className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{totalOrders.toLocaleString()}</div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">+20.1% from last month</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-          <DollarSign className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
+        <CardContent className="p-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Total Orders</p>
+              <h3 className={`text-2xl font-bold mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                {filteredOrders.length}
+              </h3>
+              <p className="text-xs text-green-500 mt-1 flex items-center">
+                <TrendingUp className="h-3 w-3 mr-1" />
+                +12% from previous period
+              </p>
+            </div>
+            <div className={`p-3 rounded-full ${isDarkMode ? "bg-blue-900/20" : "bg-blue-50"}`}>
+              <Package className={`h-5 w-5 ${isDarkMode ? "text-blue-400" : "text-blue-500"}`} />
+            </div>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">+15.5% from last month</p>
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Avg. Delivery Time</CardTitle>
-          <Clock className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{avgDeliveryTime}</div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Target: 3 days</p>
+
+      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
+        <CardContent className="p-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Total Revenue</p>
+              <h3 className={`text-2xl font-bold mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                R {totalOrderValue.toLocaleString()}
+              </h3>
+              <p className="text-xs text-green-500 mt-1 flex items-center">
+                <TrendingUp className="h-3 w-3 mr-1" />
+                +8.5% from previous period
+              </p>
+            </div>
+            <div className={`p-3 rounded-full ${isDarkMode ? "bg-green-900/20" : "bg-green-50"}`}>
+              <TrendingUp className={`h-5 w-5 ${isDarkMode ? "text-green-400" : "text-green-500"}`} />
+            </div>
+          </div>
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">On-Time Delivery</CardTitle>
-          <Truck className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{onTimeDeliveryRate}</div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Compared to all deliveries</p>
+
+      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
+        <CardContent className="p-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Completion Rate</p>
+              <h3 className={`text-2xl font-bold mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                {completedOrders.length > 0 ? Math.round((completedOrders.length / filteredOrders.length) * 100) : 0}%
+              </h3>
+              <p className="text-xs text-yellow-500 mt-1 flex items-center">
+                <TrendingUp className="h-3 w-3 mr-1" />
+                +2% from previous period
+              </p>
+            </div>
+            <div className={`p-3 rounded-full ${isDarkMode ? "bg-yellow-900/20" : "bg-yellow-50"}`}>
+              <CheckCircle className={`h-5 w-5 ${isDarkMode ? "text-yellow-400" : "text-yellow-500"}`} />
+            </div>
+          </div>
         </CardContent>
       </Card>
-    </>
+
+      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
+        <CardContent className="p-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Active Customers</p>
+              <h3 className={`text-2xl font-bold mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                {customers.length}
+              </h3>
+              <p className="text-xs text-green-500 mt-1 flex items-center">
+                <TrendingUp className="h-3 w-3 mr-1" />
+                +5% from previous period
+              </p>
+            </div>
+            <div className={`p-3 rounded-full ${isDarkMode ? "bg-purple-900/20" : "bg-purple-50"}`}>
+              <Users className={`h-5 w-5 ${isDarkMode ? "text-purple-400" : "text-purple-500"}`} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

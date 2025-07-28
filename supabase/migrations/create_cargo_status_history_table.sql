@@ -1,10 +1,11 @@
 -- Create cargo status history table if it doesn't exist
 CREATE TABLE IF NOT EXISTS cargo_status_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cargo_status_id UUID REFERENCES cargo_status(id),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   status TEXT NOT NULL,
+  comments TEXT,
   location TEXT,
-  timestamp TIMESTAMPTZ DEFAULT now(),
+  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_by UUID,
   updated_by_name TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -24,5 +25,5 @@ CREATE POLICY "Enable update for authenticated users" ON cargo_status_history
   FOR UPDATE USING (true);
 
 -- Create index for faster queries
-CREATE INDEX IF NOT EXISTS idx_cargo_status_history_cargo_status_id ON cargo_status_history(cargo_status_id);
+CREATE INDEX IF NOT EXISTS idx_cargo_status_history_order_id ON cargo_status_history(order_id);
 CREATE INDEX IF NOT EXISTS idx_cargo_status_history_timestamp ON cargo_status_history(timestamp);

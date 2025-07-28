@@ -1,6 +1,5 @@
 // Add any global setup for Jest tests here
-import "@testing-library/jest-dom/extend-expect"
-import jest from "jest"
+import "@testing-library/jest-dom"
 
 // Mock next/image
 jest.mock("next/image", () => ({

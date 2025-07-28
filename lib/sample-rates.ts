@@ -43,5 +43,3 @@ export const defaultFreightTypes: FreightType[] = [
     name: "Air Freight",
   },
 ]
-
-export const sampleRates = []

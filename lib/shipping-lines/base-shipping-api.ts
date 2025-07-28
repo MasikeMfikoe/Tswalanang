@@ -13,7 +13,6 @@ export abstract class BaseShippingAPI {
   abstract authenticate(): Promise<boolean>
   abstract getContainerStatus(containerNumber: string): Promise<ContainerStatus>
   abstract getBookingStatus(bookingReference: string): Promise<ContainerStatus>
-  abstract trackShipment(trackingNumber: string): Promise<any>
 
   // Helper methods
   protected async fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {

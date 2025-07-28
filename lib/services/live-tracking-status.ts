@@ -7,7 +7,7 @@ export interface LiveTrackingStatus {
   status: "active" | "inactive" | "no-credentials" | "unsupported"
 }
 
-export async function getLiveTrackingStatus(trackingNumber: string): Promise<{ status: string; location: string }> {
+export function getLiveTrackingStatus(): LiveTrackingStatus[] {
   const carriers = [
     { name: "Maersk", code: "maersk" as const },
     { name: "MSC", code: "msc" as const },
@@ -17,7 +17,7 @@ export async function getLiveTrackingStatus(trackingNumber: string): Promise<{ s
     { name: "COSCO", code: "cosco", supported: false },
   ]
 
-  const liveTrackingStatuses = carriers.map((carrier) => {
+  return carriers.map((carrier) => {
     const isSupported = carrier.supported !== false
     let hasCredentials = false
     let status: LiveTrackingStatus["status"] = "unsupported"
@@ -38,18 +38,10 @@ export async function getLiveTrackingStatus(trackingNumber: string): Promise<{ s
       status,
     }
   })
-
-  const activeCarriers = liveTrackingStatuses
-    .filter((carrier) => carrier.status === "active")
-    .map((carrier) => carrier.carrierName)
-
-  const trackingStatus = await ShippingAPIFactory.getTrackingStatus(trackingNumber, activeCarriers)
-
-  return trackingStatus
 }
 
 export function getActiveLiveCarriers(): string[] {
-  return getLiveTrackingStatus("")
-    .then((status) => [])
-    .catch((error) => [])
+  return getLiveTrackingStatus()
+    .filter((carrier) => carrier.status === "active")
+    .map((carrier) => carrier.carrierName)
 }

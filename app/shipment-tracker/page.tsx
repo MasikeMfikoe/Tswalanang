@@ -2,168 +2,214 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search } from "lucide-react"
+import { Search, Bell, CalendarDays, Ship, Plane } from "lucide-react"
+import {
+  detectShipmentInfo,
+  getCarrierSuggestions,
+  type ShipmentType,
+  type CarrierSuggestion,
+} from "@/lib/services/container-detection-service"
 import ShipmentTrackingResults from "@/components/ShipmentTrackingResults"
-import { detectShipmentTrackingInfo } from "@/lib/services/container-detection-service"
-import type { ShipmentType } from "@/types/tracking"
-import Image from "next/image"
+
+const RECENT_KEY = "recentShipmentSearches"
 
 export default function ShipmentTrackerPage() {
-  const [trackingNumberInput, setTrackingNumberInput] = useState("")
+  // ----- state -------------------------------------------------------------
   const [trackingNumber, setTrackingNumber] = useState("")
-  const [detectedShipmentType, setDetectedShipmentType] = useState<ShipmentType>("unknown")
-  const [detectedCarrierName, setDetectedCarrierName] = useState<string | undefined>(undefined)
-  const [gocometToken, setGocometToken] = useState<string | null>(null)
-  const [authError, setAuthError] = useState<string | null>(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  const [detectedType, setDetectedType] = useState<ShipmentType>("unknown")
+  const [carrierHint, setCarrierHint] = useState<string>()
+  const [manualOverride, setManualOverride] = useState<ShipmentType>()
+  const [suggestions, setSuggestions] = useState<CarrierSuggestion[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [recent, setRecent] = useState<string[]>([])
+  const [showResults, setShowResults] = useState(false)
 
-  // Automatic GoComet Authentication on component mount
+  const inputRef = useRef<HTMLInputElement>(null)
+  const suggestionBoxRef = useRef<HTMLDivElement>(null)
+
+  // ----- life-cycle --------------------------------------------------------
   useEffect(() => {
-    const authenticateGocomet = async () => {
-      setAuthLoading(true)
-      setAuthError(null)
-      try {
-        const response = await fetch("/api/gocomet-auth", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          // No body needed, credentials are read from env vars on the server
-        })
+    inputRef.current?.focus()
+    const stored = localStorage.getItem(RECENT_KEY)
+    if (stored) setRecent(JSON.parse(stored))
+  }, [])
 
-        if (!response.ok) {
-          const errorText = await response.text() // Read as text first
-          let errorMessage = `Failed to authenticate with GoComet: ${response.status} ${response.statusText}`
-          try {
-            const errorData = JSON.parse(errorText) // Attempt to parse as JSON
-            errorMessage = errorData.error || errorMessage
-          } catch (parseError) {
-            // If parsing fails, use the raw text
-            errorMessage = `Failed to authenticate with GoComet: ${errorText}`
-          }
-          throw new Error(errorMessage)
-        }
-
-        const data = await response.json()
-        if (data.success && data.token) {
-          setGocometToken(data.token)
-          console.log("GoComet authentication successful.")
-        } else {
-          throw new Error(data.error || "GoComet authentication failed: No token received.")
-        }
-      } catch (error: any) {
-        console.error("Authentication error:", error)
-        setAuthError(`Authentication error: ${error.message}`)
-      } finally {
-        setAuthLoading(false)
+  // close autocomplete when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        suggestionBoxRef.current &&
+        !suggestionBoxRef.current.contains(e.target as Node) &&
+        !inputRef.current?.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false)
       }
     }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
 
-    authenticateGocomet()
-  }, []) // Run only once on mount
-
-  const handleSearch = () => {
-    if (trackingNumberInput.trim()) {
-      setTrackingNumber(trackingNumberInput) // Set the tracking number to trigger results display
-      const detectedInfo = detectShipmentTrackingInfo(trackingNumberInput) // Use the more detailed detection
-      setDetectedShipmentType(detectedInfo.type)
-      setDetectedCarrierName(detectedInfo.carrierDetails?.name) // Set the detected carrier name
-    }
+  // ----- helpers -----------------------------------------------------------
+  const saveRecent = (value: string) => {
+    setRecent((prev) => {
+      const updated = [value, ...prev.filter((v) => v !== value)].slice(0, 5)
+      localStorage.setItem(RECENT_KEY, JSON.stringify(updated))
+      return updated
+    })
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const displayType: ShipmentType = manualOverride || detectedType
+
+  // icon used in UI only
+  const typeIcon =
+    displayType === "air" ? (
+      <Plane className="h-4 w-4 ml-1" />
+    ) : displayType === "ocean" ? (
+      <Ship className="h-4 w-4 ml-1" />
+    ) : null
+
+  // ----- event handlers ----------------------------------------------------
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    setTrackingNumberInput(value)
-    if (!value.trim()) {
-      setTrackingNumber("") // Clear tracking number to hide results
-      setDetectedShipmentType("unknown")
-      setDetectedCarrierName(undefined) // Clear detected carrier
+    setTrackingNumber(value)
+    setShowResults(false) // hide old results
+    setManualOverride(undefined)
+
+    if (value.trim().length >= 3) {
+      const detect = detectShipmentInfo(value)
+      setDetectedType(detect.type)
+      setCarrierHint(detect.carrierHint)
+      const sug = getCarrierSuggestions(value)
+      setSuggestions(sug)
+      setShowSuggestions(sug.length > 0)
     } else {
-      const detectedInfo = detectShipmentTrackingInfo(value) // Use the more detailed detection
-      setDetectedShipmentType(detectedInfo.type)
-      setDetectedCarrierName(detectedInfo.carrierDetails?.name) // Set the detected carrier name
+      setDetectedType("unknown")
+      setCarrierHint(undefined)
+      setSuggestions([])
+      setShowSuggestions(false)
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      handleSearch()
-    }
+  const submitSearch = (e?: React.FormEvent) => {
+    e?.preventDefault()
+    const value = trackingNumber.trim()
+    if (!value) return
+    saveRecent(value)
+    setShowResults(true)
+    setShowSuggestions(false)
   }
 
+  // clicking a suggestion fills carrier hint & maybe type
+  const chooseSuggestion = (s: CarrierSuggestion) => {
+    setCarrierHint(s.name)
+    setManualOverride(s.type)
+    setShowSuggestions(false)
+  }
+
+  const chooseRecent = (value: string) => {
+    setTrackingNumber(value)
+    const detect = detectShipmentInfo(value)
+    setDetectedType(detect.type)
+    setCarrierHint(detect.carrierHint)
+    setManualOverride(undefined)
+    setShowResults(true)
+  }
+
+  // ----- render ------------------------------------------------------------
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
-      <Image
-        src="/images/world-map.jpg"
-        alt="World Map Background"
-        layout="fill"
-        objectFit="cover"
-        quality={100}
-        className="absolute inset-0 z-0 opacity-20 dark:opacity-10"
-      />
-      <div className="relative z-10 w-full max-w-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-lg shadow-xl p-8">
-        <h1 className="text-3xl font-bold text-center text-gray-800 dark:text-white mb-6">Track Your Shipment</h1>
+    <div
+      className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 bg-cover bg-center"
+      style={{ backgroundImage: "url('/images/world-map.jpg')" }}
+    >
+      <div className="absolute inset-0 bg-black/50" />
 
-        {authLoading && (
-          <div className="text-center text-gray-600 dark:text-gray-400 mb-4">Authenticating GoComet...</div>
-        )}
-        {authError && (
-          <div className="text-center text-red-600 dark:text-red-400 mb-4 p-2 border border-red-500 rounded">
-            {authError}
-          </div>
-        )}
-        {!authLoading && !gocometToken && !authError && (
-          <div className="text-center text-yellow-600 dark:text-yellow-400 mb-4 p-2 border border-yellow-500 rounded">
-            GoComet authentication failed or token not available. Tracking might be limited.
-          </div>
-        )}
+      {/* header buttons */}
+      <div className="absolute top-4 right-4 z-20 flex gap-2">
+        <Button variant="ghost" className="text-white hover:bg-white/20">
+          <Bell className="h-5 w-5 mr-1" /> Notifications
+        </Button>
+        <Button variant="ghost" className="text-white hover:bg-white/20">
+          <CalendarDays className="h-5 w-5 mr-1" /> Calendar
+        </Button>
+      </div>
 
-        <div className="flex space-x-2 mb-4">
+      {/* search box */}
+      <form onSubmit={submitSearch} className="relative z-20 w-full max-w-2xl flex flex-col items-center space-y-3">
+        <div className="relative w-full">
           <Input
-            type="text"
-            placeholder="Enter tracking number (e.g., MEDU9445622)"
-            className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-            value={trackingNumberInput}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
+            ref={inputRef}
+            value={trackingNumber}
+            onChange={onChange}
+            placeholder="Shipment number"
+            className="w-full py-3 pl-4 pr-12 rounded-full bg-white/80 backdrop-blur text-lg"
           />
           <Button
-            onClick={handleSearch}
-            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-md flex items-center gap-2"
-            disabled={authLoading || !trackingNumberInput.trim()}
+            type="submit"
+            size="icon"
+            variant="ghost"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full hover:bg-gray-200"
+            aria-label="search"
           >
-            <Search className="h-5 w-5" />
-            Track
+            <Search className="h-6 w-6 text-gray-700" />
           </Button>
         </div>
 
-        {trackingNumberInput.trim() && (
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Detected:{" "}
-            <span className="font-semibold">
-              {detectedShipmentType !== "unknown" ? detectedShipmentType.toUpperCase() : "Unknown Type"}
-            </span>
-            {detectedCarrierName && <span className="ml-1">({detectedCarrierName})</span>}
-            {!detectedCarrierName && detectedShipmentType !== "unknown" && (
-              <span className="ml-1">(Carrier Unknown)</span>
-            )}
-          </p>
-        )}
-
-        {trackingNumber && (
-          <div className="mt-8">
-            <ShipmentTrackingResults
-              trackingNumber={trackingNumber}
-              bookingType={detectedShipmentType}
-              carrierHint={detectedCarrierName} // Pass the detected carrier name as hint
-              gocometToken={gocometToken} // Pass the obtained token
-            />
+        {/* autocomplete */}
+        {showSuggestions && (
+          <div
+            ref={suggestionBoxRef}
+            className="absolute top-full mt-2 w-full max-w-2xl bg-white/90 backdrop-blur rounded-lg shadow-lg z-30"
+          >
+            {suggestions.map((s) => (
+              <Button
+                key={s.code}
+                variant="ghost"
+                className="w-full justify-start px-4 py-2 text-left text-gray-800 hover:bg-gray-100"
+                onClick={() => chooseSuggestion(s)}
+              >
+                {s.name} ({s.code}) – {s.type.toUpperCase()}
+              </Button>
+            ))}
           </div>
         )}
-      </div>
+
+        {/* detected display */}
+        <div className="text-white text-sm">
+          Detected: <span className="capitalize">{displayType}</span> {typeIcon}
+          {carrierHint && <span className="ml-1 text-gray-300">({carrierHint})</span>}
+        </div>
+      </form>
+
+      {/* recent chips */}
+      {recent.length > 0 && (
+        <div className="z-20 mt-6 flex flex-wrap gap-2 justify-center">
+          {recent.map((v) => (
+            <Button
+              key={v}
+              size="sm"
+              variant="outline"
+              className="bg-white/20 text-white hover:bg-white/30 border-white/30"
+              onClick={() => chooseRecent(v)}
+            >
+              {v}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* results */}
+      {showResults && (
+        <div className="z-20 mt-10 w-full max-w-4xl">
+          <ShipmentTrackingResults
+            trackingNumber={trackingNumber}
+            bookingType={displayType}
+            carrierHint={carrierHint}
+          />
+        </div>
+      )}
     </div>
   )
 }

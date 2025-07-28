@@ -1,20 +1,28 @@
-// This file was left out for brevity. Assume it is correct and does not need any modifications.
-// Placeholder content for app/api/tracking-status/route.ts
 import { NextResponse } from "next/server"
 import { getLiveTrackingStatus } from "@/lib/services/live-tracking-status"
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const trackingNumber = searchParams.get("trackingNumber")
-
-  if (!trackingNumber) {
-    return NextResponse.json({ error: "Tracking number is required" }, { status: 400 })
-  }
-
+export async function GET() {
   try {
-    const status = await getLiveTrackingStatus(trackingNumber)
-    return NextResponse.json(status)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const carriers = getLiveTrackingStatus()
+
+    return NextResponse.json({
+      success: true,
+      carriers,
+      summary: {
+        total: carriers.length,
+        active: carriers.filter((c) => c.status === "active").length,
+        supported: carriers.filter((c) => c.isLiveSupported).length,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error("Error getting tracking status:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to get tracking status",
+      },
+      { status: 500 },
+    )
   }
 }

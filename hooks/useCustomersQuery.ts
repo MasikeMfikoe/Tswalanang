@@ -160,8 +160,3 @@ export function useUpdateCustomerRateCard() {
     },
   })
 }
-
-// Placeholder content for hooks/useCustomersQuery.ts
-export function useCustomersQuery() {
-  return { data: [], isLoading: false, error: null }
-}

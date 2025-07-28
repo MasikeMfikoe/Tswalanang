@@ -1,59 +1,84 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Charts } from "@/components/Charts" // Assuming Charts component is available
-import type { Order } from "@/types/models" // Assuming Order type is defined here
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 
 interface OrderStatisticsProps {
-  orders: Order[]
+  isDarkMode: boolean
 }
 
-export function OrderStatistics({ orders }: OrderStatisticsProps) {
-  // Aggregate order data by month for the chart
-  const monthlyOrderData = orders.reduce((acc: { [key: string]: number }, order) => {
-    const month = new Date(order.createdAt).toLocaleString("en-US", { month: "short", year: "numeric" })
-    acc[month] = (acc[month] || 0) + 1
-    return acc
-  }, {})
-
-  const chartData = Object.entries(monthlyOrderData)
-    .map(([month, count]) => ({ month, orders: count }))
-    .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime()) // Sort by month
-
-  const activeOrders = orders.filter((order) => order.status === "Pending" || order.status === "In Transit").length
-  const completedOrders = orders.filter((order) => order.status === "Delivered").length
-  const cancelledOrders = orders.filter((order) => order.status === "Cancelled").length
-
+export function OrderStatistics({ isDarkMode }: OrderStatisticsProps) {
   return (
-    <Card className="lg:col-span-2">
-      <CardHeader>
-        <CardTitle>Order Statistics</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="text-center">
-            <div className="text-xl font-bold text-blue-600">{activeOrders}</div>
-            <p className="text-sm text-gray-500">Active</p>
+    <div className="grid gap-6 md:grid-cols-2">
+      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
+        <CardHeader>
+          <CardTitle className={`${isDarkMode ? "text-white" : "text-gray-900"}`}>Order Processing Time</CardTitle>
+          <CardDescription className={`${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
+            Average time to process orders
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center h-[240px]">
+            <div className={`text-5xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>2.4</div>
+            <div className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>days on average</div>
+            <div className="w-full mt-6">
+              <div className="flex justify-between mb-1">
+                <span className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Target: 2 days</span>
+                <span className="text-xs text-yellow-500">+0.4 days</span>
+              </div>
+              <Progress value={80} className="h-2" />
+            </div>
           </div>
-          <div className="text-center">
-            <div className="text-xl font-bold text-green-600">{completedOrders}</div>
-            <p className="text-sm text-gray-500">Completed</p>
+        </CardContent>
+      </Card>
+
+      <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
+        <CardHeader>
+          <CardTitle className={`${isDarkMode ? "text-white" : "text-gray-900"}`}>Order Value Distribution</CardTitle>
+          <CardDescription className={`${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
+            Distribution of orders by value
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>R 0 - R 1,000</span>
+                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>15%</span>
+              </div>
+              <Progress value={15} className="h-2" />
+            </div>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>R 1,001 - R 5,000</span>
+                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>35%</span>
+              </div>
+              <Progress value={35} className="h-2" />
+            </div>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>R 5,001 - R 10,000</span>
+                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>25%</span>
+              </div>
+              <Progress value={25} className="h-2" />
+            </div>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>R 10,001 - R 50,000</span>
+                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>20%</span>
+              </div>
+              <Progress value={20} className="h-2" />
+            </div>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>R 50,001+</span>
+                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>5%</span>
+              </div>
+              <Progress value={5} className="h-2" />
+            </div>
           </div>
-          <div className="text-center">
-            <div className="text-xl font-bold text-red-600">{cancelledOrders}</div>
-            <p className="text-sm text-gray-500">Cancelled</p>
-          </div>
-        </div>
-        <div className="h-[250px]">
-          <Charts
-            type="line"
-            title="Order Volume by Month"
-            data={chartData}
-            xAxisDataKey="month"
-            series={[{ dataKey: "orders", color: "#82ca9d", name: "Orders" }]}
-          />
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

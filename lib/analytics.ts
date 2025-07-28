@@ -153,8 +153,3 @@ export const analytics = Analytics.getInstance()
 export function useAnalytics() {
   return analytics
 }
-
-// Function to track events globally
-export function trackEvent(eventName: string, properties?: Record<string, any>) {
-  console.log(`Analytics event: ${eventName}`, properties)
-}

@@ -1,16 +1,13 @@
-// This file was left out for brevity. Assume it is correct and does not need any modifications.
-// Placeholder content for components/ui/page-header.tsx
-import type React from "react"
-export function PageHeader({
-  title,
-  description,
-  children,
-}: { title: string; description?: string; children?: React.ReactNode }) {
+interface PageHeaderProps {
+  title: string
+  description?: string
+}
+
+export function PageHeader({ title, description }: PageHeaderProps) {
   return (
-    <div className="mb-6">
-      <h1 className="text-3xl font-bold">{title}</h1>
-      {description && <p className="text-gray-600">{description}</p>}
-      {children}
+    <div className="space-y-0.5">
+      <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
+      {description && <p className="text-muted-foreground">{description}</p>}
     </div>
   )
 }

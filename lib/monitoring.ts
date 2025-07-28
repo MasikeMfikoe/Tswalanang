@@ -149,8 +149,3 @@ export function withPerformanceTracking<P>(Component: React.ComponentType<P>, na
     return <Component {...props} />
   }
 }
-
-// Function to log errors
-export function logError(error: any, info?: Record<string, any>) {
-  console.error("Logged error:", error, info)
-}

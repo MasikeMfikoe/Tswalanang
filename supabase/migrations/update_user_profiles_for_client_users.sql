@@ -22,10 +22,6 @@ END $$;
 ALTER TABLE user_profiles 
 ADD COLUMN IF NOT EXISTS associated_orders TEXT[] DEFAULT '{}';
 
--- Add is_client_user column if it doesn't exist
-ALTER TABLE user_profiles
-ADD COLUMN IF NOT EXISTS is_client_user BOOLEAN DEFAULT FALSE;
-
 -- Add indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_user_profiles_role ON user_profiles(role);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON user_profiles(email);
@@ -38,7 +34,6 @@ BEGIN
     -- If the user is a client, ensure they only have shipment tracker access
     IF NEW.role = 'client' THEN
         NEW.page_access := ARRAY['shipmentTracker'];
-        NEW.is_client_user := TRUE;
     END IF;
     
     RETURN NEW;
@@ -91,7 +86,6 @@ INSERT INTO user_profiles (
     department,
     role,
     page_access,
-    is_client_user,
     created_at,
     updated_at
 ) VALUES 
@@ -104,7 +98,6 @@ INSERT INTO user_profiles (
     'External',
     'client',
     ARRAY['shipmentTracker'],
-    TRUE,
     NOW(),
     NOW()
 ),
@@ -117,7 +110,6 @@ INSERT INTO user_profiles (
     'External',
     'client',
     ARRAY['shipmentTracker'],
-    TRUE,
     NOW(),
     NOW()
 )
@@ -156,6 +148,5 @@ GRANT EXECUTE ON FUNCTION get_client_user_orders(TEXT) TO authenticated;
 COMMENT ON TABLE user_profiles IS 'User profiles table supporting both internal and client users';
 COMMENT ON COLUMN user_profiles.role IS 'User role: admin, manager, employee, guest, tracking, or client';
 COMMENT ON COLUMN user_profiles.associated_orders IS 'Array of order IDs associated with this user (mainly for client users)';
-COMMENT ON COLUMN user_profiles.is_client_user IS 'Boolean indicating if the user is a client user';
 COMMENT ON VIEW client_orders IS 'View showing orders associated with client users based on email matching';
 COMMENT ON FUNCTION get_client_user_orders(TEXT) IS 'Function to get orders for a specific client user by email';

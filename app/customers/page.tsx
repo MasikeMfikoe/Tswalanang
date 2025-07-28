@@ -20,7 +20,7 @@ interface Customer {
   created_at: string
 }
 
-export default function CustomersPage() {
+export default function Customers() {
   const router = useRouter()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
@@ -132,7 +132,7 @@ export default function CustomersPage() {
                 className="pl-9"
               />
             </div>
-            <Button variant="outline" onClick={fetchCustomers} className="whitespace-nowrap bg-transparent">
+            <Button variant="outline" onClick={fetchCustomers} className="whitespace-nowrap">
               Refresh List
             </Button>
           </div>

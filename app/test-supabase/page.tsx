@@ -245,7 +245,7 @@ CREATE POLICY "Public Access" ON storage.objects FOR ALL USING (bucket_id = 'doc
                     </ol>
                     <Button
                       variant="outline"
-                      className="mt-2 bg-transparent"
+                      className="mt-2"
                       onClick={() => window.open("https://app.supabase.com", "_blank")}
                     >
                       <ExternalLink className="h-4 w-4 mr-2" />
@@ -269,7 +269,7 @@ CREATE POLICY "Public Access" ON storage.objects FOR ALL USING (bucket_id = 'doc
                     </div>
                     <Button
                       variant="outline"
-                      className="mt-2 bg-transparent"
+                      className="mt-2"
                       onClick={() => window.open("https://app.supabase.com", "_blank")}
                     >
                       <Terminal className="h-4 w-4 mr-2" />

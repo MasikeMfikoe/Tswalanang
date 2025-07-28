@@ -234,16 +234,3 @@ export const getMonthlyOrderData = (filteredOrders: any[]) => {
 
   return monthlyData
 }
-
-// Get customer summary data
-export const getCustomerSummaryData = async (customerId: string) => {
-  const customer = customers.find((cust) => cust.id === customerId)
-  const customerOrders = customer ? orders.filter((order) => order.importer === customer.name) : []
-
-  return {
-    customer,
-    orders: customerOrders,
-    documents: [],
-    cargoStatus: customerOrders.map((order) => order.cargoStatus),
-  }
-}

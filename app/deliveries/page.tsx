@@ -1,124 +1,76 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { CalendarDays } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { deliveries } from "@/lib/sample-data"
 
 export default function DeliveriesPage() {
-  const deliveries = [
-    {
-      id: "DEL001",
-      orderId: "ORD001",
-      status: "Delivered",
-      origin: "Shanghai",
-      destination: "Rotterdam",
-      eta: "2024-07-20",
-      actualDelivery: "2024-07-19",
-      carrier: "Maersk",
-      trackingNumber: "MAEU1234567",
-    },
-    {
-      id: "DEL002",
-      orderId: "ORD002",
-      status: "In Transit",
-      origin: "New York",
-      destination: "London",
-      eta: "2024-07-25",
-      actualDelivery: "-",
-      carrier: "DHL",
-      trackingNumber: "DHL987654321",
-    },
-    {
-      id: "DEL003",
-      orderId: "ORD003",
-      status: "Pending",
-      origin: "Dubai",
-      destination: "Singapore",
-      eta: "2024-07-30",
-      actualDelivery: "-",
-      carrier: "Emirates SkyCargo",
-      trackingNumber: "EK654321",
-    },
-    {
-      id: "DEL004",
-      orderId: "ORD004",
-      status: "Delivered",
-      origin: "Hamburg",
-      destination: "Cape Town",
-      eta: "2024-07-10",
-      actualDelivery: "2024-07-10",
-      carrier: "MSC",
-      trackingNumber: "MSCU7890123",
-    },
-  ]
+  const router = useRouter()
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("All")
+
+  const filteredDeliveries = deliveries.filter((delivery) => {
+    return (
+      (statusFilter === "All" || delivery.status === statusFilter) &&
+      delivery.orderNumber.toLowerCase().includes(search.toLowerCase())
+    )
+  })
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-gray-950">
-      <header className="bg-white dark:bg-gray-900 shadow-sm py-4 px-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Deliveries</h1>
-        <Button>Add New Delivery</Button>
-      </header>
-      <main className="flex-1 p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>All Deliveries</CardTitle>
-            <CardDescription>Overview of all shipments and their current status.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Delivery ID</TableHead>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Origin</TableHead>
-                  <TableHead>Destination</TableHead>
-                  <TableHead>ETA</TableHead>
-                  <TableHead>Actual Delivery</TableHead>
-                  <TableHead>Carrier</TableHead>
-                  <TableHead>Tracking Number</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {deliveries.map((delivery) => (
-                  <TableRow key={delivery.id}>
-                    <TableCell className="font-medium">{delivery.id}</TableCell>
-                    <TableCell>{delivery.orderId}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          delivery.status === "Delivered"
-                            ? "success"
-                            : delivery.status === "In Transit"
-                              ? "secondary"
-                              : "outline"
-                        }
-                      >
-                        {delivery.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{delivery.origin}</TableCell>
-                    <TableCell>{delivery.destination}</TableCell>
-                    <TableCell className="flex items-center gap-1">
-                      <CalendarDays className="h-4 w-4 text-gray-500" />
-                      {delivery.eta}
-                    </TableCell>
-                    <TableCell>{delivery.actualDelivery}</TableCell>
-                    <TableCell>{delivery.carrier}</TableCell>
-                    <TableCell>{delivery.trackingNumber}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </main>
+    <div className="h-full overflow-y-auto">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Deliveries</h1>
+          <div className="flex space-x-2">
+            <Button variant="outline" onClick={() => router.push("/dashboard")}>
+              Return to Dashboard
+            </Button>
+            <Button onClick={() => router.push("/deliveries/new")}>Create New Delivery</Button>
+          </div>
+        </div>
+
+        <div className="flex space-x-4 mb-6">
+          <Input
+            placeholder="Search by Order Number"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-1/2"
+          />
+          <Select onValueChange={setStatusFilter} value={statusFilter}>
+            <SelectTrigger className="w-1/3">
+              <SelectValue placeholder="Filter by Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All</SelectItem>
+              <SelectItem value="In Transit">In Transit</SelectItem>
+              <SelectItem value="Delivered">Delivered</SelectItem>
+              <SelectItem value="Pending">Pending</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-4">
+          {filteredDeliveries.map((delivery) => (
+            <div key={delivery.id} className="flex justify-between items-center p-4 border rounded-lg">
+              <div>
+                <p className="font-semibold">{delivery.orderNumber}</p>
+                <p className="text-sm text-gray-600">Status: {delivery.status}</p>
+                <p className="text-sm text-gray-500">Estimated Delivery: {delivery.estimatedDelivery}</p>
+                <p className="text-sm text-gray-500">Driver: {delivery.driverName}</p>
+                <p className="text-sm text-gray-500">Company: {delivery.deliveryCompany}</p>
+                <Link href={`/orders/${delivery.poNumber}`} className="text-sm text-blue-600 hover:underline">
+                  PO Number: {delivery.poNumber}
+                </Link>
+              </div>
+              <Button onClick={() => router.push(`/deliveries/${delivery.id}`)}>View Details</Button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

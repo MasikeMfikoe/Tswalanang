@@ -1,92 +1,120 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
-import type { Order } from "@/types/models"
+import { NextResponse } from "next/server"
+import { v4 as uuidv4 } from "uuid"
 
-// GET: Fetch all orders with optional filtering and pagination
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = createServerClient()
-    const { searchParams } = new URL(request.url)
+// Supabase Configuration
+import { createClient } from "@supabase/supabase-js"
 
-    const page = Number.parseInt(searchParams.get("page") || "1")
-    const pageSize = Number.parseInt(searchParams.get("pageSize") || "10")
-    const search = searchParams.get("search") || ""
-    const status = searchParams.get("status") || ""
-    const customerId = searchParams.get("customerId") || ""
+const supabaseUrl = process.env.SUPABASE_URL || ""
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || ""
+const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-    const offset = (page - 1) * pageSize
+// Mock data (Replace with DB calls in real use)
+const customers = [
+  { id: "1", name: "Acme Corp", primaryContact: "John Doe", secondaryContact: "Jane Smith", totalOrders: 15 },
+  {
+    id: "2",
+    name: "Global Traders",
+    primaryContact: "Alice Johnson",
+    secondaryContact: "Bob Williams",
+    totalOrders: 8,
+  },
+  {
+    id: "3",
+    name: "Tech Innovators",
+    primaryContact: "Charlie Brown",
+    secondaryContact: "Diana Davis",
+    totalOrders: 12,
+  },
+]
 
-    let query = supabase.from("orders").select("*, documents:documents(*)", { count: "exact" })
+const orders = [
+  { id: "1", poNumber: "PO001", supplier: "Supplier A", importer: "Acme Corp", status: "In Progress" },
+  { id: "2", poNumber: "PO002", supplier: "Supplier B", importer: "Global Traders", status: "Completed" },
+  { id: "3", poNumber: "PO003", supplier: "Supplier C", importer: "Tech Innovators", status: "Pending" },
+]
 
-    if (search) {
-      query = query.or(
-        `po_number.ilike.%${search}%,customer_name.ilike.%${search}%,origin_address->>city.ilike.%${search}%,destination_address->>city.ilike.%${search}%`,
-      )
-    }
-
-    if (status) {
-      query = query.eq("status", status)
-    }
-
-    if (customerId) {
-      query = query.eq("customer_id", customerId)
-    }
-
-    const {
-      data: orders,
-      error,
-      count,
-    } = await query.range(offset, offset + pageSize - 1).order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching orders:", error)
-      return NextResponse.json({ error: "Failed to fetch orders", details: error.message }, { status: 500 })
-    }
-
-    const totalPages = count ? Math.ceil(count / pageSize) : 0
-
-    return NextResponse.json({
-      data: orders,
-      total: count,
-      page,
-      pageSize,
-      totalPages,
-      success: true,
-    })
-  } catch (error) {
-    console.error("Error in GET /api/orders:", error)
-    return NextResponse.json({ error: "Internal server error", details: (error as Error).message }, { status: 500 })
-  }
+// Add a new function to log audit entries
+const logAuditEntry = (action: string, user: string, details: string) => {
+  // In a real application, you would save this to a database
+  console.log(`Audit: ${action} | User: ${user} | ${details} | ${new Date().toISOString()}`)
 }
 
-// POST: Create a new order
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = createServerClient()
-    const newOrder: Partial<Order> = await request.json()
+// 📌 Handle GET Requests
+export async function GET(request: Request) {
+  const url = new URL(request.url)
+  const customerId = url.searchParams.get("customerId")
 
-    // Ensure required fields are present
-    if (
-      !newOrder.customer_id ||
-      !newOrder.po_number ||
-      !newOrder.origin_address ||
-      !newOrder.destination_address ||
-      !newOrder.total_value ||
-      !newOrder.currency
-    ) {
-      return NextResponse.json({ error: "Missing required order fields" }, { status: 400 })
+  if (customerId) {
+    const customer = customers.find((c) => c.id === customerId)
+    if (customer) {
+      const customerOrders = orders.filter((order) => order.importer === customer.name)
+      return NextResponse.json({ customer, orders: customerOrders })
+    }
+    return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+  }
+
+  return NextResponse.json(orders)
+}
+
+// 📌 Handle Order Creation (POST)
+export async function POST(request: Request) {
+  const body = await request.json()
+  const newOrder = { id: String(orders.length + 1), ...body, createdAt: new Date().toISOString() }
+  orders.push(newOrder)
+
+  // Log the audit entry
+  logAuditEntry("Order Created", body.createdBy || "Unknown", `Order ${newOrder.id} created`)
+
+  return NextResponse.json(newOrder, { status: 201 })
+}
+
+// 📌 Handle Order Updates (PUT)
+export async function PUT(request: Request) {
+  const body = await request.json()
+  const index = orders.findIndex((order) => order.id === body.id)
+  if (index !== -1) {
+    orders[index] = { ...orders[index], ...body, updatedAt: new Date().toISOString() }
+
+    // Log the audit entry
+    logAuditEntry("Order Updated", body.updatedBy || "Unknown", `Order ${body.id} updated`)
+
+    return NextResponse.json(orders[index])
+  }
+  return NextResponse.json({ error: "Order not found" }, { status: 404 })
+}
+
+// 📌 Handle File Upload (POST)
+export async function POST_upload(request: Request) {
+  try {
+    const formData = await request.formData()
+    const file = formData.get("file") as File
+    const documentType = formData.get("documentType") as string
+    const uploadedBy = formData.get("uploadedBy") as string
+
+    if (!file || !documentType) {
+      return NextResponse.json({ error: "File and document type are required." }, { status: 400 })
     }
 
-    const { data, error } = await supabase.from("orders").insert([newOrder]).select().single()
+    // Upload to Supabase Storage
+    const fileBuffer = Buffer.from(await file.arrayBuffer())
+    const fileKey = `uploads/${documentType}/${uuidv4()}-${file.name}`
+
+    const { data, error } = await supabase.storage.from("documents").upload(fileKey, fileBuffer, {
+      contentType: file.type,
+      cacheControl: "3600",
+    })
 
     if (error) {
-      console.error("Error creating order:", error)
-      return NextResponse.json({ error: "Failed to create order", details: error.message }, { status: 500 })
+      throw new Error(`Supabase storage error: ${error.message}`)
     }
 
-    return NextResponse.json({ data, success: true, message: "Order created successfully" }, { status: 201 })
+    const fileUrl = `${supabaseUrl}/storage/v1/object/public/documents/${fileKey}`
+
+    // Log the audit entry
+    logAuditEntry("Document Uploaded", uploadedBy || "Unknown", `${documentType} uploaded: ${file.name}`)
+
+    return NextResponse.json({ message: "File uploaded successfully", fileUrl }, { status: 201 })
   } catch (error) {
-    console.error("Error in POST /api/orders:", error)
-    return NextResponse.json({ error: "Internal server error", details: (error as Error).message }, { status: 500 })
+    return NextResponse.json({ error: "File upload failed", details: error }, { status: 500 })
   }
 }

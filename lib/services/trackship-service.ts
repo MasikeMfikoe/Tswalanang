@@ -1,111 +1,186 @@
-import type { ShipmentType, TrackingResult, TrackingData } from "@/types/tracking"
+export interface TrackShipCredentials {
+  apiKey: string
+  baseUrl: string
+}
 
-// This is a simplified mock for Trackship API integration.
-// In a real scenario, this would involve actual API calls to Trackship.
-export class TrackShipService {
-  async trackShipment(
-    trackingNumber: string,
-    options?: { shipmentType?: ShipmentType; carrierHint?: string },
-  ): Promise<TrackingResult> {
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    if (trackingNumber.startsWith("MOCKTRACK")) {
-      // Simulate successful tracking for a specific Trackship number
-      if (trackingNumber === "MOCKTRACK123") {
-        const mockData: TrackingData = {
-          shipmentNumber: "MOCKTRACK123",
-          status: "Out for Delivery",
-          carrier: "Mock Courier",
-          origin: "New York, USA",
-          destination: "Boston, USA",
-          eta: "2025-07-25",
-          etd: "2025-07-24",
-          lastLocation: "Springfield, USA",
-          timeline: [
-            {
-              location: "New York, USA",
-              events: [
-                {
-                  timestamp: "2025-07-24T09:00:00Z",
-                  date: "2025-07-24",
-                  time: "09:00",
-                  location: "New York, USA",
-                  description: "Package picked up",
-                  status: "Picked Up",
-                  type: "pickup",
-                  mode: "Road",
-                },
-                {
-                  timestamp: "2025-07-24T12:00:00Z",
-                  date: "2025-07-24",
-                  time: "12:00",
-                  location: "New York, USA",
-                  description: "Departed from sorting facility",
-                  status: "In Transit",
-                  type: "event",
-                  mode: "Road",
-                },
-              ],
-            },
-            {
-              location: "Springfield, USA",
-              events: [
-                {
-                  timestamp: "2025-07-25T06:00:00Z",
-                  date: "2025-07-25",
-                  time: "06:00",
-                  location: "Springfield, USA",
-                  description: "Arrived at local distribution center",
-                  status: "In Transit",
-                  type: "event",
-                  mode: "Road",
-                },
-                {
-                  timestamp: "2025-07-25T08:30:00Z",
-                  date: "2025-07-25",
-                  time: "08:30",
-                  location: "Springfield, USA",
-                  description: "Out for delivery",
-                  status: "Out for Delivery",
-                  type: "out-for-delivery",
-                  mode: "Road",
-                },
-              ],
-            },
-          ],
-          documents: [],
-          details: {
-            packages: "1 package",
-            dimensions: "0.5m x 0.5m x 0.5m",
-            shipmentType: "parcel",
-          },
-        }
-        return { success: true, data: mockData, source: "Trackship API", isLiveData: true }
-      } else {
-        return {
-          success: false,
-          error: "No live tracking information found for this Trackship number.",
-          source: "Trackship API",
-          isLiveData: false,
-          fallbackOptions: {
-            carrier: "Trackship",
-            trackingUrl: `https://www.trackship.com/track/${trackingNumber}`,
-          },
-        }
-      }
+export interface TrackShipResponse {
+  success: boolean
+  data?: {
+    tracking_number: string
+    carrier: string
+    status: string
+    status_detail: string
+    location: string
+    estimated_delivery: string
+    events: Array<{
+      status: string
+      location: string
+      timestamp: string
+      description: string
+    }>
+    shipment_info: {
+      origin: string
+      destination: string
+      service_type: string
+      weight?: string
+      dimensions?: string
     }
-    return { success: false, error: "Not a Trackship tracking number.", source: "Trackship API", isLiveData: false }
+  }
+  error?: string
+  message?: string
+}
+
+export class TrackShipService {
+  private credentials: TrackShipCredentials
+
+  constructor() {
+    this.credentials = {
+      apiKey: process.env.TRACKSHIP_API_KEY || "",
+      baseUrl: process.env.TRACKSHIP_API_URL || "https://api.trackship.com/v1",
+    }
   }
 
-  async getSupportedCarriers(): Promise<any> {
-    return new Promise((resolve) =>
-      setTimeout(() => {
-        resolve([
-          { name: "Mock Courier", code: "mock" },
-          { name: "Another Courier", code: "another" },
-        ])
-      }, 500),
-    )
+  async trackShipment(trackingNumber: string, carrier?: string): Promise<TrackShipResponse> {
+    try {
+      if (!this.credentials.apiKey) {
+        return {
+          success: false,
+          error: "TrackShip API key not configured",
+        }
+      }
+
+      const url = `${this.credentials.baseUrl}/track`
+      const payload = {
+        tracking_number: trackingNumber,
+        carrier: carrier || "auto-detect", // Let TrackShip auto-detect carrier
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.credentials.apiKey}`,
+          "User-Agent": "TSW-SmartLog/1.0",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        return {
+          success: false,
+          error: `TrackShip API error: ${response.status}`,
+          message: errorData.message || "Unknown error",
+        }
+      }
+
+      const data = await response.json()
+
+      // Transform TrackShip response to our standard format
+      return {
+        success: true,
+        data: this.transformTrackShipData(data),
+      }
+    } catch (error) {
+      console.error("TrackShip service error:", error)
+      return {
+        success: false,
+        error: "Failed to connect to TrackShip service",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }
+    }
+  }
+
+  async trackMultipleShipments(trackingNumbers: string[]): Promise<TrackShipResponse[]> {
+    try {
+      const url = `${this.credentials.baseUrl}/track/batch`
+      const payload = {
+        tracking_numbers: trackingNumbers,
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.credentials.apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error(`TrackShip batch API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.results.map((result: any) => ({
+        success: result.success,
+        data: result.success ? this.transformTrackShipData(result.data) : undefined,
+        error: result.error,
+      }))
+    } catch (error) {
+      console.error("TrackShip batch service error:", error)
+      return trackingNumbers.map(() => ({
+        success: false,
+        error: "Batch tracking failed",
+      }))
+    }
+  }
+
+  async getSupportedCarriers(): Promise<string[]> {
+    try {
+      const response = await fetch(`${this.credentials.baseUrl}/carriers`, {
+        headers: {
+          Authorization: `Bearer ${this.credentials.apiKey}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to get carriers: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.carriers || []
+    } catch (error) {
+      console.error("Error getting supported carriers:", error)
+      return []
+    }
+  }
+
+  private transformTrackShipData(trackShipData: any) {
+    return {
+      tracking_number: trackShipData.tracking_number,
+      carrier: trackShipData.carrier?.name || "Unknown",
+      status: this.normalizeStatus(trackShipData.status),
+      status_detail: trackShipData.status_detail || "",
+      location: trackShipData.location || "Unknown",
+      estimated_delivery: trackShipData.estimated_delivery,
+      events: (trackShipData.events || []).map((event: any) => ({
+        status: event.status,
+        location: event.location,
+        timestamp: event.timestamp,
+        description: event.description || event.status,
+      })),
+      shipment_info: {
+        origin: trackShipData.origin || "Unknown",
+        destination: trackShipData.destination || "Unknown",
+        service_type: trackShipData.service_type || "Standard",
+        weight: trackShipData.weight,
+        dimensions: trackShipData.dimensions,
+      },
+    }
+  }
+
+  private normalizeStatus(status: string): string {
+    // Map TrackShip statuses to your internal status system
+    const statusMap: Record<string, string> = {
+      in_transit: "in-transit",
+      out_for_delivery: "out-for-delivery",
+      delivered: "delivered",
+      exception: "exception",
+      pending: "pending",
+      pre_transit: "pre-transit",
+    }
+
+    return statusMap[status.toLowerCase()] || status
   }
 }

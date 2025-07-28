@@ -2,7 +2,7 @@
 -- Add customer_id to user_profiles for client users
 
 ALTER TABLE user_profiles 
-ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id);
+ADD COLUMN customer_id UUID REFERENCES customers(id);
 
 -- Create index for faster lookups
 CREATE INDEX idx_user_profiles_customer_id ON user_profiles(customer_id);

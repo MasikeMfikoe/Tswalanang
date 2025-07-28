@@ -1,10 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
+import { supabase } from "@/lib/supabaseClient"
 
-// GET: Fetch documents for a specific client's orders
 export async function GET(request: NextRequest) {
   try {
-    const supabaseServer = createServerClient()
     const { searchParams } = new URL(request.url)
     const clientId = searchParams.get("clientId")
 
@@ -12,144 +10,169 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Client ID is required" }, { status: 400 })
     }
 
-    // 1. Get the customer_id associated with the client user
-    const { data: userProfile, error: userError } = await supabaseServer
+    // Get the user profile
+    const { data: userProfile, error: userError } = await supabase
       .from("user_profiles")
-      .select("customer_id, email, department")
+      .select("*")
       .eq("id", clientId)
       .single()
 
-    if (userError || !userProfile) {
-      console.error("Error fetching user profile for client documents:", userError)
-      return NextResponse.json({ error: "Failed to fetch client user profile" }, { status: 500 })
+    if (userError) {
+      console.error("Error fetching user profile:", userError)
+      return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 })
     }
 
+    // Check if customer_id column exists and has a value
     let customerId = userProfile.customer_id
-    let customerName: string | null = null
+    let customerName = null
 
-    // If customer_id is not directly linked, try to find by email domain or department
+    // If customer_id doesn't exist or is null, try to find a customer by email domain or use mock data
     if (!customerId) {
-      const emailDomain = userProfile.email?.split("@")[1]
-      if (emailDomain) {
-        const { data: customersByEmail, error: emailCustomerError } = await supabaseServer
+      if (userProfile.email) {
+        const emailDomain = userProfile.email.split("@")[1]
+
+        // Try to find a customer with matching email domain
+        const { data: customers } = await supabase
           .from("customers")
           .select("id, name")
-          .ilike("email", `%@${emailDomain}`)
+          .ilike("email", `%${emailDomain}%`)
           .limit(1)
 
-        if (!emailCustomerError && customersByEmail && customersByEmail.length > 0) {
-          customerId = customersByEmail[0].id
-          customerName = customersByEmail[0].name
-          // Optionally update user_profile with customer_id for future
-          await supabaseServer.from("user_profiles").update({ customer_id: customerId }).eq("id", clientId)
-        }
-      }
+        if (customers && customers.length > 0) {
+          customerId = customers[0].id
+          customerName = customers[0].name
 
-      if (!customerId && userProfile.department) {
-        const { data: customersByName, error: nameCustomerError } = await supabaseServer
-          .from("customers")
-          .select("id, name")
-          .ilike("name", userProfile.department)
-          .limit(1)
-
-        if (!nameCustomerError && customersByName && customersByName.length > 0) {
-          customerId = customersByName[0].id
-          customerName = customersByName[0].name
-          // Optionally update user_profile with customer_id for future
-          await supabaseServer.from("user_profiles").update({ customer_id: customerId }).eq("id", clientId)
+          // Optionally update the user profile with the found customer_id
+          await supabase.from("user_profiles").update({ customer_id: customerId }).eq("id", clientId)
         }
-      }
-    } else {
-      // If customerId exists, fetch customer name
-      const { data: customerData, error: customerDataError } = await supabaseServer
-        .from("customers")
-        .select("name")
-        .eq("id", customerId)
-        .single()
-      if (!customerDataError && customerData) {
-        customerName = customerData.name
       }
     }
 
-    if (!customerId || !customerName) {
-      // Fallback for demo/no linked customer
-      const mockDocuments = [
-        {
-          id: "mock-doc-1",
-          order_id: "mock-order-1",
-          file_name: "Mock_Bill_of_Lading.pdf",
-          file_url: "/placeholder.svg?height=100&width=100&text=Mock+BOL",
-          document_type: "Bill of Lading",
-          uploaded_at: new Date().toISOString(),
-          uploaded_by: "System",
-          status: "Approved",
-          notes: "This is a mock document for demo purposes.",
-        },
-        {
-          id: "mock-doc-2",
-          order_id: "mock-order-2",
-          file_name: "Mock_Commercial_Invoice.pdf",
-          file_url: "/placeholder.svg?height=100&width=100&text=Mock+Invoice",
-          document_type: "Commercial Invoice",
-          uploaded_at: new Date().toISOString(),
-          uploaded_by: "System",
-          status: "Pending",
-          notes: "Awaiting client review.",
-        },
-      ]
+    // If we still don't have a customer, use mock data
+    if (!customerId) {
+      // Return mock data
       return NextResponse.json({
         success: true,
         data: {
-          customerName: userProfile.department || "Demo Client Company",
-          documents: mockDocuments,
+          documents: [
+            {
+              id: "1",
+              name: "Invoice-2023-001.pdf",
+              type: "Invoice",
+              order: { po_number: "PO-2023-001" },
+              status: "Approved",
+              size: "1.2 MB",
+              created_at: "2023-06-15",
+            },
+            {
+              id: "2",
+              name: "BOL-2023-002.pdf",
+              type: "Bill of Lading",
+              order: { po_number: "PO-2023-002" },
+              status: "Pending Review",
+              size: "0.8 MB",
+              created_at: "2023-06-20",
+            },
+            {
+              id: "3",
+              name: "Packing-List-2023-003.pdf",
+              type: "Packing List",
+              order: { po_number: "PO-2023-003" },
+              status: "Approved",
+              size: "0.5 MB",
+              created_at: "2023-06-25",
+            },
+          ],
+          statistics: {
+            totalDocuments: 3,
+            approvedDocuments: 2,
+            pendingDocuments: 1,
+            thisMonthDocuments: 3,
+          },
         },
       })
     }
 
-    // 2. Fetch orders for this customer
-    const { data: orders, error: ordersError } = await supabaseServer
+    // Get customer info if we don't have it yet
+    if (!customerName) {
+      const { data: customer, error: customerError } = await supabase
+        .from("customers")
+        .select("name")
+        .eq("id", customerId)
+        .single()
+
+      if (customerError) {
+        return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+      }
+
+      customerName = customer.name
+    }
+
+    // Get orders for this customer to get their documents
+    const { data: orders, error: ordersError } = await supabase
       .from("orders")
       .select("id, po_number")
-      .eq("customer_id", customerId)
+      .eq("customer_name", customerName)
 
     if (ordersError) {
-      console.error("Error fetching client orders for documents:", ordersError)
-      return NextResponse.json({ error: "Failed to fetch client orders" }, { status: 500 })
+      return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 })
     }
 
     const orderIds = orders.map((order) => order.id)
 
+    // If no orders found, return empty documents
     if (orderIds.length === 0) {
-      return NextResponse.json({ success: true, data: { customerName, documents: [] } })
+      return NextResponse.json({
+        success: true,
+        data: {
+          documents: [],
+          statistics: {
+            totalDocuments: 0,
+            approvedDocuments: 0,
+            pendingDocuments: 0,
+            thisMonthDocuments: 0,
+          },
+        },
+      })
     }
 
-    // 3. Fetch documents associated with these orders
-    const { data: documents, error: documentsError } = await supabaseServer
+    // Get documents for these orders
+    const { data: documents, error: documentsError } = await supabase
       .from("documents")
-      .select("*")
+      .select(`
+        *,
+        order:orders!inner(po_number, id)
+      `)
       .in("order_id", orderIds)
-      .order("uploaded_at", { ascending: false })
+      .order("created_at", { ascending: false })
 
     if (documentsError) {
-      console.error("Error fetching client documents:", documentsError)
       return NextResponse.json({ error: "Failed to fetch documents" }, { status: 500 })
     }
 
-    // Map documents to include PO Number for easier display
-    const documentsWithPo = documents.map((doc) => ({
-      ...doc,
-      po_number: orders.find((order) => order.id === doc.order_id)?.po_number || "N/A",
-    }))
+    // Calculate statistics
+    const approvedDocs = documents.filter((doc) => doc.status === "Approved")
+    const pendingDocs = documents.filter((doc) => doc.status === "Pending Review")
+    const thisMonthDocs = documents.filter((doc) => {
+      const docDate = new Date(doc.created_at)
+      const now = new Date()
+      return docDate.getMonth() === now.getMonth() && docDate.getFullYear() === now.getFullYear()
+    })
 
     return NextResponse.json({
       success: true,
       data: {
-        customerName,
-        documents: documentsWithPo,
+        documents,
+        statistics: {
+          totalDocuments: documents.length,
+          approvedDocuments: approvedDocs.length,
+          pendingDocuments: pendingDocs.length,
+          thisMonthDocuments: thisMonthDocs.length,
+        },
       },
     })
   } catch (error) {
-    console.error("Error in GET /api/client-portal/documents:", error)
-    return NextResponse.json({ error: "Internal server error", details: (error as Error).message }, { status: 500 })
+    console.error("Error fetching client documents:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

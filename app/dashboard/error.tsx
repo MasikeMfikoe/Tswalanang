@@ -1,8 +1,6 @@
-"use client" // Error boundaries must be Client Components
+"use client"
 
 import { useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function Error({
   error,
@@ -12,22 +10,35 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    // Log the error to an error reporting service
-    console.error("Dashboard Error:", error)
+    console.error("Dashboard error:", error)
   }, [error])
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950 p-4">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-red-600">Dashboard Error</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-gray-700 dark:text-gray-300">Something went wrong while loading the dashboard.</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{error.message || "An unexpected error occurred."}</p>
-          <Button onClick={() => reset()}>Try again</Button>
-        </CardContent>
-      </Card>
+    <div
+      style={{
+        padding: "20px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "400px",
+      }}
+    >
+      <h2 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "16px" }}>Something went wrong!</h2>
+      <p style={{ color: "red", marginBottom: "16px" }}>{error.message || "An unexpected error occurred"}</p>
+      <button
+        onClick={() => reset()}
+        style={{
+          padding: "10px 20px",
+          backgroundColor: "#3b82f6",
+          color: "white",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer",
+        }}
+      >
+        Try again
+      </button>
     </div>
   )
 }

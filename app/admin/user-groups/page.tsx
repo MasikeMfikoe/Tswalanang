@@ -1,274 +1,219 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { UserGroupsSidebar } from "./components/UserGroupsSidebar"
-import PermissionsEditor from "./components/PermissionsEditor"
-import { UserAssignmentSection } from "./components/UserAssignmentSection"
-import { LivePreviewSection } from "./components/LivePreviewSection"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { ConfirmationDialog } from "./components/ConfirmationDialog"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { PlusCircle, Users } from "lucide-react" // Import Users and PlusCircle
+import { useAuth } from "@/contexts/AuthContext"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Loader2, Plus, Save, Users } from "lucide-react"
+import UserGroupsSidebar from "./components/UserGroupsSidebar"
+import PermissionsEditor from "./components/PermissionsEditor"
+import ConfirmationDialog from "./components/ConfirmationDialog"
+import type { UserGroup, GroupPermission } from "@/types/auth"
 
-interface UserGroup {
-  id: string
-  name: string
-  permissions: Record<string, boolean>
-  assignedUserIds: string[]
-  isDefault: boolean
-}
-
-interface User {
-  id: string
-  name: string
-  email: string
-}
-
-const mockUserGroups: UserGroup[] = [
-  {
-    id: "1",
-    name: "Administrators",
-    permissions: {
-      canViewDashboard: true,
-      canManageUsers: true,
-      canEditSettings: true,
-      canViewDocuments: true,
-      canManageOrders: true,
-      canViewFinancials: true,
-    },
-    assignedUserIds: ["user1", "user2"],
-    isDefault: false,
-  },
-  {
-    id: "2",
-    name: "Operations Team",
-    permissions: {
-      canViewDashboard: true,
-      canManageUsers: false,
-      canEditSettings: false,
-      canViewDocuments: true,
-      canManageOrders: true,
-      canViewFinancials: false,
-    },
-    assignedUserIds: ["user3"],
-    isDefault: false,
-  },
-  {
-    id: "3",
-    name: "Finance Department",
-    permissions: {
-      canViewDashboard: true,
-      canManageUsers: false,
-      canEditSettings: false,
-      canViewDocuments: true,
-      canManageOrders: false,
-      canViewFinancials: true,
-    },
-    assignedUserIds: ["user4"],
-    isDefault: false,
-  },
-  {
-    id: "4",
-    name: "Super Admin",
-    permissions: {
-      canViewDashboard: true,
-      canManageUsers: true,
-      canEditSettings: true,
-      canViewDocuments: true,
-      canManageOrders: true,
-      canViewFinancials: true,
-    },
-    assignedUserIds: [],
-    isDefault: true,
-  },
+// Mock data for initial development
+const initialGroups: UserGroup[] = [
+  { id: "1", name: "Super Admin", isDefault: true, createdAt: new Date().toISOString() },
+  { id: "2", name: "Sales", isDefault: false, createdAt: new Date().toISOString() },
+  { id: "3", name: "HR", isDefault: false, createdAt: new Date().toISOString() },
+  { id: "4", name: "Support", isDefault: false, createdAt: new Date().toISOString() },
+  { id: "5", name: "Guest", isDefault: true, createdAt: new Date().toISOString() },
 ]
 
-const mockUsers: User[] = [
-  { id: "user1", name: "Alice Smith", email: "alice@example.com" },
-  { id: "user2", name: "Bob Johnson", email: "bob@example.com" },
-  { id: "user3", name: "Charlie Brown", email: "charlie@example.com" },
-  { id: "user4", name: "Diana Prince", email: "diana@example.com" },
-  { id: "user5", name: "Eve Adams", email: "eve@example.com" },
-]
-
-export default function UserGroupsPage() {
-  const [userGroups, setUserGroups] = useState<UserGroup[]>(mockUserGroups)
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
-  const [editingGroup, setEditingGroup] = useState<UserGroup | null>(null)
-  const [isNewGroup, setIsNewGroup] = useState(false)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+export default function AdminUserGroupsPage() {
+  const router = useRouter()
   const { toast } = useToast()
+  const { user, isLoading } = useAuth()
 
+  const [groups, setGroups] = useState<UserGroup[]>(initialGroups)
+  const [selectedGroup, setSelectedGroup] = useState<UserGroup | null>(null)
+  const [permissions, setPermissions] = useState<GroupPermission[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+
+  // Check if user is Super Admin
   useEffect(() => {
-    if (selectedGroupId) {
-      const group = userGroups.find((g) => g.id === selectedGroupId)
-      if (group) {
-        setEditingGroup({ ...group, assignedUserIds: [...group.assignedUserIds] }) // Deep copy assignedUserIds
-        setIsNewGroup(false)
+    if (!isLoading && user) {
+      if (user.role !== "admin") {
+        toast({
+          title: "Access Denied",
+          description: "You don't have admin privileges.",
+          variant: "destructive",
+        })
+        router.push("/dashboard")
       }
-    } else {
-      setEditingGroup(null)
     }
-  }, [selectedGroupId, userGroups])
+  }, [user, isLoading, router, toast])
 
-  const handleNewGroup = () => {
-    setSelectedGroupId(null)
-    setEditingGroup({
-      id: `new-${Date.now()}`,
+  // Load group permissions when a group is selected
+  useEffect(() => {
+    if (selectedGroup) {
+      // In a real app, this would fetch from API
+      // For now, we'll use mock data
+      const mockPermissions: GroupPermission[] = [
+        { id: "1", groupId: selectedGroup.id, pagePath: "/dashboard", allowed: true },
+        { id: "2", groupId: selectedGroup.id, pagePath: "/orders", allowed: selectedGroup.id !== "5" },
+        { id: "3", groupId: selectedGroup.id, pagePath: "/orders/new", allowed: selectedGroup.id !== "5" },
+        { id: "4", groupId: selectedGroup.id, pagePath: "/documents", allowed: true },
+        { id: "5", groupId: selectedGroup.id, pagePath: "/settings", allowed: selectedGroup.id === "1" },
+        { id: "6", groupId: selectedGroup.id, pagePath: "/settings/users", allowed: selectedGroup.id === "1" },
+        { id: "7", groupId: selectedGroup.id, pagePath: "/settings/billing", allowed: selectedGroup.id === "1" },
+        { id: "8", groupId: selectedGroup.id, pagePath: "/analytics", allowed: selectedGroup.id !== "5" },
+        { id: "9", groupId: selectedGroup.id, pagePath: "/analytics/reports", allowed: selectedGroup.id !== "5" },
+        {
+          id: "10",
+          groupId: selectedGroup.id,
+          pagePath: "/analytics/reports/monthly",
+          allowed: selectedGroup.id !== "5",
+        },
+      ]
+      setPermissions(mockPermissions)
+    }
+  }, [selectedGroup])
+
+  const handleCreateGroup = () => {
+    const newGroup: UserGroup = {
+      id: `group-${Date.now()}`,
       name: "New Group",
-      permissions: {
-        canViewDashboard: false,
-        canManageUsers: false,
-        canEditSettings: false,
-        canViewDocuments: false,
-        canManageOrders: false,
-        canViewFinancials: false,
-      },
-      assignedUserIds: [],
       isDefault: false,
-    })
-    setIsNewGroup(true)
+      createdAt: new Date().toISOString(),
+    }
+    setGroups([...groups, newGroup])
+    setSelectedGroup(newGroup)
+
+    // Log audit trail
+    console.log(`Admin ${user?.username} created new group "${newGroup.name}" on ${new Date().toISOString()}`)
+
+    setHasChanges(true)
   }
 
-  const handleSaveGroup = () => {
-    if (!editingGroup) return
-
-    if (!editingGroup.name.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Group name cannot be empty.",
-        variant: "destructive",
-      })
+  const handleSelectGroup = (group: UserGroup) => {
+    if (hasChanges) {
+      setShowConfirmation(true)
       return
     }
-
-    if (isNewGroup) {
-      setUserGroups([...userGroups, editingGroup])
-      toast({
-        title: "Success",
-        description: `User group "${editingGroup.name}" created.`,
-      })
-    } else {
-      setUserGroups(userGroups.map((g) => (g.id === editingGroup.id ? editingGroup : g)))
-      toast({
-        title: "Success",
-        description: `User group "${editingGroup.name}" updated.`,
-      })
-    }
-    setSelectedGroupId(editingGroup.id)
-    setIsNewGroup(false)
+    setSelectedGroup(group)
   }
 
-  const handleDeleteGroup = () => {
-    if (editingGroup) {
-      setUserGroups(userGroups.filter((g) => g.id !== editingGroup.id))
-      setSelectedGroupId(null)
-      setEditingGroup(null)
-      setShowDeleteDialog(false)
-      toast({
-        title: "Success",
-        description: `User group "${editingGroup.name}" deleted.`,
-      })
+  const handleUpdateGroupName = (name: string) => {
+    if (selectedGroup && !selectedGroup.isDefault) {
+      setSelectedGroup({ ...selectedGroup, name })
+      setGroups(groups.map((g) => (g.id === selectedGroup.id ? { ...g, name } : g)))
+      setHasChanges(true)
     }
   }
 
-  const handlePermissionChange = (permission: string, value: boolean) => {
-    if (editingGroup) {
-      setEditingGroup({
-        ...editingGroup,
-        permissions: {
-          ...editingGroup.permissions,
-          [permission]: value,
-        },
+  const handleUpdatePermissions = (updatedPermissions: GroupPermission[]) => {
+    setPermissions(updatedPermissions)
+    setHasChanges(true)
+  }
+
+  const handleSaveChanges = async () => {
+    setIsSubmitting(true)
+
+    try {
+      // In a real app, this would be an API call
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      // Log audit trail
+      console.log(
+        `Admin ${user?.username} updated permissions for "${selectedGroup?.name}" group on ${new Date().toISOString()}`,
+      )
+
+      toast({
+        title: "Success",
+        description: `Permissions updated for ${selectedGroup?.name}`,
       })
+
+      setHasChanges(false)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save permissions",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const handleUserAssignmentChange = (userId: string, isAssigned: boolean) => {
-    if (editingGroup) {
-      const updatedAssignedUserIds = isAssigned
-        ? [...new Set([...editingGroup.assignedUserIds, userId])]
-        : editingGroup.assignedUserIds.filter((id) => id !== userId)
-      setEditingGroup({
-        ...editingGroup,
-        assignedUserIds: updatedAssignedUserIds,
-      })
+  const handleConfirmNavigation = (confirm: boolean) => {
+    setShowConfirmation(false)
+    if (confirm) {
+      setHasChanges(false)
+      // Navigate to the selected group
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (
-    <div className="flex h-screen w-full bg-gray-100/50 dark:bg-gray-950">
-      <UserGroupsSidebar
-        userGroups={userGroups}
-        onSelectGroup={setSelectedGroupId}
-        onNewGroup={handleNewGroup}
-        selectedGroupId={selectedGroupId}
-      />
-      <main className="flex-1 p-6 overflow-auto">
-        {editingGroup ? (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold">{isNewGroup ? "Create New User Group" : "Edit User Group"}</h1>
-              <div className="flex gap-2">
-                {!isNewGroup && (
-                  <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>
-                    Delete Group
-                  </Button>
-                )}
-                <Button onClick={handleSaveGroup}>Save Group</Button>
-              </div>
-            </div>
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="space-y-4">
-                <Input
-                  placeholder="Group Name"
-                  value={editingGroup.name}
-                  onChange={(e) => setEditingGroup({ ...editingGroup, name: e.target.value })}
-                />
-                <PermissionsEditor
-                  group={editingGroup}
-                  permissions={editingGroup.permissions}
-                  onUpdateGroupName={(name) => setEditingGroup({ ...editingGroup, name })}
-                  onUpdatePermissions={(permissions) =>
-                    setEditingGroup({
-                      ...editingGroup,
-                      permissions: permissions.reduce((acc, p) => ({ ...acc, [p.pagePath]: p.allowed }), {}),
-                    })
-                  }
-                />
-              </div>
-              <LivePreviewSection
-                groupName={editingGroup.name}
-                permissions={editingGroup.permissions}
-                assignedUsersCount={editingGroup.assignedUserIds.length}
-              />
-            </div>
-            <UserAssignmentSection
-              allUsers={mockUsers}
-              assignedUserIds={new Set(editingGroup.assignedUserIds)}
-              onUserAssignmentChange={handleUserAssignmentChange}
-            />
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <Users className="h-24 w-24 mb-4" />
-            <p className="text-xl">Select a user group or create a new one to get started.</p>
-            <Button onClick={handleNewGroup} className="mt-4">
-              <PlusCircle className="h-5 w-5 mr-2" /> Create New Group
-            </Button>
-          </div>
-        )}
-      </main>
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">User Group Permissions</h1>
+        <Button onClick={handleSaveChanges} disabled={!hasChanges || isSubmitting || !selectedGroup}>
+          {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          Save Changes
+        </Button>
+      </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Left Sidebar - User Groups */}
+        <div className="md:col-span-1">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg">User Groups</CardTitle>
+                <Button size="sm" onClick={handleCreateGroup}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  New
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <UserGroupsSidebar groups={groups} selectedGroup={selectedGroup} onSelectGroup={handleSelectGroup} />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Panel - Permissions Editor */}
+        <div className="md:col-span-3">
+          {selectedGroup ? (
+            <PermissionsEditor
+              group={selectedGroup}
+              permissions={permissions}
+              onUpdateGroupName={handleUpdateGroupName}
+              onUpdatePermissions={handleUpdatePermissions}
+            />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground text-center">
+                  Select a user group from the sidebar or create a new one to manage permissions
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* Confirmation Dialog */}
       <ConfirmationDialog
-        isOpen={showDeleteDialog}
-        onConfirm={handleDeleteGroup}
-        onCancel={() => setShowDeleteDialog(false)}
-        title={`Delete "${editingGroup?.name}"?`}
-        description="Are you sure you want to delete this user group? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
+        open={showConfirmation}
+        onOpenChange={setShowConfirmation}
+        onConfirm={() => handleConfirmNavigation(true)}
+        onCancel={() => handleConfirmNavigation(false)}
+        title="Unsaved Changes"
+        description="You have unsaved changes. Are you sure you want to leave without saving?"
       />
     </div>
   )

@@ -695,7 +695,7 @@ export default function NewCourierOrderPage() {
               ))}
             </tbody>
           </table>
-          <Button type="button" variant="outline" onClick={addItem} className="mt-2 bg-transparent">
+          <Button type="button" variant="outline" onClick={addItem} className="mt-2">
             Add Item
           </Button>
         </div>

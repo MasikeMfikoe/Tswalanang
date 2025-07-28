@@ -1,17 +1,21 @@
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { TriangleAlert } from "lucide-react"
+"use client"
 
 interface ErrorDisplayProps {
+  title: string
   message: string
-  title?: string
 }
 
-export function ErrorDisplay({ message, title = "Error" }: ErrorDisplayProps) {
+export function ErrorDisplay({ title, message }: ErrorDisplayProps) {
   return (
-    <Alert variant="destructive">
-      <TriangleAlert className="h-4 w-4" />
-      <AlertTitle>{title}</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
+    <div className="p-6 flex flex-col items-center justify-center min-h-[400px]">
+      <h2 className="text-2xl font-bold mb-4">{title}</h2>
+      <p className="text-red-500 mb-4">{message}</p>
+      <button
+        onClick={() => window.location.reload()}
+        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+      >
+        Try again
+      </button>
+    </div>
   )
 }

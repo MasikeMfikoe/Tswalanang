@@ -6,9 +6,6 @@ export async function POST(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const shipmentId = searchParams.get("shipmentId")
-    const { trackingNumber, status } = await request.json()
-
-    console.log(`Manually updating shipment ${trackingNumber} to status: ${status}`)
 
     if (!shipmentId) {
       return NextResponse.json({ error: "Shipment ID is required" }, { status: 400 })
@@ -23,7 +20,7 @@ export async function POST(request: Request) {
 
     // Update the shipment
     const updateService = new ShippingUpdateService()
-    const update = await updateService.updateShipment(shipment, trackingNumber, status)
+    const update = await updateService.updateShipment(shipment)
 
     if (!update) {
       return NextResponse.json({ error: "Failed to update shipment" }, { status: 500 })

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import type { ReactElement } from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Loader2, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
-export default function LoginPage(): ReactElement {
+export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [isLoggingIn, setIsLoggingIn] = useState(false)
@@ -157,7 +157,7 @@ export default function LoginPage(): ReactElement {
             <code className="bg-muted px-1 py-0.5 rounded">username: tracking, password: tracking</code>
           </div>
           <Link href="/" className="w-full">
-            <Button type="button" variant="outline" className="w-full bg-transparent">
+            <Button type="button" variant="outline" className="w-full">
               Back to Landing Page
             </Button>
           </Link>

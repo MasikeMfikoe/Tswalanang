@@ -1,21 +1,40 @@
-// This file was left out for brevity. Assume it is correct and does not need any modifications.
-// Placeholder content for app/api/shipping-updates/route.ts
 import { NextResponse } from "next/server"
-import { shippingUpdateService } from "@/lib/services/shipping-update-service"
+import { ShippingUpdateService } from "@/lib/services/shipping-update-service"
 
 export async function GET(request: Request) {
+  // Check for secret to confirm this is a valid request
   const { searchParams } = new URL(request.url)
-  const trackingNumber = searchParams.get("trackingNumber")
-  const carrier = searchParams.get("carrier")
+  const secret = searchParams.get("secret")
 
-  if (!trackingNumber || !carrier) {
-    return NextResponse.json({ error: "Tracking number and carrier are required" }, { status: 400 })
+  if (secret !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {
-    const updates = await shippingUpdateService.getShipmentUpdates(trackingNumber, carrier)
-    return NextResponse.json(updates)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const updateService = new ShippingUpdateService()
+
+    // Get shipments that need updates
+    const shipments = await updateService.getShipmentsForUpdate(20) // Process 20 at a time
+
+    if (shipments.length === 0) {
+      return NextResponse.json({ message: "No shipments to update" })
+    }
+
+    // Update each shipment
+    const results = await Promise.allSettled(shipments.map((shipment) => updateService.updateShipment(shipment)))
+
+    // Count successes and failures
+    const successful = results.filter((r) => r.status === "fulfilled" && r.value !== null).length
+    const failed = results.length - successful
+
+    return NextResponse.json({
+      message: `Updated ${successful} shipments, ${failed} failed`,
+      total: shipments.length,
+      successful,
+      failed,
+    })
+  } catch (error) {
+    console.error("Error in shipping updates:", error)
+    return NextResponse.json({ error: "Failed to update shipments" }, { status: 500 })
   }
 }

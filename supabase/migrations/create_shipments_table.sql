@@ -1,27 +1,25 @@
 -- Create shipments table
 CREATE TABLE IF NOT EXISTS shipments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   order_id UUID REFERENCES orders(id),
-  tracking_number TEXT UNIQUE NOT NULL,
-  carrier TEXT NOT NULL,
-  origin TEXT,
-  destination TEXT,
-  eta TIMESTAMPTZ,
+  container_number VARCHAR(20),
+  booking_reference VARCHAR(50),
   shipping_line VARCHAR(20) NOT NULL,
+  status VARCHAR(50) DEFAULT 'instruction-sent',
   location VARCHAR(255),
+  eta TIMESTAMP WITH TIME ZONE,
   vessel VARCHAR(100),
   voyage VARCHAR(50),
-  last_updated TIMESTAMPTZ DEFAULT NOW(),
-  next_update_time TIMESTAMPTZ DEFAULT NOW(),
+  last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  next_update_time TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   last_error TEXT,
-  status TEXT NOT NULL DEFAULT 'instruction-sent',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_shipments_container_number ON shipments(tracking_number);
-CREATE INDEX IF NOT EXISTS idx_shipments_booking_reference ON shipments(order_id);
+CREATE INDEX IF NOT EXISTS idx_shipments_container_number ON shipments(container_number);
+CREATE INDEX IF NOT EXISTS idx_shipments_booking_reference ON shipments(booking_reference);
 CREATE INDEX IF NOT EXISTS idx_shipments_next_update_time ON shipments(next_update_time);
 CREATE INDEX IF NOT EXISTS idx_shipments_order_id ON shipments(order_id);
 
@@ -29,22 +27,20 @@ CREATE INDEX IF NOT EXISTS idx_shipments_order_id ON shipments(order_id);
 CREATE TABLE IF NOT EXISTS shipment_updates (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   shipment_id UUID REFERENCES shipments(id),
-  tracking_number TEXT UNIQUE NOT NULL,
-  carrier TEXT NOT NULL,
-  origin TEXT,
-  destination TEXT,
-  eta TIMESTAMPTZ,
+  container_number VARCHAR(20),
+  booking_reference VARCHAR(50),
   shipping_line VARCHAR(20) NOT NULL,
   status VARCHAR(50) NOT NULL,
   previous_status VARCHAR(50),
   location VARCHAR(255),
-  timestamp TIMESTAMPTZ,
+  timestamp TIMESTAMP WITH TIME ZONE,
+  eta TIMESTAMP WITH TIME ZONE,
   vessel VARCHAR(100),
   voyage VARCHAR(50),
   details TEXT,
   source VARCHAR(20) NOT NULL, -- 'api', 'webhook', or 'manual'
   raw TEXT, -- JSON stringified raw data
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create index for faster lookups
@@ -74,15 +70,11 @@ BEGIN
   IF NEW.freight_type IN ('Sea Freight', 'Air Freight') THEN
     INSERT INTO shipments (
       order_id,
-      tracking_number,
-      carrier,
       shipping_line,
       status,
       next_update_time
     ) VALUES (
       NEW.id,
-      'other', -- Default tracking number, to be updated later
-      'other', -- Default carrier, to be updated later
       'other', -- Default shipping line, to be updated later
       'instruction-sent',
       NOW() + INTERVAL '1 day' -- Start checking after 1 day

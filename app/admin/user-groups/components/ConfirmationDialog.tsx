@@ -10,43 +10,34 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
 
 interface ConfirmationDialogProps {
-  isOpen: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
   onConfirm: () => void
   onCancel: () => void
   title: string
   description: string
-  confirmText?: string
-  cancelText?: string
 }
 
-export function ConfirmationDialog({
-  isOpen,
+export default function ConfirmationDialog({
+  open,
+  onOpenChange,
   onConfirm,
   onCancel,
   title,
   description,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
 }: ConfirmationDialogProps) {
   return (
-    <AlertDialog open={isOpen} onOpenChange={onCancel}>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel asChild>
-            <Button variant="outline" onClick={onCancel}>
-              {cancelText}
-            </Button>
-          </AlertDialogCancel>
-          <AlertDialogAction asChild>
-            <Button onClick={onConfirm}>{confirmText}</Button>
-          </AlertDialogAction>
+          <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>Continue</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
