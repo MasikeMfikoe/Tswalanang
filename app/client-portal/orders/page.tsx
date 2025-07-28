@@ -3,10 +3,14 @@
  * Keeping this file minimal avoids huge chunks & ‘Loading chunk failed’ errors.
  */
 
-import dynamic from "next/dynamic"
+"use client";
 
-const ClientPortalOrdersPage = dynamic(() => import("./ClientPortalOrdersPage"), { ssr: false })
+import dynamic from "next/dynamic";
 
-export default function OrdersRoute() {
-  return <ClientPortalOrdersPage />
+const ClientPortalOrdersPage = dynamic(() => import("./ClientPortalOrdersPage"), {
+  ssr: false,
+});
+
+export default function ClientWrapper() {
+  return <ClientPortalOrdersPage />;
 }
