@@ -1,14 +1,20 @@
-import dynamic from "next/dynamic"
+"use client"
 
-const OrderList = dynamic(() => import("@/components/OrderList"))
+import { useRouter } from "next/navigation"
+import { OrdersContent } from "@/components/OrdersContent"
+import ProtectedRoute from "@/components/ProtectedRoute"
 
-const OrdersPage = () => {
+export default function OrdersPage() {
+  const router = useRouter()
+
   return (
-    <div>
-      <h1>Orders</h1>
-      <OrderList />
-    </div>
+    <ProtectedRoute requiredPermission={{ module: "orders", action: "view" }}>
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">{/* h1 element removed */}</div>
+
+        {/* Keeping only the OrdersContent component */}
+        <OrdersContent />
+      </div>
+    </ProtectedRoute>
   )
 }
-
-export default OrdersPage
