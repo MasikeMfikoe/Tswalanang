@@ -79,6 +79,60 @@ const getStatusColorClass = (status: string) => {
   return "text-gray-700"
 }
 
+// Helper function to safely format dates - more lenient approach
+const formatDate = (dateValue: string | undefined | null): string => {
+  // Return "Not Available" for clearly invalid values
+  if (
+    !dateValue ||
+    dateValue === "N/A" ||
+    dateValue === "Unknown" ||
+    dateValue === "" ||
+    dateValue === "null" ||
+    dateValue === "undefined"
+  ) {
+    return "Not Available"
+  }
+
+  try {
+    // First, try direct parsing
+    let date = new Date(dateValue)
+
+    // If that fails, try different parsing strategies
+    if (isNaN(date.getTime())) {
+      // Try common date formats
+      const formats = [
+        dateValue.replace(/\//g, "-"), // Replace slashes with dashes
+        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$1-$2"), // MM/DD/YYYY to YYYY-MM-DD
+        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$2-$1"), // DD/MM/YYYY to YYYY-MM-DD
+        dateValue.replace(/(\d{4})-(\d{2})-(\d{2}).*/, "$1-$2-$3"), // Remove time part from ISO string
+      ]
+
+      for (const format of formats) {
+        date = new Date(format)
+        if (!isNaN(date.getTime())) {
+          break
+        }
+      }
+    }
+
+    // If we still have an invalid date, return the original value
+    if (isNaN(date.getTime())) {
+      console.warn("Could not parse date:", dateValue)
+      return dateValue // Return original value instead of hiding it
+    }
+
+    // Format the valid date
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+  } catch (error) {
+    console.warn("Error formatting date:", dateValue, error)
+    return dateValue // Return original value on error
+  }
+}
+
 export default function ShipmentTrackingResults({
   trackingNumber,
   bookingType,
@@ -190,7 +244,7 @@ export default function ShipmentTrackingResults({
     pol,
     pod,
     estimatedArrival,
-    estimatedDeparture, // Destructure estimatedDeparture
+    estimatedDeparture,
     lastLocation,
     timeline,
     documents,
@@ -198,6 +252,10 @@ export default function ShipmentTrackingResults({
   } = trackingResult
 
   const displayShipmentType = details?.shipmentType || bookingType || "unknown"
+
+  // Format the dates - now always shows something
+  const formattedEstimatedDeparture = formatDate(estimatedDeparture)
+  const formattedEstimatedArrival = formatDate(estimatedArrival)
 
   return (
     <Card className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm shadow-lg">
@@ -226,48 +284,56 @@ export default function ShipmentTrackingResults({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
           <div className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-gray-500" />
-            <strong>Origin:</strong> {origin} {pol && `(${pol})`}
+            <strong>Origin:</strong> {origin} {pol && pol !== "N/A" && `(${pol})`}
           </div>
           <div className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-gray-500" />
-            <strong>Destination:</strong> {destination} {pod && `(${pod})`}
+            <strong>Destination:</strong> {destination} {pod && pod !== "N/A" && `(${pod})`}
           </div>
-          {/* Display Estimated Departure and Estimated Arrival on the same row */}
+
+          {/* Always show estimated dates section if we have either departure or arrival */}
           {(estimatedDeparture || estimatedArrival) && (
             <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-4">
               {estimatedDeparture && (
                 <div className="flex items-center gap-2">
                   <Calendar className="h-5 w-5 text-gray-500" />
-                  <strong>Est. Departure:</strong> {new Date(estimatedDeparture).toLocaleDateString()}
+                  <strong>Est. Departure:</strong>
+                  <span className={formattedEstimatedDeparture === "Not Available" ? "text-gray-400 italic" : ""}>
+                    {formattedEstimatedDeparture}
+                  </span>
                 </div>
               )}
               {estimatedArrival && (
                 <div className="flex items-center gap-2">
                   <Calendar className="h-5 w-5 text-gray-500" />
-                  <strong>Est. Arrival:</strong> {new Date(estimatedArrival).toLocaleDateString()}
+                  <strong>Est. Arrival:</strong>
+                  <span className={formattedEstimatedArrival === "Not Available" ? "text-gray-400 italic" : ""}>
+                    {formattedEstimatedArrival}
+                  </span>
                 </div>
               )}
             </div>
           )}
-          {lastLocation && (
+
+          {lastLocation && lastLocation !== "N/A" && (
             <div className="flex items-center gap-2">
               <MapPin className="h-5 w-5 text-gray-500" />
               <strong>Last Location:</strong> {lastLocation}
             </div>
           )}
-          {containerNumber && (
+          {containerNumber && containerNumber !== "N/A" && (
             <div className="flex items-center gap-2">
               <Container className="h-5 w-5 text-gray-500" />
               <strong>Container No:</strong> {containerNumber}
             </div>
           )}
-          {containerType && (
+          {containerType && containerType !== "N/A" && (
             <div className="flex items-center gap-2">
               <Info className="h-5 w-5 text-gray-500" />
               <strong>Container Type:</strong> {containerType}
             </div>
           )}
-          {weight && (
+          {weight && weight !== "N/A" && (
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5 text-gray-500" />
               <strong>Weight:</strong> {weight}
@@ -350,19 +416,19 @@ export default function ShipmentTrackingResults({
             <Separator className="my-6" />
             <h3 className="text-xl font-semibold text-gray-800 mb-4">Shipment Details</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-700">
-              {details.packages && (
+              {details.packages && details.packages !== "N/A" && (
                 <div className="flex items-center gap-2">
                   <Package className="h-5 w-5 text-gray-500" />
                   <strong>Packages:</strong> {details.packages}
                 </div>
               )}
-              {details.dimensions && (
+              {details.dimensions && details.dimensions !== "N/A" && (
                 <div className="flex items-center gap-2">
                   <Info className="h-5 w-5 text-gray-500" />
                   <strong>Dimensions:</strong> {details.dimensions}
                 </div>
               )}
-              {details.specialInstructions && (
+              {details.specialInstructions && details.specialInstructions !== "N/A" && (
                 <div className="flex items-center gap-2 col-span-full">
                   <ClipboardList className="h-5 w-5 text-gray-500" />
                   <strong>Instructions:</strong> {details.specialInstructions}

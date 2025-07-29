@@ -60,6 +60,71 @@ export class GocometService {
     }
   }
 
+  private parseDate(dateValue: any): Date {
+    if (!dateValue) {
+      return new Date()
+    }
+
+    // Handle different date formats that Gocomet might return
+    let parsedDate: Date
+
+    if (typeof dateValue === "string") {
+      // Try different date formats
+      const formats = [
+        dateValue, // Original format
+        dateValue.replace(/\//g, "-"), // Replace slashes with dashes
+        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$2-$1"), // DD/MM/YYYY to YYYY-MM-DD
+        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$2/$1/$3"), // DD/MM/YYYY to MM/DD/YYYY
+      ]
+
+      for (const format of formats) {
+        parsedDate = new Date(format)
+        if (!isNaN(parsedDate.getTime())) {
+          return parsedDate
+        }
+      }
+    } else if (typeof dateValue === "number") {
+      parsedDate = new Date(dateValue)
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate
+      }
+    } else if (dateValue instanceof Date) {
+      if (!isNaN(dateValue.getTime())) {
+        return dateValue
+      }
+    }
+
+    // If all parsing attempts fail, return current date
+    console.warn(`Failed to parse date: ${dateValue}, using current date`)
+    return new Date()
+  }
+
+  private formatDateString(date: Date): string {
+    try {
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    } catch (error) {
+      console.warn("Error formatting date:", error)
+      return "N/A"
+    }
+  }
+
+  private formatTimeString(date: Date): string {
+    try {
+      return date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    } catch (error) {
+      console.warn("Error formatting time:", error)
+      return "N/A"
+    }
+  }
+
   async trackShipment(
     trackingNumber: string,
     options?: {
@@ -99,6 +164,7 @@ export class GocometService {
       }
 
       const data = await response.json()
+      console.log("Gocomet API response:", JSON.stringify(data, null, 2))
 
       if (data && data.updated_trackings && data.updated_trackings.length > 0) {
         const gocometTrackingInfo = data.updated_trackings[0]
@@ -136,24 +202,53 @@ export class GocometService {
 
     if (gocometData.events && Array.isArray(gocometData.events)) {
       gocometData.events.forEach((event: any) => {
-        const eventDate = new Date(event.actual_date || event.event_date || new Date())
-        timeline.push({
-          location: event.location || "N/A",
-          events: [
-            {
-              type: "event",
-              status: event.display_event || event.event_type || "N/A",
-              location: event.location || "N/A",
-              timestamp: eventDate.toISOString(),
-              date: eventDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
-              time: eventDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-              description: event.event_description || event.display_event,
-              vessel: gocometData.vessel_name, // Gocomet often provides vessel at top level
-              voyage: gocometData.voyage_number, // Gocomet often provides voyage at top level
-            },
-          ],
-        })
+        try {
+          // Use the safe date parsing method
+          const eventDate = this.parseDate(event.actual_date || event.event_date)
+
+          timeline.push({
+            location: event.location || "N/A",
+            events: [
+              {
+                type: "event",
+                status: event.display_event || event.event_type || "N/A",
+                location: event.location || "N/A",
+                timestamp: eventDate.toISOString(),
+                date: this.formatDateString(eventDate),
+                time: this.formatTimeString(eventDate),
+                description: event.event_description || event.display_event,
+                vessel: gocometData.vessel_name, // Gocomet often provides vessel at top level
+                voyage: gocometData.voyage_number, // Gocomet often provides voyage at top level
+              },
+            ],
+          })
+        } catch (error) {
+          console.warn("Error processing event:", event, error)
+          // Skip this event if there's an error processing it
+        }
       })
+    }
+
+    // Safe date parsing for ETA and ETD
+    let estimatedArrival = "N/A"
+    let estimatedDeparture = "N/A"
+
+    try {
+      if (gocometData.eta_date) {
+        const etaDate = this.parseDate(gocometData.eta_date)
+        estimatedArrival = etaDate.toISOString()
+      }
+    } catch (error) {
+      console.warn("Error parsing ETA date:", gocometData.eta_date, error)
+    }
+
+    try {
+      if (gocometData.etd_date) {
+        const etdDate = this.parseDate(gocometData.etd_date)
+        estimatedDeparture = etdDate.toISOString()
+      }
+    } catch (error) {
+      console.warn("Error parsing ETD date:", gocometData.etd_date, error)
     }
 
     return {
@@ -166,8 +261,8 @@ export class GocometService {
       destination: gocometData.pod_name || "N/A",
       pol: gocometData.pol_name || "N/A",
       pod: gocometData.pod_name || "N/A",
-      estimatedArrival: gocometData.eta_date || "N/A",
-      estimatedDeparture: gocometData.etd_date || "N/A", // Added estimated departure
+      estimatedArrival: estimatedArrival,
+      estimatedDeparture: estimatedDeparture,
       lastLocation: gocometData.last_location || "N/A",
       timeline: timeline,
       documents: [], // Gocomet API might provide document links, populate if available
