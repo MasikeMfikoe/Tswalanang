@@ -44,6 +44,7 @@ export type TrackingData = {
     pieces?: number
     volume?: number
   }
+  demurrageDetentionDays?: number | null // Added: Demurrage & Detention Days, can be null
   raw?: any // Raw data from the API
 }
 

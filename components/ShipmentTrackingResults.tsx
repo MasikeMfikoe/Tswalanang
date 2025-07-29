@@ -26,6 +26,7 @@ import {
   PlaneTakeoffIcon as PlaneDeparture,
   PlaneLandingIcon as PlaneArrival,
   BadgeCheck,
+  Hourglass,
 } from "lucide-react"
 import type { TrackingData, TrackingEvent, ShipmentType } from "@/types/tracking"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -79,9 +80,7 @@ const getStatusColorClass = (status: string) => {
   return "text-gray-700"
 }
 
-// Helper function to safely format dates - more lenient approach
 const formatDate = (dateValue: string | undefined | null): string => {
-  // Return "Not Available" for clearly invalid values
   if (
     !dateValue ||
     dateValue === "N/A" ||
@@ -94,17 +93,14 @@ const formatDate = (dateValue: string | undefined | null): string => {
   }
 
   try {
-    // First, try direct parsing
     let date = new Date(dateValue)
 
-    // If that fails, try different parsing strategies
     if (isNaN(date.getTime())) {
-      // Try common date formats
       const formats = [
-        dateValue.replace(/\//g, "-"), // Replace slashes with dashes
-        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$1-$2"), // MM/DD/YYYY to YYYY-MM-DD
-        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$2-$1"), // DD/MM/YYYY to YYYY-MM-DD
-        dateValue.replace(/(\d{4})-(\d{2})-(\d{2}).*/, "$1-$2-$3"), // Remove time part from ISO string
+        dateValue.replace(/\//g, "-"),
+        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$1-$2"),
+        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$2-$1"),
+        dateValue.replace(/(\d{4})-(\d{2})-(\d{2}).*/, "$1-$2-$3"),
       ]
 
       for (const format of formats) {
@@ -115,21 +111,19 @@ const formatDate = (dateValue: string | undefined | null): string => {
       }
     }
 
-    // If we still have an invalid date, return the original value
     if (isNaN(date.getTime())) {
-      console.warn("Could not parse date:", dateValue)
-      return dateValue // Return original value instead of hiding it
+      console.warn("Could not parse date for display:", dateValue)
+      return "Not Available"
     }
 
-    // Format the valid date
     return date.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
     })
   } catch (error) {
-    console.warn("Error formatting date:", dateValue, error)
-    return dateValue // Return original value on error
+    console.warn("Error formatting date for display:", dateValue, error)
+    return "Not Available"
   }
 }
 
@@ -237,7 +231,6 @@ export default function ShipmentTrackingResults({
     shipmentNumber,
     status,
     containerNumber,
-    containerType,
     weight,
     origin,
     destination,
@@ -249,11 +242,10 @@ export default function ShipmentTrackingResults({
     timeline,
     documents,
     details,
+    demurrageDetentionDays,
   } = trackingResult
 
   const displayShipmentType = details?.shipmentType || bookingType || "unknown"
-
-  // Format the dates - now always shows something
   const formattedEstimatedDeparture = formatDate(estimatedDeparture)
   const formattedEstimatedArrival = formatDate(estimatedArrival)
 
@@ -291,7 +283,6 @@ export default function ShipmentTrackingResults({
             <strong>Destination:</strong> {destination} {pod && pod !== "N/A" && `(${pod})`}
           </div>
 
-          {/* Always show estimated dates section if we have either departure or arrival */}
           {(estimatedDeparture || estimatedArrival) && (
             <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-4">
               {estimatedDeparture && (
@@ -327,10 +318,14 @@ export default function ShipmentTrackingResults({
               <strong>Container No:</strong> {containerNumber}
             </div>
           )}
-          {containerType && containerType !== "N/A" && (
+          {/* Display Demurrage & Detention Days */}
+          {demurrageDetentionDays !== undefined && demurrageDetentionDays !== null && (
             <div className="flex items-center gap-2">
-              <Info className="h-5 w-5 text-gray-500" />
-              <strong>Container Type:</strong> {containerType}
+              <Hourglass className="h-5 w-5 text-orange-500" />
+              <strong>Demurrage & Detention Days:</strong>
+              <span className={demurrageDetentionDays > 0 ? "text-orange-600 font-semibold" : "text-green-600"}>
+                {demurrageDetentionDays}
+              </span>
             </div>
           )}
           {weight && weight !== "N/A" && (
