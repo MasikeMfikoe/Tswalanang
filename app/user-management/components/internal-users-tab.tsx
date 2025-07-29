@@ -45,8 +45,13 @@ export function InternalUsersTab() {
     }
   }
 
-  const handleCreateUser = async (userData: Partial<User>) => {
+  const handleCreateUser = async (userData: Partial<User> & { password?: string; sendWelcomeEmail?: boolean }) => {
     try {
+      console.log("🚀 Creating user with data:", {
+        ...userData,
+        password: userData.password ? "[REDACTED]" : "not provided",
+      })
+
       const success = await createUser({
         name: userData.name!,
         surname: userData.surname!,
@@ -54,6 +59,8 @@ export function InternalUsersTab() {
         role: userData.role!,
         department: userData.department!,
         pageAccess: userData.pageAccess || getDefaultPageAccess(userData.role!),
+        password: userData.password,
+        sendWelcomeEmail: userData.sendWelcomeEmail,
       })
 
       if (success) {
@@ -72,9 +79,15 @@ export function InternalUsersTab() {
       }
     } catch (error) {
       console.error("Error creating user:", error)
+
+      let errorMessage = "Failed to create user. Please try again."
+      if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
       toast({
         title: "Error",
-        description: "Failed to create user. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       })
     }

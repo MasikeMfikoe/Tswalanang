@@ -17,7 +17,9 @@ interface AuthContextType {
   hasPermission: (module: string, action: string) => boolean
   refreshUser: () => Promise<void>
   getUsers: () => Promise<User[]>
-  createUser: (userData: Omit<User, "id" | "username">) => Promise<boolean>
+  createUser: (
+    userData: Omit<User, "id" | "username"> & { password?: string; sendWelcomeEmail?: boolean },
+  ) => Promise<boolean>
   deleteUser: (userId: string) => Promise<boolean>
   signOut: () => Promise<void>
 }
@@ -101,14 +103,16 @@ const MOCK_USERS: User[] = [
 let CREATED_USERS: User[] = []
 
 // Load created users from localStorage on startup
-try {
-  const stored = localStorage.getItem("created_users")
-  if (stored) {
-    CREATED_USERS = JSON.parse(stored)
-    console.log("Loaded created users from localStorage:", CREATED_USERS.length)
+if (typeof window !== "undefined") {
+  try {
+    const stored = localStorage.getItem("created_users")
+    if (stored) {
+      CREATED_USERS = JSON.parse(stored)
+      console.log("Loaded created users from localStorage:", CREATED_USERS.length)
+    }
+  } catch (e) {
+    console.log("Error loading created users from localStorage:", e)
   }
-} catch (e) {
-  console.log("Error loading created users from localStorage:", e)
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -119,16 +123,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check for existing session on mount
   useEffect(() => {
     // Try to get user from localStorage first (for development)
-    try {
-      const storedUser = localStorage.getItem("user")
-      if (storedUser) {
-        console.log("Found user in localStorage:", storedUser)
-        setUser(JSON.parse(storedUser))
-        setIsLoading(false)
-        return
+    if (typeof window !== "undefined") {
+      try {
+        const storedUser = localStorage.getItem("user")
+        if (storedUser) {
+          console.log("Found user in localStorage:", storedUser)
+          setUser(JSON.parse(storedUser))
+          setIsLoading(false)
+          return
+        }
+      } catch (e) {
+        console.log("Error reading from localStorage:", e)
       }
-    } catch (e) {
-      console.log("Error reading from localStorage:", e)
     }
 
     // If no stored user, check Supabase
@@ -188,10 +194,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(userData)
 
           // Also store in localStorage for persistence
-          try {
-            localStorage.setItem("user", JSON.stringify(userData))
-          } catch (e) {
-            console.log("Error saving to localStorage:", e)
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("user", JSON.stringify(userData))
+            } catch (e) {
+              console.log("Error saving to localStorage:", e)
+            }
           }
         } catch (error) {
           console.error("Error processing user profile:", error)
@@ -253,10 +261,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUser(userData)
 
               // Store in localStorage for persistence
-              try {
-                localStorage.setItem("user", JSON.stringify(userData))
-              } catch (e) {
-                console.log("Error saving to localStorage:", e)
+              if (typeof window !== "undefined") {
+                try {
+                  localStorage.setItem("user", JSON.stringify(userData))
+                } catch (e) {
+                  console.log("Error saving to localStorage:", e)
+                }
               }
 
               // Redirect client users to client portal immediately
@@ -278,10 +288,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const mockUser = MOCK_USERS.find((u) => u.username === "demo")!
         setUser(mockUser)
 
-        try {
-          localStorage.setItem("user", JSON.stringify(mockUser))
-        } catch (e) {
-          console.log("Error saving to localStorage:", e)
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("user", JSON.stringify(mockUser))
+          } catch (e) {
+            console.log("Error saving to localStorage:", e)
+          }
         }
 
         return true
@@ -292,10 +304,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const mockTrackingUser = MOCK_USERS.find((u) => u.username === "tracking")!
         setUser(mockTrackingUser)
 
-        try {
-          localStorage.setItem("user", JSON.stringify(mockTrackingUser))
-        } catch (e) {
-          console.log("Error saving to localStorage:", e)
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("user", JSON.stringify(mockTrackingUser))
+          } catch (e) {
+            console.log("Error saving to localStorage:", e)
+          }
         }
 
         return true
@@ -306,10 +320,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const mockClient1User = MOCK_USERS.find((u) => u.username === "client1")!
         setUser(mockClient1User)
 
-        try {
-          localStorage.setItem("user", JSON.stringify(mockClient1User))
-        } catch (e) {
-          console.log("Error saving to localStorage:", e)
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("user", JSON.stringify(mockClient1User))
+          } catch (e) {
+            console.log("Error saving to localStorage:", e)
+          }
         }
 
         // Redirect client to client portal
@@ -322,10 +338,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const mockClient2User = MOCK_USERS.find((u) => u.username === "client2")!
         setUser(mockClient2User)
 
-        try {
-          localStorage.setItem("user", JSON.stringify(mockClient2User))
-        } catch (e) {
-          console.log("Error saving to localStorage:", e)
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("user", JSON.stringify(mockClient2User))
+          } catch (e) {
+            console.log("Error saving to localStorage:", e)
+          }
         }
 
         // Redirect client to client portal
@@ -361,11 +379,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
 
       // Remove from localStorage
-      try {
-        localStorage.removeItem("user")
-        console.log("Removed user from localStorage")
-      } catch (e) {
-        console.log("Error removing from localStorage:", e)
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem("user")
+          console.log("Removed user from localStorage")
+        } catch (e) {
+          console.log("Error removing from localStorage:", e)
+        }
       }
 
       // Redirect to login page
@@ -458,10 +478,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const updatedUser = { ...user, ...userData }
         setUser(updatedUser)
 
-        try {
-          localStorage.setItem("user", JSON.stringify(updatedUser))
-        } catch (e) {
-          console.log("Error saving to localStorage:", e)
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("user", JSON.stringify(updatedUser))
+          } catch (e) {
+            console.log("Error saving to localStorage:", e)
+          }
         }
       }
 
@@ -512,11 +534,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Save created users to localStorage
   const saveCreatedUsers = () => {
-    try {
-      localStorage.setItem("created_users", JSON.stringify(CREATED_USERS))
-      console.log("Saved created users to localStorage:", CREATED_USERS.length)
-    } catch (e) {
-      console.log("Error saving created users to localStorage:", e)
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("created_users", JSON.stringify(CREATED_USERS))
+        console.log("Saved created users to localStorage:", CREATED_USERS.length)
+      } catch (e) {
+        console.log("Error saving created users to localStorage:", e)
+      }
     }
   }
 
@@ -577,15 +601,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Create user function - HYBRID APPROACH: TRY SUPABASE + ALWAYS SAVE LOCALLY
-  const createUser = async (userData: Omit<User, "id" | "username">): Promise<boolean> => {
+  // Create user function - IMPROVED ERROR HANDLING
+  const createUser = async (
+    userData: Omit<User, "id" | "username"> & { password?: string; sendWelcomeEmail?: boolean },
+  ): Promise<boolean> => {
     try {
       setIsLoading(true)
-      console.log("🚀 Creating new user:", userData)
+      console.log("🚀 Creating new user:", { ...userData, password: userData.password ? "[REDACTED]" : "not provided" })
+
+      // Validate required fields
+      if (!userData.name || !userData.surname || !userData.email || !userData.role || !userData.department) {
+        console.error("❌ Missing required fields:", {
+          name: !!userData.name,
+          surname: !!userData.surname,
+          email: !!userData.email,
+          role: !!userData.role,
+          department: !!userData.department,
+        })
+        throw new Error("Missing required fields")
+      }
 
       // Generate username from name and surname
       const username = `${userData.name.toLowerCase()}.${userData.surname.toLowerCase()}`
-      const email = userData.email || `${username}@tswsmartlog.com`
+      const email = userData.email
+      const password = userData.password || `TempPass${Math.random().toString(36).slice(-8)}!`
 
       // Create user object with temporary ID (will be replaced by auth user ID)
       const newUser: User = {
@@ -600,9 +639,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           userData.role === "client" ? ["clientPortal", "shipmentTracker"] : userData.pageAccess || ["dashboard"],
       }
 
+      console.log("📝 Prepared user data:", { ...newUser, id: "[GENERATED]" })
+
       // Try to create via API route first
       try {
-        console.log("📝 Attempting to create via API route...")
+        console.log("📡 Calling create-auth-user API...")
 
         const authResponse = await fetch("/api/create-auth-user", {
           method: "POST",
@@ -610,19 +651,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            email: newUser.email,
-            password: userData.password || "TempPassword123!",
+            email: email,
+            password: password,
             userData: {
-              username: newUser.username,
-              name: newUser.name,
-              surname: newUser.surname,
-              role: newUser.role,
-              department: newUser.department,
+              username: username,
+              name: userData.name,
+              surname: userData.surname,
+              role: userData.role,
+              department: userData.department,
               page_access: newUser.pageAccess,
-              email: newUser.email,
+              email: email,
             },
           }),
         })
+
+        console.log("📡 API Response status:", authResponse.status)
 
         if (authResponse.ok) {
           const result = await authResponse.json()
@@ -634,61 +677,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Save locally with the correct ID
           CREATED_USERS.push(newUser)
           saveCreatedUsers()
-          console.log("✅ User saved locally with auth ID:", newUser)
-        } else {
-          const error = await authResponse.text()
-          console.error("❌ API route error:", error)
+          console.log("✅ User saved locally with auth ID:", newUser.id)
 
-          // Fallback to local-only creation
-          console.log("📝 Falling back to local-only creation...")
+          return true
+        } else {
+          const errorText = await authResponse.text()
+          console.error("❌ API route error:", errorText)
+
+          let errorData
+          try {
+            errorData = JSON.parse(errorText)
+          } catch {
+            errorData = { error: errorText }
+          }
+
+          // If it's a validation error, don't fall back to local creation
+          if (authResponse.status === 400 || authResponse.status === 422) {
+            throw new Error(errorData.error || "Validation failed")
+          }
+
+          // For server errors, fall back to local creation
+          console.log("📝 Falling back to local-only creation due to server error...")
           CREATED_USERS.push(newUser)
           saveCreatedUsers()
-          console.log("✅ User saved locally only:", newUser)
+          console.log("✅ User saved locally only:", newUser.id)
+
+          return true
         }
       } catch (apiError) {
         console.error("❌ API call failed:", apiError)
 
-        // Fallback to local-only creation
-        console.log("📝 Falling back to local-only creation...")
+        // If it's a validation error, don't create locally
+        if (
+          apiError instanceof Error &&
+          (apiError.message.includes("Missing required fields") ||
+            apiError.message.includes("Validation failed") ||
+            apiError.message.includes("already exists"))
+        ) {
+          throw apiError
+        }
+
+        // For network/server errors, fall back to local creation
+        console.log("📝 Falling back to local-only creation due to API error...")
         CREATED_USERS.push(newUser)
         saveCreatedUsers()
-        console.log("✅ User saved locally only:", newUser)
+        console.log("✅ User saved locally only:", newUser.id)
+
+        return true
       }
-
-      // Send welcome email if requested
-      if (userData.sendWelcomeEmail) {
-        try {
-          console.log("📧 Sending welcome email...")
-          const emailResponse = await fetch("/api/send-welcome-email", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              userEmail: email,
-              userName: userData.name,
-              userSurname: userData.surname,
-              temporaryPassword: userData.password || "TempPassword123!",
-              companyName: userData.department,
-              isClientUser: userData.role === "client",
-            }),
-          })
-
-          if (emailResponse.ok) {
-            console.log("✅ Welcome email sent successfully")
-          } else {
-            console.warn("⚠️ Welcome email failed to send")
-          }
-        } catch (emailError) {
-          console.warn("⚠️ Error sending welcome email:", emailError)
-        }
-      }
-
-      console.log("🎉 User created successfully!")
-      return true
     } catch (error) {
       console.error("❌ Create user error:", error)
-      return false
+      throw error // Re-throw to let the UI handle the error
     } finally {
       setIsLoading(false)
     }

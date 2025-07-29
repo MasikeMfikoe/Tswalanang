@@ -50,6 +50,17 @@ export default function LoginPage() {
     setErrors({})
     setFormError(null)
 
+    // Basic validation
+    if (!username.trim()) {
+      setErrors((prev) => ({ ...prev, username: "Username is required" }))
+      return
+    }
+
+    if (!password.trim()) {
+      setErrors((prev) => ({ ...prev, password: "Password is required" }))
+      return
+    }
+
     setIsLoggingIn(true)
 
     try {
@@ -62,7 +73,7 @@ export default function LoginPage() {
         // Redirect will be handled by useEffect above
       } else {
         console.log("Login failed")
-        setFormError("Invalid username or password")
+        setFormError("Invalid username or password. Please check your credentials and try again.")
       }
     } catch (error) {
       console.error("Login error:", error)
@@ -115,6 +126,7 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 className={errors.username ? "border-red-500" : ""}
                 disabled={isLoggingIn}
+                autoComplete="username"
               />
               {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username}</p>}
             </div>
@@ -128,6 +140,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className={errors.password ? "border-red-500" : ""}
                 disabled={isLoggingIn}
+                autoComplete="current-password"
               />
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
             </div>
@@ -145,19 +158,10 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-sm text-center text-muted-foreground">
-            <span>Demo credentials: </span>
-            <code className="bg-muted px-1 py-0.5 rounded">username: demo, password: demo</code>
-          </div>
-          <div className="text-sm text-center text-muted-foreground">
-            <span>Client users: </span>
-            <code className="bg-muted px-1 py-0.5 rounded">client1/client1, client2/client2</code>
-          </div>
-          <div className="text-sm text-center text-muted-foreground">
-            <span>Tracking user: </span>
-            <code className="bg-muted px-1 py-0.5 rounded">username: tracking, password: tracking</code>
+            Don't have an account? Contact your administrator.
           </div>
           <Link href="/" className="w-full">
-            <Button type="button" variant="outline" className="w-full">
+            <Button type="button" variant="outline" className="w-full bg-transparent">
               Back to Landing Page
             </Button>
           </Link>
