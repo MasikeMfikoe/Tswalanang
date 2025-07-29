@@ -1,9 +1,13 @@
 import { generateQRCode, generateDeliveryConfirmationUrl } from "./qr-code-utils"
+import Mailgun from "mailgun.js"
+import FormData from "form-data"
+import { Buffer } from "buffer" // Import Buffer for handling binary data
 
 interface EmailOptions {
   to: string
   subject: string
   html: string
+  from?: string // Added optional from field
   attachments?: Array<{
     filename: string
     content: string
@@ -35,7 +39,6 @@ interface DeliveryConfirmationEmailParams {
   supportEmail: string
 }
 
-// Add these new interfaces for sender notifications
 interface SenderOrderCreatedEmailParams {
   orderId: string
   waybillNo: string
@@ -63,17 +66,68 @@ interface SenderDeliveryConfirmedEmailParams {
 
 export const emailService = {
   /**
-   * Sends an email using the configured email provider
-   * In a real implementation, this would use SendGrid, Mailgun, etc.
+   * Sends an email using Mailgun.
+   * Requires MAILGUN_API_KEY, MAILGUN_DOMAIN, and optionally MAILGUN_FROM_EMAIL environment variables.
    */
   async sendEmail(options: EmailOptions): Promise<boolean> {
     try {
-      console.log("Sending email:", options)
-      // In a real implementation, this would call the email provider's API
-      // For now, we'll just simulate success
+      const mailgun = new Mailgun(FormData)
+      const mg = mailgun.client({
+        username: "api", // Mailgun API username is typically 'api'
+        key: process.env.MAILGUN_API_KEY!,
+        // Uncomment and set url if you have an EU domain or custom endpoint
+        // url: process.env.MAILGUN_API_URL || "https://api.mailgun.net",
+      })
+
+      const domain = process.env.MAILGUN_DOMAIN!
+
+      if (!process.env.MAILGUN_API_KEY || !domain) {
+        console.error(
+          "Mailgun API key or domain is not configured. Please set MAILGUN_API_KEY and MAILGUN_DOMAIN environment variables.",
+        )
+        return false
+      }
+
+      const messageData: any = {
+        from: options.from || process.env.MAILGUN_FROM_EMAIL || `TSW Smartlog <mailgun@${domain}>`,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+      }
+
+      if (options.attachments && options.attachments.length > 0) {
+        const inlineAttachments: any[] = []
+        const regularAttachments: any[] = []
+
+        options.attachments.forEach((att) => {
+          const dataBuffer = att.encoding === "base64" ? Buffer.from(att.content, "base64") : Buffer.from(att.content)
+          const attachmentObject = {
+            filename: att.filename,
+            data: dataBuffer,
+            contentType: att.contentType,
+          }
+
+          // Assuming attachments with 'qrcode' in filename are inline for CID embedding
+          if (att.filename.includes("qrcode")) {
+            inlineAttachments.push(attachmentObject)
+          } else {
+            regularAttachments.push(attachmentObject)
+          }
+        })
+
+        if (inlineAttachments.length > 0) {
+          messageData.inline = inlineAttachments
+        }
+        if (regularAttachments.length > 0) {
+          messageData.attachment = regularAttachments
+        }
+      }
+
+      const data = await mg.messages.create(domain, messageData)
+      console.log("Mailgun response:", data)
       return true
     } catch (error) {
-      console.error("Error sending email:", error)
+      console.error("Error sending email with Mailgun:", error)
       return false
     }
   },
@@ -118,7 +172,7 @@ export const emailService = {
             <p>To confirm delivery, please scan the QR code below or click the link:</p>
             
             <div style="text-align: center; margin: 30px 0;">
-              <img src="cid:qrcode" alt="QR Code for Delivery Confirmation" style="max-width: 200px; border: 1px solid #ddd;" />
+              <img src="cid:qrcode.png" alt="QR Code for Delivery Confirmation" style="max-width: 200px; border: 1px solid #ddd;" />
               <p style="color: #777; font-size: 12px; margin-top: 10px;">
                 <strong>Security Notice:</strong> Do not share this QR code with others.
               </p>
@@ -148,7 +202,7 @@ export const emailService = {
         html,
         attachments: [
           {
-            filename: "qrcode.png",
+            filename: "qrcode.png", // Ensure filename matches cid in HTML
             content: qrCodeBase64,
             encoding: "base64",
             contentType: "image/png",
@@ -313,7 +367,6 @@ export const emailService = {
     `
   },
 
-  // Add these new methods to the emailService object
   /**
    * Sends an order created notification to the sender
    */

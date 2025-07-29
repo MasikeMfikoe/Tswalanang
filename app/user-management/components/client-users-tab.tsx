@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Search, Plus, Edit, Trash2, ExternalLink } from "lucide-react"
+import { Search, Plus, Edit, Trash2, ExternalLink, RefreshCw } from "lucide-react"
 import type { User } from "@/types/auth"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
@@ -17,6 +17,7 @@ export function ClientUsersTab() {
   const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -29,15 +30,19 @@ export function ClientUsersTab() {
   const fetchUsers = async () => {
     setIsLoading(true)
     try {
-      console.log("🔄 Fetching users...")
+      console.log("🔄 Fetching users for client users tab...")
       const fetchedUsers = await getUsers()
-      console.log("📋 All users:", fetchedUsers)
+      console.log("📋 All users fetched:", fetchedUsers.length)
 
       // Filter only client users
       const clientUsers = fetchedUsers.filter((user) => user.role === "client")
-      console.log("👥 Client users:", clientUsers)
+      console.log("👥 Client users:", clientUsers.length)
 
       setUsers(clientUsers)
+
+      if (clientUsers.length === 0) {
+        console.log("⚠️ No client users found")
+      }
     } catch (error) {
       console.error("❌ Error fetching users:", error)
       toast({
@@ -47,6 +52,25 @@ export function ClientUsersTab() {
       })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      await fetchUsers()
+      toast({
+        title: "Success",
+        description: "Client user list refreshed successfully!",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to refresh client user list.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRefreshing(false)
     }
   }
 
@@ -76,18 +100,18 @@ export function ClientUsersTab() {
         setTimeout(() => {
           fetchUsers()
         }, 1000)
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to create client user. Please try again.",
-          variant: "destructive",
-        })
       }
     } catch (error) {
       console.error("❌ Error creating client user:", error)
+
+      let errorMessage = "Failed to create client user. Please try again."
+      if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
       toast({
         title: "Error",
-        description: "Failed to create client user. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       })
     }
@@ -134,7 +158,7 @@ export function ClientUsersTab() {
       if (success) {
         toast({
           title: "Success",
-          description: `Client user ${userData.email} updated successfully!`,
+          description: `Client user ${userData.email || selectedUser.email} updated successfully!`,
         })
         setIsEditModalOpen(false)
         setSelectedUser(null)
@@ -147,7 +171,7 @@ export function ClientUsersTab() {
         })
       }
     } catch (error) {
-      console.error("Error updating client user:", error)
+      console.error("❌ Error updating client user:", error)
       toast({
         title: "Error",
         description: "Failed to update client user. Please try again.",
@@ -165,7 +189,8 @@ export function ClientUsersTab() {
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.surname.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.department?.toLowerCase().includes(searchTerm.toLowerCase()),
+      user.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.username?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   if (isLoading) {
@@ -173,7 +198,7 @@ export function ClientUsersTab() {
       <Card>
         <CardHeader>
           <CardTitle>Client Users</CardTitle>
-          <CardDescription>Loading client users...</CardDescription>
+          <CardDescription>Loading client users from database...</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-center py-8">
@@ -187,8 +212,18 @@ export function ClientUsersTab() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Client Users</CardTitle>
-        <CardDescription>Manage external client users with limited access</CardDescription>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle>Client Users</CardTitle>
+            <CardDescription>
+              Manage external client users with limited access ({users.length} users found)
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex justify-between items-center mb-6">
@@ -232,7 +267,9 @@ export function ClientUsersTab() {
                     <div>
                       <h3 className="font-medium">{`${user.name} ${user.surname}`}</h3>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
-                      <p className="text-xs text-muted-foreground">{user.department}</p>
+                      <p className="text-xs text-muted-foreground">
+                        @{user.username} • {user.department}
+                      </p>
                     </div>
                     <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
                       Client

@@ -1,353 +1,314 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import type React from "react"
+
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+import { X, Eye, EyeOff } from "lucide-react"
 import type { User, UserRole } from "@/types/auth"
-import { AlertCircle, Check, RefreshCw, Building2, UserIcon } from "lucide-react"
 
 interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreateUser: (user: Partial<User>) => void
+  onCreateUser: (userData: Partial<User> & { password?: string; sendWelcomeEmail?: boolean }) => Promise<void>
   userType: "internal" | "client"
 }
 
 export default function CreateUserModal({ isOpen, onClose, onCreateUser, userType }: CreateUserModalProps) {
-  const [formData, setFormData] = useState<Partial<User>>({
+  const [formData, setFormData] = useState({
     name: "",
     surname: "",
     email: "",
-    password: "",
-    role: userType === "client" ? "client" : "employee",
+    role: userType === "client" ? "client" : ("employee" as UserRole),
     department: "",
+    password: "",
+    sendWelcomeEmail: false,
+    pageAccess: [] as string[],
   })
+  const [showPassword, setShowPassword] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true)
-  const [isEmailAvailable, setIsEmailAvailable] = useState<boolean | null>(null)
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false)
+  const availablePages = [
+    "dashboard",
+    "orders",
+    "customers",
+    "documents",
+    "deliveries",
+    "courierOrders",
+    "shipmentTracker",
+    "clientPortal",
+    "userManagement",
+    "auditTrail",
+    "rateCard",
+    "currencyConversion",
+    "containerTracking",
+  ]
 
-  // Reset form when modal opens/closes or userType changes
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        name: "",
-        surname: "",
-        email: "",
-        password: "",
-        role: userType === "client" ? "client" : "employee",
-        department: "",
-      })
-      setErrors({})
-      setIsEmailAvailable(null)
-    }
-  }, [isOpen, userType])
-
-  const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
-  }
-
-  const checkEmailAvailability = (email: string) => {
-    if (!email || !validateEmail(email)) {
-      setIsEmailAvailable(null)
-      return
-    }
-
-    setIsCheckingEmail(true)
-
-    // Simulate API call with a timeout
-    setTimeout(() => {
-      // In a real implementation, this would check against the database
-      const isAvailable = true // For now, assume all emails are available
-      setIsEmailAvailable(isAvailable)
-      setIsCheckingEmail(false)
-
-      if (!isAvailable) {
-        setErrors((prev) => ({ ...prev, email: "Email already exists" }))
-      } else {
-        setErrors((prev) => {
-          const newErrors = { ...prev }
-          delete newErrors.email
-          return newErrors
-        })
-      }
-    }, 500)
-  }
-
-  const handleInputChange = (field: keyof User, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-
-    // Clear error when user types
-    if (errors[field]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors[field]
-        return newErrors
-      })
+  const getDefaultPageAccess = (role: UserRole): string[] => {
+    switch (role) {
+      case "admin":
+        return [
+          "dashboard",
+          "orders",
+          "customers",
+          "documents",
+          "deliveries",
+          "courierOrders",
+          "shipmentTracker",
+          "userManagement",
+          "auditTrail",
+          "rateCard",
+          "currencyConversion",
+          "containerTracking",
+        ]
+      case "manager":
+        return ["dashboard", "orders", "customers", "deliveries", "courierOrders", "rateCard"]
+      case "employee":
+        return ["dashboard", "orders", "documents"]
+      case "client":
+        return ["clientPortal", "shipmentTracker"]
+      default:
+        return ["dashboard"]
     }
   }
 
-  const handleEmailBlur = () => {
-    if (formData.email) {
-      checkEmailAvailability(formData.email)
-    }
+  const handleRoleChange = (role: UserRole) => {
+    setFormData({
+      ...formData,
+      role,
+      pageAccess: getDefaultPageAccess(role),
+    })
   }
 
-  const generateRandomPassword = () => {
+  const handlePageAccessToggle = (page: string) => {
+    const newPageAccess = formData.pageAccess.includes(page)
+      ? formData.pageAccess.filter((p) => p !== page)
+      : [...formData.pageAccess, page]
+
+    setFormData({
+      ...formData,
+      pageAccess: newPageAccess,
+    })
+  }
+
+  const generatePassword = () => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*"
     let password = ""
     for (let i = 0; i < 12; i++) {
       password += chars.charAt(Math.floor(Math.random() * chars.length))
     }
-    setFormData((prev) => ({ ...prev, password }))
+    setFormData({ ...formData, password })
   }
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {}
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
 
-    if (!formData.name?.trim()) {
-      newErrors.name = "First name is required"
-    }
-
-    if (!formData.surname?.trim()) {
-      newErrors.surname = "Last name is required"
-    }
-
-    if (!formData.email?.trim()) {
-      newErrors.email = "Email is required"
-    } else if (!validateEmail(formData.email)) {
-      newErrors.email = "Invalid email format"
-    } else if (isEmailAvailable === false) {
-      newErrors.email = "Email already exists"
-    }
-
-    if (!formData.password?.trim()) {
-      newErrors.password = "Password is required"
-    }
-
-    // For client users, require company/department
-    if (userType === "client" && !formData.department?.trim()) {
-      newErrors.department = "Company name is required for client users"
-    }
-
-    // For internal users, require role and department
-    if (userType === "internal") {
-      if (!formData.role) {
-        newErrors.role = "Role is required"
-      }
-      if (!formData.department?.trim()) {
-        newErrors.department = "Department is required"
-      }
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const handleSubmit = () => {
-    if (validateForm()) {
-      onCreateUser({
-        ...formData,
-        sendWelcomeEmail,
+    try {
+      await onCreateUser({
+        name: formData.name,
+        surname: formData.surname,
+        email: formData.email,
+        role: formData.role,
+        department: formData.department,
+        pageAccess: formData.pageAccess,
+        password: formData.password,
+        sendWelcomeEmail: formData.sendWelcomeEmail,
       })
+
+      // Reset form
+      setFormData({
+        name: "",
+        surname: "",
+        email: "",
+        role: userType === "client" ? "client" : "employee",
+        department: "",
+        password: "",
+        sendWelcomeEmail: false,
+        pageAccess: [],
+      })
+    } catch (error) {
+      console.error("Error in modal:", error)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const isClientUser = userType === "client"
+  const handleClose = () => {
+    setFormData({
+      name: "",
+      surname: "",
+      email: "",
+      role: userType === "client" ? "client" : "employee",
+      department: "",
+      password: "",
+      sendWelcomeEmail: false,
+      pageAccess: [],
+    })
+    onClose()
+  }
 
   return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) onClose()
-      }}
-    >
-      <DialogContent className="sm:max-w-[500px]">
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold flex items-center gap-2">
-            {isClientUser ? (
-              <>
-                <Building2 className="h-5 w-5 text-purple-500" />
-                Add New Client User
-              </>
-            ) : (
-              <>
-                <UserIcon className="h-5 w-5 text-blue-500" />
-                Add New Internal User
-              </>
-            )}
-          </DialogTitle>
+          <DialogTitle>Create {userType === "client" ? "Client" : "Internal"} User</DialogTitle>
+          <DialogDescription>
+            {userType === "client"
+              ? "Create a new client user with limited access to their orders and tracking."
+              : "Create a new internal user with access to the system based on their role."}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="firstName" className={errors.name ? "text-red-500" : ""}>
-                First Name *
-              </Label>
+            <div>
+              <Label htmlFor="name">First Name *</Label>
               <Input
-                id="firstName"
-                value={formData.name || ""}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                className={errors.name ? "border-red-500" : ""}
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
               />
-              {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="lastName" className={errors.surname ? "text-red-500" : ""}>
-                Last Name *
-              </Label>
+            <div>
+              <Label htmlFor="surname">Last Name *</Label>
               <Input
-                id="lastName"
-                value={formData.surname || ""}
-                onChange={(e) => handleInputChange("surname", e.target.value)}
-                className={errors.surname ? "border-red-500" : ""}
+                id="surname"
+                value={formData.surname}
+                onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
+                required
               />
-              {errors.surname && <p className="text-xs text-red-500">{errors.surname}</p>}
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email" className={errors.email ? "text-red-500" : ""}>
-              Email Address *
-            </Label>
-            <div className="relative">
-              <Input
-                id="email"
-                type="email"
-                value={formData.email || ""}
-                onChange={(e) => handleInputChange("email", e.target.value)}
-                onBlur={handleEmailBlur}
-                className={`pr-10 ${errors.email ? "border-red-500" : isEmailAvailable === true ? "border-green-500" : ""}`}
-              />
-              {isCheckingEmail && (
-                <RefreshCw className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
-              )}
-              {isEmailAvailable === true && !isCheckingEmail && (
-                <Check className="absolute right-3 top-2.5 h-4 w-4 text-green-500" />
-              )}
-              {isEmailAvailable === false && !isCheckingEmail && (
-                <AlertCircle className="absolute right-3 top-2.5 h-4 w-4 text-red-500" />
-              )}
-            </div>
-            {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
+          <div>
+            <Label htmlFor="email">Email Address *</Label>
+            <Input
+              id="email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
+            />
           </div>
 
-          {!isClientUser && (
-            <div className="space-y-2">
-              <Label htmlFor="role" className={errors.role ? "text-red-500" : ""}>
-                User Role *
-              </Label>
-              <Select
-                value={formData.role || "employee"}
-                onValueChange={(value) => handleInputChange("role", value as UserRole)}
-              >
-                <SelectTrigger id="role">
-                  <SelectValue placeholder="Select user role" />
+          <div>
+            <Label htmlFor="department">{userType === "client" ? "Company Name *" : "Department *"}</Label>
+            <Input
+              id="department"
+              value={formData.department}
+              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+              placeholder={userType === "client" ? "e.g., ABC Company Ltd" : "e.g., Operations, IT, Sales"}
+              required
+            />
+          </div>
+
+          {userType === "internal" && (
+            <div>
+              <Label htmlFor="role">Role *</Label>
+              <Select value={formData.role} onValueChange={handleRoleChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="guest">Guest</SelectItem>
                 </SelectContent>
               </Select>
-              {errors.role && <p className="text-xs text-red-500">{errors.role}</p>}
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="department" className={errors.department ? "text-red-500" : ""}>
-              {isClientUser ? "Company Name *" : "Department *"}
-            </Label>
-            {isClientUser ? (
-              <Input
-                id="department"
-                placeholder="e.g., ABC Logistics Ltd"
-                value={formData.department || ""}
-                onChange={(e) => handleInputChange("department", e.target.value)}
-                className={errors.department ? "border-red-500" : ""}
-              />
-            ) : (
-              <Select
-                value={formData.department || ""}
-                onValueChange={(value) => handleInputChange("department", value)}
-              >
-                <SelectTrigger id="department">
-                  <SelectValue placeholder="Select a department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="IT">IT</SelectItem>
-                  <SelectItem value="Sales">Sales</SelectItem>
-                  <SelectItem value="HR">HR</SelectItem>
-                  <SelectItem value="Support">Support</SelectItem>
-                  <SelectItem value="Engineering">Engineering</SelectItem>
-                  <SelectItem value="Operations">Operations</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-            {errors.department && <p className="text-xs text-red-500">{errors.department}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <Label htmlFor="password" className={errors.password ? "text-red-500" : ""}>
-                Temporary Password *
-              </Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={generateRandomPassword}
-                className="text-xs bg-transparent"
-              >
-                Generate Random Password
+          <div>
+            <Label htmlFor="password">Password *</Label>
+            <div className="flex space-x-2">
+              <div className="relative flex-1">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <Button type="button" variant="outline" onClick={generatePassword}>
+                Generate
               </Button>
             </div>
-            <Input
-              id="password"
-              type="password"
-              value={formData.password || ""}
-              onChange={(e) => handleInputChange("password", e.target.value)}
-              className={errors.password ? "border-red-500" : ""}
-            />
-            {errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
           </div>
 
-          {isClientUser && (
-            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-              <h4 className="font-medium text-purple-900 mb-2">Client Access Permissions</h4>
-              <ul className="text-sm text-purple-700 space-y-1">
-                <li>• Access to client portal dashboard</li>
-                <li>• View their assigned orders only</li>
-                <li>• Track shipments in real-time</li>
-                <li>• Download order documents</li>
-                <li>• Receive delivery confirmations</li>
-              </ul>
+          {userType === "internal" && (
+            <div>
+              <Label>Page Access</Label>
+              <div className="mt-2 space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {formData.pageAccess.map((page) => (
+                    <Badge key={page} variant="default" className="flex items-center gap-1">
+                      {page}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => handlePageAccessToggle(page)} />
+                    </Badge>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {availablePages
+                    .filter((page) => !formData.pageAccess.includes(page))
+                    .map((page) => (
+                      <Button
+                        key={page}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageAccessToggle(page)}
+                      >
+                        + {page}
+                      </Button>
+                    ))}
+                </div>
+              </div>
             </div>
           )}
 
-          <div className="flex items-center space-x-2 pt-2">
-            <Switch id="send-email" checked={sendWelcomeEmail} onCheckedChange={setSendWelcomeEmail} />
-            <Label htmlFor="send-email">Send welcome email with login credentials</Label>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="sendWelcomeEmail"
+              checked={formData.sendWelcomeEmail}
+              onCheckedChange={(checked) => setFormData({ ...formData, sendWelcomeEmail: checked as boolean })}
+            />
+            <Label htmlFor="sendWelcomeEmail">Send welcome email with login credentials</Label>
           </div>
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} className={isClientUser ? "bg-purple-600 hover:bg-purple-700" : ""}>
-            Create {isClientUser ? "Client" : "User"}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create User"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

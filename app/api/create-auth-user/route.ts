@@ -72,102 +72,145 @@ export async function POST(request: NextRequest) {
 
     console.log("✅ All required fields present, proceeding with user creation...")
 
-    // 1️⃣ Try to create auth user
-    console.log("🔐 Creating auth user...")
-    let authUser, authError
+    // 1️⃣ Check if user already exists in auth
+    console.log("🔍 Checking if user already exists...")
+    let existingAuthUser = null
 
     try {
-      const authResult = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          name: userData.name,
-          surname: userData.surname,
-          role: userData.role,
-        },
-      })
+      const { data: existing, error: fetchError } = await supabaseAdmin.auth.admin.getUserByEmail(email)
 
-      authUser = authResult.data
-      authError = authResult.error
+      if (!fetchError && existing?.user) {
+        existingAuthUser = existing.user
+        console.log("⚠️ User already exists in auth:", existingAuthUser.id)
 
-      if (authError) {
-        console.error("❌ Auth user creation error:", authError)
-      } else {
-        console.log("✅ Auth user created successfully:", authUser?.user?.id)
+        // Check if user profile exists
+        const { data: existingProfile, error: profileError } = await supabaseAdmin
+          .from("user_profiles")
+          .select("*")
+          .eq("id", existingAuthUser.id)
+          .single()
+
+        if (!profileError && existingProfile) {
+          console.log("⚠️ User profile also exists, returning conflict error")
+          return NextResponse.json(
+            {
+              error: "User already exists",
+              details: {
+                message: `A user with email ${email} already exists in the system.`,
+                existingUser: {
+                  id: existingProfile.id,
+                  name: existingProfile.name,
+                  surname: existingProfile.surname,
+                  email: existingProfile.email,
+                  role: existingProfile.role,
+                  department: existingProfile.department,
+                },
+              },
+            },
+            { status: 409 },
+          )
+        }
+
+        console.log("✅ Auth user exists but no profile, will create profile for existing user")
       }
-    } catch (createError) {
-      console.error("❌ Exception during auth user creation:", createError)
-      authError = createError
+    } catch (checkError) {
+      console.log("🔍 User check failed, proceeding with creation:", checkError)
     }
 
-    // 2️⃣ Handle existing email case
-    if (authError?.message?.includes("already registered") || authError?.message?.includes("email_exists")) {
-      console.log("⚠️ Email already exists, attempting to fetch existing user...")
+    let authUser = null
 
+    // 2️⃣ Create auth user if doesn't exist
+    if (!existingAuthUser) {
+      console.log("🔐 Creating new auth user...")
       try {
-        const { data: existing, error: fetchError } = await supabaseAdmin.auth.admin.getUserByEmail(email)
+        const authResult = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            name: userData.name,
+            surname: userData.surname,
+            role: userData.role,
+          },
+        })
 
-        if (fetchError) {
-          console.error("❌ Failed to fetch existing user:", fetchError)
-          return NextResponse.json(
-            {
-              error: "Email already exists and could not be retrieved",
-              details: fetchError,
-            },
-            { status: 422 },
-          )
+        if (authResult.error) {
+          console.error("❌ Auth user creation error:", authResult.error)
+
+          // Handle specific error cases
+          if (
+            authResult.error.message?.includes("already registered") ||
+            authResult.error.message?.includes("email_exists") ||
+            authResult.error.code === "email_exists"
+          ) {
+            // Try to get the existing user one more time
+            try {
+              const { data: retryExisting } = await supabaseAdmin.auth.admin.getUserByEmail(email)
+              if (retryExisting?.user) {
+                existingAuthUser = retryExisting.user
+                console.log("✅ Found existing user on retry:", existingAuthUser.id)
+              } else {
+                return NextResponse.json(
+                  {
+                    error: "Email already registered but user not found",
+                    details: { message: "This email is already registered but the user cannot be retrieved." },
+                  },
+                  { status: 409 },
+                )
+              }
+            } catch (retryError) {
+              console.error("❌ Retry fetch failed:", retryError)
+              return NextResponse.json(
+                {
+                  error: "Email already registered",
+                  details: { message: "This email is already registered in the system." },
+                },
+                { status: 409 },
+              )
+            }
+          } else {
+            return NextResponse.json(
+              {
+                error: "Failed to create auth user",
+                details: authResult.error,
+              },
+              { status: 400 },
+            )
+          }
+        } else {
+          authUser = authResult.data
+          console.log("✅ Auth user created successfully:", authUser?.user?.id)
         }
-
-        if (!existing?.user) {
-          console.error("❌ Existing user not found despite email conflict")
-          return NextResponse.json(
-            {
-              error: "Email conflict but user not found",
-            },
-            { status: 422 },
-          )
-        }
-
-        authUser = { user: existing.user }
-        authError = null
-        console.log("✅ Using existing auth user:", existing.user.id)
-      } catch (fetchException) {
-        console.error("❌ Exception while fetching existing user:", fetchException)
+      } catch (createError) {
+        console.error("❌ Exception during auth user creation:", createError)
         return NextResponse.json(
           {
-            error: "Failed to handle existing email",
-            details: fetchException,
+            error: "Exception during auth user creation",
+            details: createError,
           },
           { status: 500 },
         )
       }
-    } else if (authError) {
-      console.error("❌ Auth creation failed with error:", authError)
-      return NextResponse.json(
-        {
-          error: "Failed to create auth user",
-          details: authError,
-        },
-        { status: 400 },
-      )
     }
 
-    if (!authUser?.user) {
-      console.error("❌ No auth user returned")
+    // Use existing user if found, otherwise use newly created user
+    const finalUser = existingAuthUser || authUser?.user
+
+    if (!finalUser) {
+      console.error("❌ No auth user available")
       return NextResponse.json(
         {
-          error: "Auth user creation failed - no user returned",
+          error: "Auth user creation failed - no user available",
         },
         { status: 500 },
       )
     }
 
     // 3️⃣ Create/update profile in user_profiles table
-    console.log("👤 Creating user profile...")
+    console.log("👤 Creating user profile for user:", finalUser.id)
 
     const profilePayload = {
-      id: authUser.user.id,
+      id: finalUser.id,
       username: userData.username || `${userData.name.toLowerCase()}.${userData.surname.toLowerCase()}`,
       name: userData.name,
       surname: userData.surname,
@@ -179,7 +222,7 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     }
 
-    console.log("📝 Profile payload:", { ...profilePayload, id: authUser.user.id })
+    console.log("📝 Profile payload:", { ...profilePayload, id: finalUser.id })
 
     try {
       // Try insert first, then upsert if conflict
@@ -195,12 +238,14 @@ export async function POST(request: NextRequest) {
       if (profileError) {
         console.error("❌ Profile creation error:", profileError)
 
-        // If profile creation fails, we should clean up the auth user
-        try {
-          await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
-          console.log("🧹 Cleaned up auth user after profile failure")
-        } catch (cleanupError) {
-          console.error("❌ Failed to cleanup auth user:", cleanupError)
+        // If profile creation fails and we created a new auth user, clean it up
+        if (!existingAuthUser && authUser?.user) {
+          try {
+            await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+            console.log("🧹 Cleaned up auth user after profile failure")
+          } catch (cleanupError) {
+            console.error("❌ Failed to cleanup auth user:", cleanupError)
+          }
         }
 
         return NextResponse.json(
@@ -217,21 +262,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         user: {
-          id: authUser.user.id,
-          email: authUser.user.email,
+          id: finalUser.id,
+          email: finalUser.email,
           profile: profile || profilePayload,
         },
-        message: "User created successfully",
+        message: existingAuthUser ? "User profile created for existing auth user" : "User created successfully",
       })
     } catch (profileException) {
       console.error("❌ Exception during profile creation:", profileException)
 
-      // Cleanup auth user
-      try {
-        await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
-        console.log("🧹 Cleaned up auth user after profile exception")
-      } catch (cleanupError) {
-        console.error("❌ Failed to cleanup auth user:", cleanupError)
+      // Cleanup auth user if we created it
+      if (!existingAuthUser && authUser?.user) {
+        try {
+          await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+          console.log("🧹 Cleaned up auth user after profile exception")
+        } catch (cleanupError) {
+          console.error("❌ Failed to cleanup auth user:", cleanupError)
+        }
       }
 
       return NextResponse.json(

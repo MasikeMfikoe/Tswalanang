@@ -99,22 +99,6 @@ const MOCK_USERS: User[] = [
   },
 ]
 
-// Persistent storage for created users
-let CREATED_USERS: User[] = []
-
-// Load created users from localStorage on startup
-if (typeof window !== "undefined") {
-  try {
-    const stored = localStorage.getItem("created_users")
-    if (stored) {
-      CREATED_USERS = JSON.parse(stored)
-      console.log("Loaded created users from localStorage:", CREATED_USERS.length)
-    }
-  } catch (e) {
-    console.log("Error loading created users from localStorage:", e)
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -122,22 +106,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check for existing session on mount
   useEffect(() => {
-    // Try to get user from localStorage first (for development)
-    if (typeof window !== "undefined") {
-      try {
-        const storedUser = localStorage.getItem("user")
-        if (storedUser) {
-          console.log("Found user in localStorage:", storedUser)
-          setUser(JSON.parse(storedUser))
-          setIsLoading(false)
-          return
-        }
-      } catch (e) {
-        console.log("Error reading from localStorage:", e)
-      }
-    }
-
-    // If no stored user, check Supabase
     checkUser()
   }, [])
 
@@ -145,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkUser = async () => {
     try {
       setIsLoading(true)
-      console.log("Checking user authentication...")
+      console.log("🔍 Checking user authentication...")
 
       // Check for session in Supabase
       const {
@@ -154,14 +122,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } = await supabase.auth.getSession()
 
       if (sessionError) {
-        console.error("Error getting session:", sessionError)
+        console.error("❌ Error getting session:", sessionError)
         setUser(null)
         setIsLoading(false)
         return
       }
 
       if (session) {
-        console.log("Found Supabase session:", session)
+        console.log("✅ Found Supabase session:", session.user.id)
 
         try {
           // Get user profile from database
@@ -172,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .single()
 
           if (error) {
-            console.error("Error fetching user profile:", error)
+            console.error("❌ Error fetching user profile:", error)
             await supabase.auth.signOut()
             setUser(null)
             return
@@ -190,27 +158,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: profile.email || session.user.email || `${profile.username}@tswsmartlog.com`,
           }
 
-          console.log("Setting user from Supabase:", userData)
+          console.log("✅ Setting user from Supabase:", userData.email)
           setUser(userData)
-
-          // Also store in localStorage for persistence
-          if (typeof window !== "undefined") {
-            try {
-              localStorage.setItem("user", JSON.stringify(userData))
-            } catch (e) {
-              console.log("Error saving to localStorage:", e)
-            }
-          }
         } catch (error) {
-          console.error("Error processing user profile:", error)
+          console.error("❌ Error processing user profile:", error)
           setUser(null)
         }
       } else {
-        console.log("No Supabase session found")
+        console.log("ℹ️ No Supabase session found")
         setUser(null)
       }
     } catch (error) {
-      console.error("Error checking authentication:", error)
+      console.error("❌ Error checking authentication:", error)
       setUser(null)
     } finally {
       setIsLoading(false)
@@ -221,13 +180,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true)
-      console.log(`Attempting login for user: ${username}`)
+      console.log(`🔐 Attempting login for user: ${username}`)
 
-      // First, try Supabase authentication with email
+      // First, try to find user by username in Supabase
+      try {
+        const { data: profiles, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("*")
+          .eq("username", username)
+          .single()
+
+        if (!profileError && profiles) {
+          console.log("✅ Found user profile, trying Supabase auth with email:", profiles.email)
+
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: profiles.email,
+            password: password,
+          })
+
+          if (!error && data.user) {
+            console.log("✅ Supabase authentication successful")
+
+            // Set user with profile data
+            const userData = {
+              id: data.user.id,
+              username: profiles.username,
+              name: profiles.name,
+              surname: profiles.surname,
+              role: profiles.role as UserRole,
+              department: profiles.department,
+              pageAccess: profiles.page_access || [],
+              email: profiles.email || data.user.email,
+            }
+
+            console.log("✅ Setting user from Supabase auth:", userData.email)
+            setUser(userData)
+
+            // Redirect client users to client portal immediately
+            if (userData.role === "client") {
+              router.push("/client-portal")
+            }
+
+            return true
+          } else {
+            console.log("❌ Supabase auth failed:", error?.message)
+          }
+        }
+      } catch (supabaseError) {
+        console.log("⚠️ Supabase profile lookup failed, trying mock fallback:", supabaseError)
+      }
+
+      // FALLBACK: Mock authentication for development
       const mockUser = MOCK_USERS.find((u) => u.username === username)
       if (mockUser) {
-        console.log("Found mock user, trying Supabase auth with email:", mockUser.email)
+        console.log("🔄 Using mock login for user:", username)
 
+        // Try Supabase auth with mock user email
         try {
           const { data, error } = await supabase.auth.signInWithPassword({
             email: mockUser.email,
@@ -235,9 +243,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
 
           if (!error && data.user) {
-            console.log("✅ Supabase authentication successful")
+            console.log("✅ Mock user authenticated via Supabase")
 
-            // Get user profile
+            // Get or create profile
             const { data: profile, error: profileError } = await supabase
               .from("user_profiles")
               .select("*")
@@ -245,7 +253,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               .single()
 
             if (!profileError && profile) {
-              // Set user with Supabase profile data
               const userData = {
                 id: data.user.id,
                 username: profile.username,
@@ -257,104 +264,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 email: profile.email || data.user.email || mockUser.email,
               }
 
-              console.log("Setting user from Supabase auth:", userData)
               setUser(userData)
-
-              // Store in localStorage for persistence
-              if (typeof window !== "undefined") {
-                try {
-                  localStorage.setItem("user", JSON.stringify(userData))
-                } catch (e) {
-                  console.log("Error saving to localStorage:", e)
-                }
-              }
-
-              // Redirect client users to client portal immediately
               if (userData.role === "client") {
                 router.push("/client-portal")
               }
-
               return true
             }
           }
-        } catch (supabaseError) {
-          console.log("Supabase auth failed, falling back to mock:", supabaseError)
+        } catch (mockAuthError) {
+          console.log("⚠️ Mock user Supabase auth failed, using local auth:", mockAuthError)
         }
-      }
 
-      // FALLBACK: Mock authentication for development
-      if (username === "demo" && password === "demo") {
-        console.log("Using mock login for demo user")
-        const mockUser = MOCK_USERS.find((u) => u.username === "demo")!
-        setUser(mockUser)
+        // Final fallback to local mock authentication
+        if (
+          (username === "demo" && password === "demo") ||
+          (username === "tracking" && password === "tracking") ||
+          (username === "client1" && password === "client1") ||
+          (username === "client2" && password === "client2")
+        ) {
+          console.log("✅ Using local mock authentication for:", username)
+          setUser(mockUser)
 
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem("user", JSON.stringify(mockUser))
-          } catch (e) {
-            console.log("Error saving to localStorage:", e)
+          if (mockUser.role === "client") {
+            router.push("/client-portal")
           }
+          return true
         }
-
-        return true
       }
 
-      if (username === "tracking" && password === "tracking") {
-        console.log("Using mock login for tracking user")
-        const mockTrackingUser = MOCK_USERS.find((u) => u.username === "tracking")!
-        setUser(mockTrackingUser)
-
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem("user", JSON.stringify(mockTrackingUser))
-          } catch (e) {
-            console.log("Error saving to localStorage:", e)
-          }
-        }
-
-        return true
-      }
-
-      if (username === "client1" && password === "client1") {
-        console.log("Using mock login for client1 user")
-        const mockClient1User = MOCK_USERS.find((u) => u.username === "client1")!
-        setUser(mockClient1User)
-
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem("user", JSON.stringify(mockClient1User))
-          } catch (e) {
-            console.log("Error saving to localStorage:", e)
-          }
-        }
-
-        // Redirect client to client portal
-        router.push("/client-portal")
-        return true
-      }
-
-      if (username === "client2" && password === "client2") {
-        console.log("Using mock login for client2 user")
-        const mockClient2User = MOCK_USERS.find((u) => u.username === "client2")!
-        setUser(mockClient2User)
-
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem("user", JSON.stringify(mockClient2User))
-          } catch (e) {
-            console.log("Error saving to localStorage:", e)
-          }
-        }
-
-        // Redirect client to client portal
-        router.push("/client-portal")
-        return true
-      }
-
-      console.log("❌ Authentication failed")
+      console.log("❌ Authentication failed for user:", username)
       return false
     } catch (error) {
-      console.error("Login error:", error)
+      console.error("❌ Login error:", error)
       return false
     } finally {
       setIsLoading(false)
@@ -365,33 +306,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async (): Promise<void> => {
     try {
       setIsLoading(true)
-      console.log("Logging out...")
+      console.log("🚪 Logging out...")
 
       // Sign out from Supabase
       try {
         await supabase.auth.signOut()
+        console.log("✅ Signed out from Supabase")
       } catch (error) {
-        console.error("Error signing out from Supabase:", error)
-        // Continue with local logout even if Supabase fails
+        console.error("❌ Error signing out from Supabase:", error)
       }
 
       // Clear user state
       setUser(null)
 
-      // Remove from localStorage
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.removeItem("user")
-          console.log("Removed user from localStorage")
-        } catch (e) {
-          console.log("Error removing from localStorage:", e)
-        }
-      }
-
       // Redirect to login page
       router.push("/login")
     } catch (error) {
-      console.error("Logout error:", error)
+      console.error("❌ Logout error:", error)
     } finally {
       setIsLoading(false)
     }
@@ -401,94 +332,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (userData: Partial<User>): Promise<boolean> => {
     try {
       setIsLoading(true)
-      console.log("Registering new user:", userData)
+      console.log("📝 Registering new user:", userData.email)
 
-      // For development, just add to mock users
-      const newUser: User = {
-        id: `mock-${Date.now()}`,
-        username: userData.username || `${userData.name?.toLowerCase()}.${userData.surname?.toLowerCase()}`,
-        name: userData.name || "",
-        surname: userData.surname || "",
-        role: userData.role || "employee",
-        department: userData.department || "Default",
-        pageAccess: userData.pageAccess || ["dashboard"],
-        email: userData.email || `${userData.username}@tswsmartlog.com`,
-      }
-
-      MOCK_USERS.push(newUser)
-      console.log("User registered successfully (mock):", newUser)
+      // This would typically create a user via API
+      // For now, just return success
       return true
     } catch (error) {
-      console.error("Registration error:", error)
+      console.error("❌ Registration error:", error)
       return false
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Update user function - HYBRID APPROACH: TRY SUPABASE + ALWAYS SAVE LOCALLY
+  // Update user function
   const updateUser = async (userId: string, userData: Partial<User>): Promise<boolean> => {
     try {
       setIsLoading(true)
-      console.log("🔄 Updating user:", userId, userData)
-
-      // Update in local storage first
-      const userIndex = CREATED_USERS.findIndex((u) => u.id === userId)
-      if (userIndex !== -1) {
-        CREATED_USERS[userIndex] = { ...CREATED_USERS[userIndex], ...userData }
-        saveCreatedUsers()
-        console.log("✅ User updated locally")
-      }
-
-      // Also update in mock users if it exists there
-      const mockUserIndex = MOCK_USERS.findIndex((u) => u.id === userId)
-      if (mockUserIndex !== -1) {
-        MOCK_USERS[mockUserIndex] = { ...MOCK_USERS[mockUserIndex], ...userData }
-        console.log("✅ Mock user updated")
-      }
+      console.log("🔄 Updating user:", userId)
 
       // Try to update via API route
-      try {
-        console.log("📝 Attempting to update via API route...")
+      const updateResponse = await fetch("/api/update-auth-user", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: userId,
+          userData: userData,
+        }),
+      })
 
-        const updateResponse = await fetch("/api/update-auth-user", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: userId,
-            userData: userData,
-          }),
-        })
+      if (updateResponse.ok) {
+        const result = await updateResponse.json()
+        console.log("✅ User updated via API route:", result)
 
-        if (updateResponse.ok) {
-          const result = await updateResponse.json()
-          console.log("✅ User updated via API route:", result)
-        } else {
-          const error = await updateResponse.text()
-          console.error("❌ API route error:", error)
+        // Update current user if it's the same user
+        if (user && user.id === userId) {
+          const updatedUser = { ...user, ...userData }
+          setUser(updatedUser)
         }
-      } catch (apiError) {
-        console.error("❌ API call failed:", apiError)
+
+        return true
+      } else {
+        const error = await updateResponse.text()
+        console.error("❌ API route error:", error)
+        return false
       }
-
-      // Update current user if it's the same user
-      if (user && user.id === userId) {
-        const updatedUser = { ...user, ...userData }
-        setUser(updatedUser)
-
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem("user", JSON.stringify(updatedUser))
-          } catch (e) {
-            console.log("Error saving to localStorage:", e)
-          }
-        }
-      }
-
-      console.log("🎉 User updated successfully!")
-      return true
     } catch (error) {
       console.error("❌ Update user error:", error)
       return false
@@ -497,34 +387,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Check if user has permission - UPDATED TO USE ROLE-BASED PERMISSIONS
+  // Check if user has permission
   const hasPermission = (module: string, action: string): boolean => {
     if (!user) {
-      console.log("❌ No user found for permission check")
       return false
     }
 
-    console.log(`🔍 Checking permission: ${user.role} -> ${module}.${action}`)
-
-    // Get role permissions
     const userRolePermissions = rolePermissions[user.role]
     if (!userRolePermissions) {
-      console.log(`❌ No permissions found for role: ${user.role}`)
       return false
     }
 
-    // Check module permissions
     const modulePermissions = userRolePermissions[module]
     if (!modulePermissions) {
-      console.log(`❌ No permissions found for module: ${module}`)
       return false
     }
 
-    // Check specific action
-    const hasAccess = modulePermissions[action as keyof typeof modulePermissions]
-    console.log(`✅ Permission result: ${user.role} -> ${module}.${action} = ${hasAccess}`)
-
-    return hasAccess
+    return modulePermissions[action as keyof typeof modulePermissions]
   }
 
   // Refresh user data
@@ -532,92 +411,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await checkUser()
   }
 
-  // Save created users to localStorage
-  const saveCreatedUsers = () => {
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("created_users", JSON.stringify(CREATED_USERS))
-        console.log("Saved created users to localStorage:", CREATED_USERS.length)
-      } catch (e) {
-        console.log("Error saving created users to localStorage:", e)
-      }
-    }
-  }
-
   // Get all users - PRIORITIZE SUPABASE DATA
   const getUsers = async (): Promise<User[]> => {
     try {
-      console.log("🔍 Fetching all users...")
+      console.log("🔍 Fetching all users from Supabase...")
 
-      // Try to fetch from Supabase first
-      try {
-        console.log("🔗 Attempting to fetch from Supabase...")
+      const { data, error } = await supabase.from("user_profiles").select("*").order("created_at", { ascending: false })
 
-        const { data, error } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .order("created_at", { ascending: false })
-
-        if (!error && data && data.length > 0) {
-          const supabaseUsers = data.map((profile) => ({
-            id: profile.id,
-            username: profile.username,
-            name: profile.name,
-            surname: profile.surname,
-            role: profile.role as UserRole,
-            department: profile.department,
-            pageAccess: profile.page_access || [],
-            email: profile.email || `${profile.username}@tswsmartlog.com`,
-          }))
-
-          console.log("✅ Fetched from Supabase:", supabaseUsers.length, "users")
-
-          // Merge with created users (avoid duplicates)
-          const mergedUsers = [...supabaseUsers]
-          CREATED_USERS.forEach((createdUser) => {
-            if (!mergedUsers.find((u) => u.email === createdUser.email)) {
-              mergedUsers.push(createdUser)
-            }
-          })
-
-          return mergedUsers
-        }
-      } catch (supabaseError) {
-        console.log("⚠️ Supabase fetch failed, using local data:", supabaseError)
+      if (error) {
+        console.error("❌ Error fetching users from Supabase:", error)
+        // Fallback to mock users
+        console.log("🔄 Using mock users as fallback")
+        return MOCK_USERS
       }
 
-      // Fallback to local data
-      const allUsers = [...MOCK_USERS, ...CREATED_USERS]
-      console.log("📝 Using local data:", {
-        mockUsers: MOCK_USERS.length,
-        createdUsers: CREATED_USERS.length,
-        total: allUsers.length,
-      })
+      if (!data || data.length === 0) {
+        console.log("ℹ️ No users found in Supabase, using mock users")
+        return MOCK_USERS
+      }
 
-      return allUsers
+      const supabaseUsers = data.map((profile) => ({
+        id: profile.id,
+        username: profile.username,
+        name: profile.name,
+        surname: profile.surname,
+        role: profile.role as UserRole,
+        department: profile.department,
+        pageAccess: profile.page_access || [],
+        email: profile.email || `${profile.username}@tswsmartlog.com`,
+      }))
+
+      console.log("✅ Fetched from Supabase:", supabaseUsers.length, "users")
+      return supabaseUsers
     } catch (error) {
       console.error("❌ Error in getUsers:", error)
-      return [...MOCK_USERS, ...CREATED_USERS]
+      console.log("🔄 Using mock users as fallback")
+      return MOCK_USERS
     }
   }
 
-  // Create user function - IMPROVED ERROR HANDLING
+  // Create user function
   const createUser = async (
     userData: Omit<User, "id" | "username"> & { password?: string; sendWelcomeEmail?: boolean },
   ): Promise<boolean> => {
     try {
       setIsLoading(true)
-      console.log("🚀 Creating new user:", { ...userData, password: userData.password ? "[REDACTED]" : "not provided" })
+      console.log("🚀 Creating new user:", userData.email)
 
       // Validate required fields
       if (!userData.name || !userData.surname || !userData.email || !userData.role || !userData.department) {
-        console.error("❌ Missing required fields:", {
-          name: !!userData.name,
-          surname: !!userData.surname,
-          email: !!userData.email,
-          role: !!userData.role,
-          department: !!userData.department,
-        })
         throw new Error("Missing required fields")
       }
 
@@ -626,140 +468,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const email = userData.email
       const password = userData.password || `TempPass${Math.random().toString(36).slice(-8)}!`
 
-      // Create user object with temporary ID (will be replaced by auth user ID)
-      const newUser: User = {
-        id: crypto.randomUUID(),
-        username,
-        name: userData.name,
-        surname: userData.surname,
-        email: email,
-        role: userData.role,
-        department: userData.department,
-        pageAccess:
-          userData.role === "client" ? ["clientPortal", "shipmentTracker"] : userData.pageAccess || ["dashboard"],
-      }
+      console.log("📡 Calling create-auth-user API...")
 
-      console.log("📝 Prepared user data:", { ...newUser, id: "[GENERATED]" })
-
-      // Try to create via API route first
-      try {
-        console.log("📡 Calling create-auth-user API...")
-
-        const authResponse = await fetch("/api/create-auth-user", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+      const authResponse = await fetch("/api/create-auth-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+          userData: {
+            username: username,
+            name: userData.name,
+            surname: userData.surname,
+            role: userData.role,
+            department: userData.department,
+            page_access:
+              userData.role === "client" ? ["clientPortal", "shipmentTracker"] : userData.pageAccess || ["dashboard"],
             email: email,
-            password: password,
-            userData: {
-              username: username,
-              name: userData.name,
-              surname: userData.surname,
-              role: userData.role,
-              department: userData.department,
-              page_access: newUser.pageAccess,
-              email: email,
-            },
-          }),
-        })
+          },
+        }),
+      })
 
-        console.log("📡 API Response status:", authResponse.status)
-
-        if (authResponse.ok) {
-          const result = await authResponse.json()
-          console.log("✅ User created via API route:", result)
-
-          // Update the user object with the real auth user ID
-          newUser.id = result.user.id
-
-          // Save locally with the correct ID
-          CREATED_USERS.push(newUser)
-          saveCreatedUsers()
-          console.log("✅ User saved locally with auth ID:", newUser.id)
-
-          return true
-        } else {
-          const errorText = await authResponse.text()
-          console.error("❌ API route error:", errorText)
-
-          let errorData
-          try {
-            errorData = JSON.parse(errorText)
-          } catch {
-            errorData = { error: errorText }
-          }
-
-          // If it's a validation error, don't fall back to local creation
-          if (authResponse.status === 400 || authResponse.status === 422) {
-            throw new Error(errorData.error || "Validation failed")
-          }
-
-          // For server errors, fall back to local creation
-          console.log("📝 Falling back to local-only creation due to server error...")
-          CREATED_USERS.push(newUser)
-          saveCreatedUsers()
-          console.log("✅ User saved locally only:", newUser.id)
-
-          return true
-        }
-      } catch (apiError) {
-        console.error("❌ API call failed:", apiError)
-
-        // If it's a validation error, don't create locally
-        if (
-          apiError instanceof Error &&
-          (apiError.message.includes("Missing required fields") ||
-            apiError.message.includes("Validation failed") ||
-            apiError.message.includes("already exists"))
-        ) {
-          throw apiError
-        }
-
-        // For network/server errors, fall back to local creation
-        console.log("📝 Falling back to local-only creation due to API error...")
-        CREATED_USERS.push(newUser)
-        saveCreatedUsers()
-        console.log("✅ User saved locally only:", newUser.id)
-
+      if (authResponse.ok) {
+        const result = await authResponse.json()
+        console.log("✅ User created via API route:", result)
         return true
+      } else {
+        const errorText = await authResponse.text()
+        console.error("❌ API route error:", errorText)
+
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: errorText }
+        }
+
+        // Handle specific error cases
+        if (authResponse.status === 409) {
+          throw new Error(errorData.details?.message || "User already exists with this email address")
+        } else if (authResponse.status === 400 || authResponse.status === 422) {
+          throw new Error(errorData.error || "Validation failed")
+        }
+
+        throw new Error("Failed to create user")
       }
     } catch (error) {
       console.error("❌ Create user error:", error)
-      throw error // Re-throw to let the UI handle the error
+      throw error
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Delete user function - HYBRID APPROACH: DELETE FROM BOTH
+  // Delete user function
   const deleteUser = async (userId: string): Promise<boolean> => {
     try {
       setIsLoading(true)
       console.log("🗑️ Deleting user:", userId)
 
-      // Delete from created users
-      const userIndex = CREATED_USERS.findIndex((u) => u.id === userId)
-      if (userIndex !== -1) {
-        CREATED_USERS.splice(userIndex, 1)
-        saveCreatedUsers()
-        console.log("✅ User deleted from local storage")
+      // Delete from Supabase user_profiles
+      const { error: profileError } = await supabase.from("user_profiles").delete().eq("id", userId)
+
+      if (profileError) {
+        console.error("❌ Error deleting user profile:", profileError)
+        return false
       }
 
-      // Try to delete from Supabase in background
+      // Try to delete from auth (this might fail if user doesn't exist in auth)
       try {
-        const { error } = await supabase.from("user_profiles").delete().eq("id", userId)
-
-        if (!error) {
-          console.log("✅ User also deleted from Supabase")
-        } else {
-          console.log("⚠️ Supabase delete failed (user still deleted locally):", error)
-        }
-      } catch (supabaseError) {
-        console.log("⚠️ Supabase delete failed (user still deleted locally):", supabaseError)
+        const supabaseAdmin = supabase
+        // Note: This requires service role key, which we don't have in client
+        // The deletion from auth should be handled by a server-side API route
+        console.log("⚠️ Auth user deletion should be handled server-side")
+      } catch (authError) {
+        console.log("⚠️ Could not delete auth user (expected in client-side):", authError)
       }
 
+      console.log("✅ User profile deleted from Supabase")
       return true
     } catch (error) {
       console.error("❌ Delete user error:", error)

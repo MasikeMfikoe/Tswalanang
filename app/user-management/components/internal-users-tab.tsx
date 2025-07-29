@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Search, Plus, Edit, Trash2 } from "lucide-react"
+import { Search, Plus, Edit, Trash2, RefreshCw } from "lucide-react"
 import type { User } from "@/types/auth"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
@@ -17,6 +17,7 @@ export function InternalUsersTab() {
   const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -29,12 +30,21 @@ export function InternalUsersTab() {
   const fetchUsers = async () => {
     setIsLoading(true)
     try {
+      console.log("🔄 Fetching users for internal users tab...")
       const fetchedUsers = await getUsers()
+      console.log("📋 All users fetched:", fetchedUsers.length)
+
       // Filter out client users (role === "client")
       const internalUsers = fetchedUsers.filter((user) => user.role !== "client")
+      console.log("👥 Internal users:", internalUsers.length)
+
       setUsers(internalUsers)
+
+      if (internalUsers.length === 0) {
+        console.log("⚠️ No internal users found")
+      }
     } catch (error) {
-      console.error("Error fetching users:", error)
+      console.error("❌ Error fetching users:", error)
       toast({
         title: "Error",
         description: "Failed to load users. Please try again.",
@@ -42,6 +52,25 @@ export function InternalUsersTab() {
       })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      await fetchUsers()
+      toast({
+        title: "Success",
+        description: "User list refreshed successfully!",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to refresh user list.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRefreshing(false)
     }
   }
 
@@ -69,16 +98,14 @@ export function InternalUsersTab() {
           description: `User ${userData.email} created successfully!`,
         })
         setIsCreateModalOpen(false)
-        fetchUsers() // Refresh the list
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to create user. Please try again.",
-          variant: "destructive",
-        })
+
+        // Refresh the list after a short delay to ensure data is saved
+        setTimeout(() => {
+          fetchUsers()
+        }, 1000)
       }
     } catch (error) {
-      console.error("Error creating user:", error)
+      console.error("❌ Error creating user:", error)
 
       let errorMessage = "Failed to create user. Please try again."
       if (error instanceof Error) {
@@ -111,7 +138,7 @@ export function InternalUsersTab() {
           })
         }
       } catch (error) {
-        console.error("Error deleting user:", error)
+        console.error("❌ Error deleting user:", error)
         toast({
           title: "Error",
           description: "Failed to delete user. Please try again.",
@@ -134,7 +161,7 @@ export function InternalUsersTab() {
       if (success) {
         toast({
           title: "Success",
-          description: `User ${userData.email} updated successfully!`,
+          description: `User ${userData.email || selectedUser.email} updated successfully!`,
         })
         setIsEditModalOpen(false)
         setSelectedUser(null)
@@ -147,7 +174,7 @@ export function InternalUsersTab() {
         })
       }
     } catch (error) {
-      console.error("Error updating user:", error)
+      console.error("❌ Error updating user:", error)
       toast({
         title: "Error",
         description: "Failed to update user. Please try again.",
@@ -187,7 +214,8 @@ export function InternalUsersTab() {
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.surname.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.department?.toLowerCase().includes(searchTerm.toLowerCase()),
+      user.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.username?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const getRoleBadgeVariant = (role: string) => {
@@ -208,7 +236,7 @@ export function InternalUsersTab() {
       <Card>
         <CardHeader>
           <CardTitle>Internal Users</CardTitle>
-          <CardDescription>Loading users...</CardDescription>
+          <CardDescription>Loading users from database...</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-center py-8">
@@ -222,8 +250,16 @@ export function InternalUsersTab() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Internal Users</CardTitle>
-        <CardDescription>Manage users within your organization</CardDescription>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle>Internal Users</CardTitle>
+            <CardDescription>Manage users within your organization ({users.length} users found)</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex justify-between items-center mb-6">
@@ -246,7 +282,15 @@ export function InternalUsersTab() {
         <div className="space-y-4">
           {filteredUsers.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-muted-foreground">No users found</p>
+              <p className="text-muted-foreground">
+                {searchTerm ? "No users found matching your search" : "No internal users found"}
+              </p>
+              {!searchTerm && (
+                <Button onClick={() => setIsCreateModalOpen(true)} className="mt-4">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Your First User
+                </Button>
+              )}
             </div>
           ) : (
             filteredUsers.map((user) => (
@@ -256,6 +300,7 @@ export function InternalUsersTab() {
                     <div>
                       <h3 className="font-medium">{`${user.name} ${user.surname}`}</h3>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
+                      <p className="text-xs text-muted-foreground">@{user.username}</p>
                     </div>
                     <Badge variant={getRoleBadgeVariant(user.role)}>
                       {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
