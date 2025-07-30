@@ -21,57 +21,58 @@ import { supabase } from "@/lib/supabaseClient" // Import supabase
 
 // ─────────────────────────────────────────────────────────────────────────
 //  MOCK DATA
-//  (Replace with real API integration when available)
+//  (Updated to use snake_case for consistency with API)
 // ─────────────────────────────────────────────────────────────────────────
 const mockClientOrders = [
   {
     id: "ORD-2024-001",
-    poNumber: "PO-ABC-001",
+    po_number: "PO-ABC-001",
     status: "In Progress",
-    cargoStatus: "in-transit",
-    freightType: "Sea Freight",
-    totalValue: 25000,
-    createdAt: "2024-01-15",
-    estimatedDelivery: "2024-02-15",
+    cargo_status: "in-transit",
+    freight_type: "Sea Freight",
+    total_value: 25000,
+    created_at: "2024-01-15",
+    estimated_delivery: "2024-02-15",
     supplier: "Global Electronics Ltd",
     destination: "Cape Town, South Africa",
-    vesselName: "MSC Pamela",
-    etaAtPort: "2024-02-10",
+    vessel_name: "MSC Pamela",
+    eta_at_port: "2024-02-10",
   },
   {
     id: "ORD-2024-002",
-    poNumber: "PO-ABC-002",
+    po_number: "PO-ABC-002",
     status: "Completed",
-    cargoStatus: "delivered",
-    freightType: "Air Freight",
-    totalValue: 15000,
-    createdAt: "2024-01-10",
-    estimatedDelivery: "2024-01-25",
+    cargo_status: "delivered",
+    freight_type: "Air Freight",
+    total_value: 15000,
+    created_at: "2024-01-10",
+    estimated_delivery: "2024-01-25",
     supplier: "Tech Components Inc",
     destination: "Johannesburg, South Africa",
-    vesselName: "N/A",
-    etaAtPort: "2024-01-20",
+    vessel_name: "N/A",
+    eta_at_port: "2024-01-20",
   },
   {
     id: "ORD-2024-003",
-    poNumber: "PO-ABC-003",
+    po_number: "PO-ABC-003",
     status: "Pending",
-    cargoStatus: "at-origin",
-    freightType: "Sea Freight",
-    totalValue: 35000,
-    createdAt: "2024-01-20",
-    estimatedDelivery: "2024-03-01",
+    cargo_status: "at-origin",
+    freight_type: "Sea Freight",
+    total_value: 35000,
+    created_at: "2024-01-20",
+    estimated_delivery: "2024-03-01",
     supplier: "Industrial Supplies Co",
     destination: "Durban, South Africa",
-    vesselName: "Maersk Seletar",
-    etaAtPort: "2024-02-25",
+    vessel_name: "Maersk Seletar",
+    eta_at_port: "2024-02-25",
   },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────
-//  UTILS
+//  UTILS (Modified to handle undefined/null inputs)
 // ─────────────────────────────────────────────────────────────────────────
-const getStatusColor = (status: string) => {
+const getStatusColor = (status?: string | null) => {
+  if (!status) return "bg-gray-100 text-gray-800" // Default color for undefined/null
   switch (status.toLowerCase()) {
     case "completed":
       return "bg-green-100 text-green-800"
@@ -86,7 +87,8 @@ const getStatusColor = (status: string) => {
   }
 }
 
-const getCargoStatusColor = (status: string) => {
+const getCargoStatusColor = (status?: string | null) => {
+  if (!status) return "bg-gray-100 text-gray-800" // Default color for undefined/null
   switch (status) {
     case "delivered":
       return "bg-green-100 text-green-800"
@@ -101,11 +103,13 @@ const getCargoStatusColor = (status: string) => {
   }
 }
 
-const formatCargoStatus = (status: string) =>
+const formatCargoStatus = (status?: string | null) =>
   status
-    .split("-")
-    .map((w) => w[0].toUpperCase() + w.slice(1))
-    .join(" ")
+    ? status
+        .split("-")
+        .map((w) => w[0].toUpperCase() + w.slice(1))
+        .join(" ")
+    : "N/A" // Return "N/A" if status is undefined or null
 
 // ─────────────────────────────────────────────────────────────────────────
 //  MAIN COMPONENT
@@ -114,8 +118,8 @@ export default function ClientPortalOrdersPage() {
   const { user } = useAuth()
   const router = useRouter()
 
-  const [orders, setOrders] = useState(mockClientOrders)
-  const [filteredOrders, setFilteredOrders] = useState(mockClientOrders)
+  const [orders, setOrders] = useState<any[]>(mockClientOrders)
+  const [filteredOrders, setFilteredOrders] = useState<any[]>(mockClientOrders)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [freightFilter, setFreightFilter] = useState("all")
@@ -382,24 +386,22 @@ export default function ClientPortalOrdersPage() {
                         o: any, // Added any type for o
                       ) => (
                         <TableRow key={o.id}>
-                          <TableCell className="font-medium">{o.po_number}</TableCell> {/* Use po_number */}
+                          <TableCell className="font-medium">{o.po_number}</TableCell>{" "}
+                          {/* Fix: First TableCell on same line as TableRow */}
                           <TableCell>{o.supplier}</TableCell>
                           <TableCell>
                             <Badge className={getStatusColor(o.status)}>{o.status}</Badge>
                           </TableCell>
-                          <TableCell>{new Date(o.created_at).toLocaleDateString()}</TableCell> {/* Use created_at */}
-                          <TableCell>{o.freight_type}</TableCell> {/* Use freight_type */}
-                          <TableCell>{o.vessel_name}</TableCell> {/* Use vessel_name */}
+                          <TableCell>{new Date(o.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>{o.freight_type}</TableCell>
+                          <TableCell>{o.vessel_name}</TableCell>
                           <TableCell>
                             <Badge className={getCargoStatusColor(o.cargo_status)}>
-                              {" "}
-                              {/* Use cargo_status */}
                               {formatCargoStatus(o.cargo_status)}
                             </Badge>
                           </TableCell>
-                          <TableCell>{new Date(o.eta_at_port).toLocaleDateString()}</TableCell> {/* Use eta_at_port */}
-                          <TableCell>{new Date(o.estimated_delivery).toLocaleDateString()}</TableCell>{" "}
-                          {/* Use estimated_delivery */}
+                          <TableCell>{new Date(o.eta_at_port).toLocaleDateString()}</TableCell>
+                          <TableCell>{new Date(o.estimated_delivery).toLocaleDateString()}</TableCell>
                         </TableRow>
                       ),
                     )}

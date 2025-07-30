@@ -1,426 +1,528 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
+import { ArrowLeft, Package, FileText, Calendar, Ship } from "lucide-react"
+
+import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Download, Eye, Truck, Package, FileText } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { supabase } from "@/lib/supabaseClient" // Import supabase
 
-interface OrderDetails {
+// Define types for better clarity
+interface Order {
   id: string
-  order_number: string
-  po_number?: string
+  po_number: string
   status: string
   cargo_status: string
-  origin: string
-  destination: string
+  freight_type: string
+  total_value: number
   created_at: string
-  estimated_delivery?: string
-  tracking_number?: string
-  supplier?: string
-  importer?: string
-  freight_type?: string
-  total_value?: number
+  estimated_delivery: string
+  supplier: string
+  destination: string
+  origin: string
+  vessel_name?: string
+  eta_at_port?: string
+  customer_id: string
 }
 
 interface Document {
   id: string
-  name: string
-  type: string
+  document_type: string
+  file_name: string
   url: string
-  uploaded_at: string
-  order_id: string // Added order_id to document interface
-  client_accessible: boolean // Added client_accessible
+  created_at: string
+  order_id: string
+  client_accessible: boolean
 }
 
-export default function ClientOrderDetails({ params }: { params: { id: string } }) {
+interface Event {
+  id: string
+  timestamp: string
+  location: string
+  description: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MOCK DATA (for demonstration if API fails or user is not logged in)
+// ─────────────────────────────────────────────────────────────────────────
+const mockOrderDetails: Order = {
+  id: "ORD-2024-001",
+  po_number: "PO-ABC-001",
+  status: "In Progress",
+  cargo_status: "in-transit",
+  freight_type: "Sea Freight",
+  total_value: 25000,
+  created_at: "2024-01-15T10:00:00Z",
+  estimated_delivery: "2024-02-15T10:00:00Z",
+  supplier: "Global Electronics Ltd",
+  destination: "Cape Town, South Africa",
+  origin: "Shanghai, China",
+  vessel_name: "MSC Pamela",
+  eta_at_port: "2024-02-10T10:00:00Z",
+  customer_id: "mock-customer-123",
+}
+
+const mockDocuments: Document[] = [
+  {
+    id: "DOC-001",
+    document_type: "Bill of Lading",
+    file_name: "BL_PO-ABC-001.pdf",
+    url: "/placeholder.svg?height=24&width=24",
+    created_at: "2024-01-16T11:00:00Z",
+    order_id: "ORD-2024-001",
+    client_accessible: true,
+  },
+  {
+    id: "DOC-002",
+    document_type: "Commercial Invoice",
+    file_name: "CI_PO-ABC-001.pdf",
+    url: "/placeholder.svg?height=24&width=24",
+    created_at: "2024-01-17T12:00:00Z",
+    order_id: "ORD-2024-001",
+    client_accessible: true,
+  },
+]
+
+const mockEventHistory: Event[] = [
+  {
+    id: "EVT-001",
+    timestamp: "2024-01-15T10:00:00Z",
+    location: "Shanghai Port",
+    description: "Cargo received at origin port",
+  },
+  {
+    id: "EVT-002",
+    timestamp: "2024-01-18T15:00:00Z",
+    location: "Shanghai Port",
+    description: "Loaded onto vessel MSC Pamela",
+  },
+  {
+    id: "EVT-003",
+    timestamp: "2024-01-19T08:00:00Z",
+    location: "At Sea",
+    description: "Vessel departed origin port",
+  },
+]
+
+// ─────────────────────────────────────────────────────────────────────────
+//  UTILS
+// ─────────────────────────────────────────────────────────────────────────
+const getStatusColor = (status?: string | null) => {
+  if (!status) return "bg-gray-100 text-gray-800"
+  switch (status.toLowerCase()) {
+    case "completed":
+      return "bg-green-100 text-green-800"
+    case "in progress":
+      return "bg-blue-100 text-blue-800"
+    case "pending":
+      return "bg-yellow-100 text-yellow-800"
+    case "cancelled":
+      return "bg-red-100 text-red-800"
+    default:
+      return "bg-gray-100 text-gray-800"
+  }
+}
+
+const getCargoStatusColor = (status?: string | null) => {
+  if (!status) return "bg-gray-100 text-gray-800"
+  switch (status) {
+    case "delivered":
+      return "bg-green-100 text-green-800"
+    case "in-transit":
+      return "bg-blue-100 text-blue-800"
+    case "at-origin":
+      return "bg-orange-100 text-orange-800"
+    case "at-destination":
+      return "bg-purple-100 text-purple-800"
+    default:
+      return "bg-gray-100 text-gray-800"
+  }
+}
+
+const formatCargoStatus = (status?: string | null) =>
+  status
+    ? status
+        .split("-")
+        .map((w) => w[0].toUpperCase() + w.slice(1))
+        .join(" ")
+    : "N/A"
+
+const formatDate = (dateString: string) => {
+  try {
+    return new Date(dateString).toLocaleDateString("en-GB", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+  } catch (e) {
+    return "Invalid Date"
+  }
+}
+
+const formatDateTime = (dateString: string) => {
+  try {
+    return new Date(dateString).toLocaleDateString("en-GB", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  } catch (e) {
+    return "Invalid Date"
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────────────────
+export default function ClientPortalOrderDetailsPage({ params }: { params: { id: string } }) {
   const { user } = useAuth()
   const router = useRouter()
-  const [order, setOrder] = useState<OrderDetails | null>(null)
+  const orderId = params.id
+
+  const [order, setOrder] = useState<Order | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
+  const [eventHistory, setEventHistory] = useState<Event[]>([]) // Assuming event history is part of order details or a separate fetch
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mock data for demonstration
-  const mockOrder: OrderDetails = {
-    id: params.id,
-    order_number: "ORD-2024-001",
-    po_number: "PO-ABC-123",
-    status: "In Progress",
-    cargo_status: "in-transit",
-    origin: "Shanghai, China",
-    destination: "Cape Town, South Africa",
-    created_at: "2024-01-15T10:00:00Z",
-    estimated_delivery: "2024-02-15T10:00:00Z",
-    tracking_number: "MRSU0547355",
-    supplier: "Shanghai Manufacturing Co.",
-    importer: "Cape Town Imports Ltd.",
-    freight_type: "Sea Freight",
-    total_value: 25000,
-  }
-
-  const mockDocuments: Document[] = [
-    {
-      id: "doc-1",
-      name: "Commercial Invoice",
-      type: "invoice",
-      url: "/documents/commercial-invoice.pdf",
-      uploaded_at: "2024-01-15T10:00:00Z",
-      order_id: params.id,
-      client_accessible: true,
-    },
-    {
-      id: "doc-2",
-      name: "Bill of Lading",
-      type: "bol",
-      url: "/documents/bill-of-lading.pdf",
-      uploaded_at: "2024-01-16T08:00:00Z",
-      order_id: params.id,
-      client_accessible: true,
-    },
-    {
-      id: "doc-3",
-      name: "Packing List",
-      type: "packing",
-      url: "/documents/packing-list.pdf",
-      uploaded_at: "2024-01-15T12:00:00Z",
-      order_id: params.id,
-      client_accessible: true,
-    },
-  ]
-
-  useEffect(() => {
-    if (!user || (!user.role && !user.id)) {
-      setIsLoading(false)
-      setOrder(mockOrder)
+  const fetchOrderDetails = async () => {
+    if (!user?.id) {
+      setOrder(mockOrderDetails)
       setDocuments(mockDocuments)
+      setEventHistory(mockEventHistory)
+      setIsLoading(false)
       return
     }
 
-    fetchOrderDetails()
-
-    // Set up Realtime subscriptions
-    const orderChannel = supabase
-      .channel(`order_details_${params.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders", filter: `id=eq.${params.id}` },
-        (payload) => {
-          console.log("Specific order change received!", payload)
-          // Re-fetch order details when this specific order changes
-          fetchOrderDetails()
-        },
-      )
-      .subscribe()
-
-    const documentsChannel = supabase
-      .channel(`order_documents_${params.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "documents", filter: `order_id=eq.${params.id}` },
-        (payload) => {
-          console.log("Document change for this order received!", payload)
-          // Re-fetch documents when documents related to this order change
-          fetchOrderDetails() // Re-fetches both order and documents
-        },
-      )
-      .subscribe()
-
-    // Cleanup subscriptions on component unmount
-    return () => {
-      supabase.removeChannel(orderChannel)
-      supabase.removeChannel(documentsChannel)
-    }
-  }, [params.id, user]) // Re-run effect if order ID or user changes
-
-  const fetchOrderDetails = async () => {
+    setIsLoading(true)
+    setError(null)
     try {
-      setIsLoading(true)
-
-      // In production, this would fetch from Supabase with proper client access controls
-      const { data: orderData, error: orderError } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("id", params.id)
-        .single()
-
-      if (orderError) {
-        console.error("Error fetching order data from Supabase:", orderError)
-        throw orderError
+      // Fetch order details
+      const orderResponse = await fetch(`/api/client-portal/orders/${orderId}?clientId=${user.id}`)
+      if (!orderResponse.ok) {
+        throw new Error(`Failed to fetch order details: ${orderResponse.statusText}`)
+      }
+      const orderData = await orderResponse.json()
+      if (orderData.success && orderData.data.order) {
+        setOrder(orderData.data.order)
+      } else {
+        console.warn("API returned success: false for order details, using mock data.", orderData.error)
+        setOrder(mockOrderDetails)
       }
 
-      const { data: docsData, error: docsError } = await supabase
-        .from("documents")
-        .select("*")
-        .eq("order_id", params.id)
-        .eq("client_accessible", true) // Only show client-accessible documents
-
-      if (docsError) {
-        console.error("Error fetching documents from Supabase:", docsError)
-        throw docsError
+      // Fetch documents for this order
+      const documentsResponse = await fetch(`/api/client-portal/documents?orderId=${orderId}&clientId=${user.id}`)
+      if (!documentsResponse.ok) {
+        throw new Error(`Failed to fetch documents: ${documentsResponse.statusText}`)
+      }
+      const documentsData = await documentsResponse.json()
+      if (documentsData.success && documentsData.data.documents) {
+        // Filter for client_accessible documents
+        const accessibleDocs = documentsData.data.documents.filter((doc: Document) => doc.client_accessible)
+        setDocuments(accessibleDocs)
+      } else {
+        console.warn("API returned success: false for documents, using mock data.", documentsData.error)
+        setDocuments(mockDocuments)
       }
 
-      setOrder(orderData as OrderDetails)
-      setDocuments((docsData as Document[]) || [])
-    } catch (error) {
-      console.error("Error fetching order details:", error)
-      // Fallback to mock data if real data fetch fails
-      setOrder(mockOrder)
+      // For event history, assuming it's either part of the order object or a separate API
+      // For now, using mock data or an empty array if not available
+      setEventHistory(mockEventHistory) // Replace with actual API call if available
+    } catch (err: any) {
+      console.error("Error fetching order details:", err)
+      setError(err.message || "Failed to load order details.")
+      setOrder(mockOrderDetails) // Fallback to mock data on error
       setDocuments(mockDocuments)
+      setEventHistory(mockEventHistory)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "completed":
-        return "bg-green-100 text-green-800"
-      case "in progress":
-        return "bg-blue-100 text-blue-800"
-      case "pending":
-        return "bg-yellow-100 text-yellow-800"
-      case "cancelled":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
+  useEffect(() => {
+    fetchOrderDetails()
+
+    // Set up Realtime subscriptions for this specific order and its documents
+    const orderChannel = supabase
+      .channel(`order_details_${orderId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `id=eq.${orderId}` },
+        (payload) => {
+          console.log("Realtime order details change:", payload)
+          fetchOrderDetails() // Re-fetch data on any change to this specific order
+        },
+      )
+      .subscribe()
+
+    const documentsChannel = supabase
+      .channel(`order_documents_${orderId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "documents", filter: `order_id=eq.${orderId}` },
+        (payload) => {
+          console.log("Realtime document change for order:", payload)
+          fetchOrderDetails() // Re-fetch documents on any change to documents linked to this order
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(orderChannel)
+      supabase.removeChannel(documentsChannel)
     }
-  }
+  }, [orderId, user?.id]) // Re-run effect if orderId or user ID changes
 
-  const handleDownloadDocument = (doc: Document) => {
-    // In production, this would handle secure document download
-    window.open(doc.url, "_blank")
-  }
+  const isAdmin = user?.role === "admin"
 
-  const handleTrackShipment = () => {
-    if (order?.tracking_number) {
-      router.push(`/shipment-tracker?container=${order.tracking_number}`)
-    }
-  }
-
-  if (!user || (user.role !== "client" && user.role !== "guest" && user.role !== "admin")) {
-    // Allow admin to view
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Card className="w-96">
-          <CardHeader>
-            <CardTitle className="text-center text-red-600">Access Denied</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-center text-gray-600">You don't have permission to view this order.</p>
-            <Button className="w-full mt-4" onClick={() => router.push("/client-portal")}>
-              Return to Portal
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-600">Loading order details...</p>
       </div>
     )
   }
 
-  if (isLoading) {
+  if (error) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <Package className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading order details...</p>
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+        <div className="bg-red-100 text-red-800 p-4 rounded-md mb-4">
+          <p className="font-semibold">Error loading data:</p>
+          <p className="text-sm">{error}</p>
         </div>
+        <Button onClick={fetchOrderDetails}>Retry</Button>
       </div>
     )
   }
 
   if (!order) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Card className="w-96">
-          <CardHeader>
-            <CardTitle className="text-center text-red-600">Order Not Found</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-center text-gray-600">
-              The requested order could not be found or you don't have access to it.
-            </p>
-            <Button className="w-full mt-4" onClick={() => router.push("/client-portal")}>
-              Return to Portal
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-2">Order Not Found</h2>
+        <p className="text-gray-600 mb-4">The order with ID "{orderId}" could not be found.</p>
+        <Button onClick={() => router.push("/client-portal/orders")}>Back to Orders</Button>
+      </div>
+    )
+  }
+
+  // Check if the logged-in user is authorized to view this order
+  // Admin users can view any order. Client users can only view their own orders.
+  if (!isAdmin && user?.customer_id !== order.customer_id) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-2">Unauthorized Access</h2>
+        <p className="text-gray-600 mb-4">You do not have permission to view this order.</p>
+        <Button onClick={() => router.push("/client-portal/orders")}>Back to Orders</Button>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <Button variant="outline" onClick={() => router.push("/client-portal")} className="mb-4">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Portal
-          </Button>
-
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{order.order_number}</h1>
-              <p className="text-gray-600 mt-2">Order Details and Tracking</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Admin banner */}
+      {isAdmin && (
+        <div className="bg-blue-600 text-white px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              <span className="font-medium">Admin View – Order Details</span>
             </div>
-
-            <div className="flex space-x-2">
-              <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
-              {order.tracking_number && (
-                <Button onClick={handleTrackShipment}>
-                  <Truck className="h-4 w-4 mr-2" />
-                  Track Shipment
-                </Button>
-              )}
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/dashboard")}
+              className="bg-white text-blue-600 hover:bg-blue-50"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
           </div>
         </div>
+      )}
 
-        {/* Order Information */}
+      <div className="container mx-auto px-6 py-6">
+        {/* Header */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Order Details: {order.po_number || order.id}</h1>
+            <p className="text-gray-600 mt-1">Comprehensive view of your shipment</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/client-portal/orders")}
+            className="text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Orders
+          </Button>
+        </div>
+
+        {/* Order Summary */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Order Information</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" /> Order Summary
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <label className="text-sm font-medium text-gray-600">Order Number</label>
-                <p className="text-lg font-semibold">{order.order_number}</p>
+                <p className="text-gray-500">PO Number:</p>
+                <p className="font-medium">{order.po_number}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-600">PO Number</label>
-                <p className="text-lg">{order.po_number || "N/A"}</p>
+                <p className="text-gray-500">Status:</p>
+                <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-600">Tracking Number</label>
-                <p className="text-lg font-mono">{order.tracking_number || "N/A"}</p>
+                <p className="text-gray-500">Cargo Status:</p>
+                <Badge className={getCargoStatusColor(order.cargo_status)}>
+                  {formatCargoStatus(order.cargo_status)}
+                </Badge>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-600">Origin</label>
-                <p className="text-lg">{order.origin}</p>
+                <p className="text-gray-500">Freight Type:</p>
+                <p className="font-medium">{order.freight_type}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-600">Destination</label>
-                <p className="text-lg">{order.destination}</p>
+                <p className="text-gray-500">Total Value:</p>
+                <p className="font-medium">R {order.total_value?.toLocaleString()}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-600">Freight Type</label>
-                <p className="text-lg">{order.freight_type || "N/A"}</p>
+                <p className="text-gray-500">Created At:</p>
+                <p className="font-medium">{formatDate(order.created_at)}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-600">Supplier</label>
-                <p className="text-lg">{order.supplier || "N/A"}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Order Date</label>
-                <p className="text-lg">{new Date(order.created_at).toLocaleDateString()}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Est. Delivery</label>
-                <p className="text-lg">
-                  {order.estimated_delivery ? new Date(order.estimated_delivery).toLocaleDateString() : "TBD"}
-                </p>
+                <p className="text-gray-500">Estimated Delivery:</p>
+                <p className="font-medium">{formatDate(order.estimated_delivery)}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Tabs for Documents and Tracking */}
-        <Tabs defaultValue="documents" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="tracking">Shipment Tracking</TabsTrigger>
-          </TabsList>
+        {/* Shipment Details */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Ship className="h-5 w-5" /> Shipment Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-500">Supplier:</p>
+                <p className="font-medium">{order.supplier}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Origin:</p>
+                <p className="font-medium">{order.origin}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Destination:</p>
+                <p className="font-medium">{order.destination}</p>
+              </div>
+              {order.freight_type?.toLowerCase() === "sea freight" && (
+                <>
+                  <div>
+                    <p className="text-gray-500">Vessel Name:</p>
+                    <p className="font-medium">{order.vessel_name || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">ETA at Port:</p>
+                    <p className="font-medium">{order.eta_at_port ? formatDate(order.eta_at_port) : "N/A"}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-          <TabsContent value="documents">
-            <Card>
-              <CardHeader>
-                <CardTitle>Order Documents</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {documents.length === 0 ? (
-                  <p className="text-center text-gray-600 py-8">No documents available for this order yet.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {documents.map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <FileText className="h-8 w-8 text-blue-600" />
-                          <div>
-                            <h3 className="font-medium">{doc.name}</h3>
-                            <p className="text-sm text-gray-600">
-                              Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button variant="outline" size="sm" onClick={() => handleDownloadDocument(doc)}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </Button>
-                          <Button size="sm" onClick={() => handleDownloadDocument(doc)}>
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </Button>
-                        </div>
-                      </div>
+        {/* Event History */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" /> Event History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {eventHistory.length === 0 ? (
+              <div className="py-4 text-center text-gray-500">No event history available.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Description</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {eventHistory.map((event) => (
+                      <TableRow key={event.id}>
+                        <TableCell>{formatDateTime(event.timestamp)}</TableCell>{" "}
+                        {/* Fix: First TableCell on same line as TableRow */}
+                        <TableCell>{event.location}</TableCell>
+                        <TableCell>{event.description}</TableCell>
+                      </TableRow>
                     ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-          <TabsContent value="tracking">
-            <Card>
-              <CardHeader>
-                <CardTitle>Shipment Tracking</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {order.tracking_number ? (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-blue-50 rounded-lg">
-                      <h3 className="font-medium text-blue-900">Tracking Number</h3>
-                      <p className="text-2xl font-mono text-blue-800">{order.tracking_number}</p>
-                    </div>
-
-                    <div className="flex space-x-4">
-                      <Button onClick={handleTrackShipment} className="flex-1">
-                        <Truck className="h-4 w-4 mr-2" />
-                        Track Live Shipment
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          window.open(
-                            `https://www.msc.com/track-a-shipment?trackingNumber=${order.tracking_number}`,
-                            "_blank",
-                          )
-                        }
-                      >
-                        Track on Carrier Website
-                      </Button>
-                    </div>
-
-                    <div className="text-sm text-gray-600">
-                      <p>
-                        Current Status:{" "}
-                        <span className="font-medium capitalize">{order.cargo_status.replace("-", " ")}</span>
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-center text-gray-600 py-8">
-                    Tracking information will be available once the shipment is dispatched.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        {/* Documents */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" /> Documents
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {documents.length === 0 ? (
+              <div className="py-4 text-center text-gray-500">No documents available for this order.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Document Type</TableHead>
+                      <TableHead>File Name</TableHead>
+                      <TableHead>Uploaded On</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {documents.map((doc) => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-medium">{doc.document_type}</TableCell>{" "}
+                        {/* Fix: First TableCell on same line as TableRow */}
+                        <TableCell>{doc.file_name}</TableCell>
+                        <TableCell>{formatDate(doc.created_at)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                              View
+                            </a>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
