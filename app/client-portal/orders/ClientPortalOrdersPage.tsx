@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Package, Search, Filter, ChevronDown, RefreshCcw } from "lucide-react"
 
 import { useAuth } from "@/contexts/AuthContext"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -27,6 +27,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { supabase } from "@/lib/supabaseClient"
+import { formatDate } from "@/lib/utils" // Import the new utility
 
 // ─────────────────────────────────────────────────────────────────────────
 //  MOCK DATA (for demonstration if API fails or user is not logged in)
@@ -122,6 +123,10 @@ const getCargoStatusColor = (status: string) => {
       return "bg-orange-100 text-orange-800"
     case "at-destination":
       return "bg-purple-100 text-purple-800"
+    case "loading":
+      return "bg-indigo-100 text-indigo-800"
+    case "cancelled":
+      return "bg-red-100 text-red-800"
     default:
       return "bg-gray-100 text-gray-800"
   }
@@ -145,21 +150,24 @@ export default function ClientPortalOrdersPage() {
   const router = useRouter()
 
   const [orders, setOrders] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingData, setIsLoadingData] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10) // You can make this configurable
+  const [isLoading, setIsLoading] = useState(false) // Declare the isLoading variable
 
   const fetchOrders = async () => {
+    setIsLoading(true) // Set isLoading to true before fetching orders
     if (!user?.id) {
       setOrders(mockOrders.filter((order) => order.customer_name === "ABC Company")) // Filter mock orders for a specific client
-      setIsLoading(false)
+      setIsLoadingData(false)
+      setIsLoading(false) // Set isLoading to false after fetching orders
       return
     }
 
-    setIsLoading(true)
+    setIsLoadingData(true)
     setError(null)
     try {
       const response = await fetch(`/api/client-portal/orders?clientId=${user.id}`)
@@ -178,7 +186,8 @@ export default function ClientPortalOrdersPage() {
       setError(err.message || "Failed to load orders.")
       setOrders(mockOrders.filter((order) => order.customer_name === "ABC Company")) // Fallback to mock data on error
     } finally {
-      setIsLoading(false)
+      setIsLoadingData(false)
+      setIsLoading(false) // Set isLoading to false after fetching orders
     }
   }
 
@@ -198,6 +207,16 @@ export default function ClientPortalOrdersPage() {
       supabase.removeChannel(ordersChannel)
     }
   }, [user?.id]) // Re-run effect if user ID changes
+
+  const uniqueStatuses = useMemo(() => {
+    const statuses = new Set(mockOrders.map((order) => order.status))
+    return Array.from(statuses)
+  }, [])
+
+  const uniqueFreightTypes = useMemo(() => {
+    const freightTypes = new Set(mockOrders.map((order) => order.freight_type))
+    return Array.from(freightTypes)
+  }, [])
 
   const filteredOrders = useMemo(() => {
     let filtered = orders
@@ -341,6 +360,7 @@ export default function ClientPortalOrdersPage() {
                         <TableHead>Cargo Status</TableHead>
                         <TableHead>Freight Type</TableHead>
                         <TableHead>Est. Delivery</TableHead>
+                        <TableHead className="text-right">Value</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -357,7 +377,8 @@ export default function ClientPortalOrdersPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>{order.freight_type}</TableCell>
-                          <TableCell>{new Date(order.estimated_delivery).toLocaleDateString()}</TableCell>
+                          <TableCell>{formatDate(order.estimated_delivery)}</TableCell>
+                          <TableCell className="text-right">R {order.total_value?.toLocaleString()}</TableCell>
                           <TableCell className="text-right">
                             <Button
                               variant="outline"

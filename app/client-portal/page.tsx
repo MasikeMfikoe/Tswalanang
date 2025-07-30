@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { supabase } from "@/lib/supabaseClient"
+import { formatDate } from "@/lib/utils" // Import the new utility
 
 // Mock data for demonstration
 const mockRecentOrders = [
@@ -69,7 +70,6 @@ const getCargoStatusColor = (status: string) => {
   }
 }
 
-// Modified to safely handle null or undefined status
 const formatCargoStatus = (status: string | null | undefined) => {
   if (!status) {
     return "N/A" // Return a default string if status is null or undefined
@@ -123,7 +123,7 @@ export default function ClientPortalPage() {
             status: o.status,
             cargoStatus: o.cargo_status || "unknown", // Provide a default if null/undefined
             freightType: o.freight_type,
-            estimatedDelivery: o.estimated_delivery,
+            estimatedDelivery: o.estimated_delivery ? String(o.estimated_delivery) : null, // Ensure string or null
           }))
         setRecentOrders(sortedRecentOrders)
       } else {
@@ -348,7 +348,7 @@ export default function ClientPortalPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>{order.freightType}</TableCell>
-                          <TableCell>{new Date(order.estimatedDelivery).toLocaleDateString()}</TableCell>
+                          <TableCell>{formatDate(order.estimatedDelivery)}</TableCell>
                           <TableCell className="text-right">
                             <Button
                               variant="outline"
