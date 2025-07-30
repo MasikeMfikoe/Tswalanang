@@ -259,6 +259,37 @@ export async function POST(request: NextRequest) {
 
       console.log("✅ User profile created successfully:", profile?.id)
 
+      // Send welcome email if requested
+      try {
+        console.log("📧 Sending welcome email...")
+        const welcomeEmailResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/send-welcome-email`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userEmail: email,
+              userName: userData.name,
+              userSurname: userData.surname,
+              temporaryPassword: password,
+              companyName: userData.role === "client" ? userData.department : "TSW Smartlog",
+              isClientUser: userData.role === "client",
+            }),
+          },
+        )
+
+        if (welcomeEmailResponse.ok) {
+          console.log("✅ Welcome email sent successfully")
+        } else {
+          console.error("❌ Failed to send welcome email:", await welcomeEmailResponse.text())
+        }
+      } catch (emailError) {
+        console.error("❌ Error sending welcome email:", emailError)
+        // Don't fail user creation if email fails
+      }
+
       return NextResponse.json({
         success: true,
         user: {
