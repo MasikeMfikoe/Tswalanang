@@ -1,42 +1,46 @@
 "use client"
 
-/**
- * Full client-side implementation of the Client-Portal Orders page.
- * (This is the exact code you already had – just moved into its own file so the
- *   route segment stays a tiny server component and avoids the broken chunk.)
- */
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Calendar, DollarSign, Filter, Package, Search } from "lucide-react"
+import { Package, Search, Filter, ChevronDown, RefreshCcw } from "lucide-react"
 
 import { useAuth } from "@/contexts/AuthContext"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { supabase } from "@/lib/supabaseClient" // Import supabase
+import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { supabase } from "@/lib/supabaseClient"
 
 // ─────────────────────────────────────────────────────────────────────────
-//  MOCK DATA
-//  (Updated to use snake_case for consistency with API)
+//  MOCK DATA (for demonstration if API fails or user is not logged in)
 // ─────────────────────────────────────────────────────────────────────────
-const mockClientOrders = [
+const mockOrders = [
   {
     id: "ORD-2024-001",
     po_number: "PO-ABC-001",
     status: "In Progress",
     cargo_status: "in-transit",
     freight_type: "Sea Freight",
+    estimated_delivery: "2024-02-15T10:00:00Z",
     total_value: 25000,
-    created_at: "2024-01-15",
-    estimated_delivery: "2024-02-15",
-    supplier: "Global Electronics Ltd",
-    destination: "Cape Town, South Africa",
-    vessel_name: "MSC Pamela",
-    eta_at_port: "2024-02-10",
+    customer_name: "ABC Company",
   },
   {
     id: "ORD-2024-002",
@@ -44,13 +48,9 @@ const mockClientOrders = [
     status: "Completed",
     cargo_status: "delivered",
     freight_type: "Air Freight",
+    estimated_delivery: "2024-01-25T14:30:00Z",
     total_value: 15000,
-    created_at: "2024-01-10",
-    estimated_delivery: "2024-01-25",
-    supplier: "Tech Components Inc",
-    destination: "Johannesburg, South Africa",
-    vessel_name: "N/A",
-    eta_at_port: "2024-01-20",
+    customer_name: "ABC Company",
   },
   {
     id: "ORD-2024-003",
@@ -58,21 +58,46 @@ const mockClientOrders = [
     status: "Pending",
     cargo_status: "at-origin",
     freight_type: "Sea Freight",
+    estimated_delivery: "2024-03-01T09:00:00Z",
     total_value: 35000,
-    created_at: "2024-01-20",
-    estimated_delivery: "2024-03-01",
-    supplier: "Industrial Supplies Co",
-    destination: "Durban, South Africa",
-    vessel_name: "Maersk Seletar",
-    eta_at_port: "2024-02-25",
+    customer_name: "ABC Company",
+  },
+  {
+    id: "ORD-2024-004",
+    po_number: "PO-XYZ-001",
+    status: "In Progress",
+    cargo_status: "in-transit",
+    freight_type: "Road Freight",
+    estimated_delivery: "2024-02-20T11:00:00Z",
+    total_value: 12000,
+    customer_name: "XYZ Corp",
+  },
+  {
+    id: "ORD-2024-005",
+    po_number: "PO-XYZ-002",
+    status: "Completed",
+    cargo_status: "delivered",
+    freight_type: "Rail Freight",
+    estimated_delivery: "2024-01-30T16:00:00Z",
+    total_value: 18000,
+    customer_name: "XYZ Corp",
+  },
+  {
+    id: "ORD-2024-006",
+    po_number: "PO-LMN-001",
+    status: "Cancelled",
+    cargo_status: "cancelled",
+    freight_type: "Sea Freight",
+    estimated_delivery: "2024-02-10T08:00:00Z",
+    total_value: 5000,
+    customer_name: "LMN Logistics",
   },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────
-//  UTILS (Modified to handle undefined/null inputs)
+//  UTILITY FUNCTIONS
 // ─────────────────────────────────────────────────────────────────────────
-const getStatusColor = (status?: string | null) => {
-  if (!status) return "bg-gray-100 text-gray-800" // Default color for undefined/null
+const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
     case "completed":
       return "bg-green-100 text-green-800"
@@ -87,8 +112,7 @@ const getStatusColor = (status?: string | null) => {
   }
 }
 
-const getCargoStatusColor = (status?: string | null) => {
-  if (!status) return "bg-gray-100 text-gray-800" // Default color for undefined/null
+const getCargoStatusColor = (status: string) => {
   switch (status) {
     case "delivered":
       return "bg-green-100 text-green-800"
@@ -103,311 +127,294 @@ const getCargoStatusColor = (status?: string | null) => {
   }
 }
 
-const formatCargoStatus = (status?: string | null) =>
-  status
-    ? status
-        .split("-")
-        .map((w) => w[0].toUpperCase() + w.slice(1))
-        .join(" ")
-    : "N/A" // Return "N/A" if status is undefined or null
+const formatCargoStatus = (status: string | null | undefined) => {
+  if (!status) {
+    return "N/A"
+  }
+  return status
+    .split("-")
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ")
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 //  MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────
 export default function ClientPortalOrdersPage() {
-  const { user } = useAuth()
+  const { user, isLoading: isUserLoading } = useAuth()
   const router = useRouter()
 
-  const [orders, setOrders] = useState<any[]>(mockClientOrders)
-  const [filteredOrders, setFilteredOrders] = useState<any[]>(mockClientOrders)
+  const [orders, setOrders] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [freightFilter, setFreightFilter] = useState("all")
+  const [filterStatus, setFilterStatus] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(10) // You can make this configurable
 
-  // ─── Data Fetching and Realtime Subscription ─────────────────────────
-  useEffect(() => {
+  const fetchOrders = async () => {
     if (!user?.id) {
-      // If no user, use mock data and return
-      setOrders(mockClientOrders)
-      setFilteredOrders(mockClientOrders)
+      setOrders(mockOrders.filter((order) => order.customer_name === "ABC Company")) // Filter mock orders for a specific client
+      setIsLoading(false)
       return
     }
 
-    const fetchOrders = async () => {
-      try {
-        const ordersResponse = await fetch(`/api/client-portal/orders?clientId=${user.id}`)
-        if (ordersResponse.ok) {
-          const ordersData = await ordersResponse.json()
-          if (ordersData.success) {
-            setOrders(ordersData.data.orders)
-          } else {
-            console.warn("Failed to fetch orders, using fallback data:", ordersData.error)
-            setOrders(mockClientOrders)
-          }
-        } else {
-          console.warn("Failed to fetch orders, using fallback data (HTTP error):", ordersResponse.status)
-          setOrders(mockClientOrders)
-        }
-      } catch (error) {
-        console.error("Error fetching orders:", error)
-        setOrders(mockClientOrders)
+    setIsLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/client-portal/orders?clientId=${user.id}`)
+      if (!response.ok) {
+        throw new Error("Failed to fetch orders")
       }
+      const data = await response.json()
+      if (data.success) {
+        setOrders(data.data.orders || [])
+      } else {
+        console.warn("API returned success: false, using mock data.", data.error)
+        setOrders(mockOrders.filter((order) => order.customer_name === "ABC Company"))
+      }
+    } catch (err: any) {
+      console.error("Error fetching orders:", err)
+      setError(err.message || "Failed to load orders.")
+      setOrders(mockOrders.filter((order) => order.customer_name === "ABC Company")) // Fallback to mock data on error
+    } finally {
+      setIsLoading(false)
     }
+  }
 
-    fetchOrders() // Initial fetch
+  useEffect(() => {
+    fetchOrders()
 
-    // Set up Realtime subscription
+    // Set up Realtime subscriptions
     const ordersChannel = supabase
-      .channel("client_orders_list_changes")
+      .channel("client_portal_orders_changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
-        console.log("Order change received for list!", payload)
-        // Re-fetch orders when a change occurs
-        fetchOrders()
+        console.log("Realtime order change received for client portal orders page!", payload)
+        fetchOrders() // Re-fetch data on any order change
       })
       .subscribe()
 
-    // Cleanup subscription on component unmount
     return () => {
       supabase.removeChannel(ordersChannel)
     }
   }, [user?.id]) // Re-run effect if user ID changes
 
-  // ─── Filtering logic ────────────────────────────────────────────────
-  useEffect(() => {
-    let next = orders
+  const filteredOrders = useMemo(() => {
+    let filtered = orders
 
     if (searchTerm) {
-      next = next.filter(
-        (
-          o: any, // Added any type for o to avoid TS error with dynamic properties
-        ) =>
-          o.po_number
-            ?.toLowerCase()
-            .includes(searchTerm.toLowerCase()) || // Use po_number from actual data
-          o.supplier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          o.destination?.toLowerCase().includes(searchTerm.toLowerCase()),
+      filtered = filtered.filter(
+        (order) =>
+          order.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.status.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
-    if (statusFilter !== "all") {
-      next = next.filter((o: any) => o.status?.toLowerCase() === statusFilter)
+
+    if (filterStatus) {
+      filtered = filtered.filter((order) => order.status.toLowerCase() === filterStatus.toLowerCase())
     }
-    if (freightFilter !== "all") {
-      next = next.filter((o: any) => o.freight_type?.toLowerCase() === freightFilter) // Use freight_type
-    }
-    setFilteredOrders(next)
-  }, [searchTerm, statusFilter, freightFilter, orders])
 
-  const isAdmin = user?.role === "admin"
+    return filtered
+  }, [orders, searchTerm, filterStatus])
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Admin banner */}
-      {isAdmin && (
-        <div className="bg-blue-600 text-white px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              <span className="font-medium">Admin View – Client Orders</span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push("/dashboard")}
-              className="bg-white text-blue-600 hover:bg-blue-50"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </div>
+  // Pagination logic
+  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage)
+  const currentOrders = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredOrders.slice(startIndex, endIndex)
+  }, [filteredOrders, currentPage, itemsPerPage])
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
+
+  if (isUserLoading || isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Package className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading orders...</p>
         </div>
-      )}
+      </div>
+    )
+  }
 
-      <div className="container mx-auto px-6 py-6">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              {isAdmin ? "Admin View – Client Orders" : `${user?.department || "Company"} Orders`}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {isAdmin ? "Admin viewing client orders" : `Welcome ${user?.department || "Company"}`}
-            </p>
-            <p className="text-gray-600 text-sm mt-1">
-              {new Date().toLocaleDateString("en-GB", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-            </p>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/client-portal")}
-            className="text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Portal
-          </Button>
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+        <div className="bg-red-100 text-red-800 p-4 rounded-md mb-4">
+          <p className="font-semibold">Error loading data:</p>
+          <p className="text-sm">{error}</p>
         </div>
+        <Button onClick={fetchOrders}>Retry</Button>
+      </div>
+    )
+  }
 
-        {/* Filters */}
-        <Card className="mb-6">
+  // Redirect if not a client or guest user
+  if (!user || (user.role !== "client" && user.role !== "guest" && user.role !== "admin")) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Card className="w-96">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" /> Filter Orders
-            </CardTitle>
+            <CardTitle className="text-center text-red-600">Access Denied</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search PO, supplier or destination…"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in progress">In-Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={freightFilter} onValueChange={setFreightFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by freight" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Freight Types</SelectItem>
-                  <SelectItem value="sea freight">Sea Freight</SelectItem>
-                  <SelectItem value="air freight">Air Freight</SelectItem>
-                  <SelectItem value="exw">EXW</SelectItem>
-                  <SelectItem value="fob">FOB</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <p className="text-center text-gray-600">You don't have permission to access this page.</p>
+            <Button className="w-full mt-4" onClick={() => router.push("/login")}>
+              Go to Login
+            </Button>
           </CardContent>
         </Card>
+      </div>
+    )
+  }
 
-        {/* Quick summary cards */}
-        <div className="mb-8 grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" /> Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="mb-4 text-gray-600">Your recent order activity</p>
-              <div className="space-y-2 text-sm">
-                {/* This section would ideally be populated by actual recent activity from the database */}
-                <div>
-                  <span className="font-medium">PO-ABC-001</span> – Status updated
-                </div>
-                <div>
-                  <span className="font-medium">PO-ABC-002</span> – Delivered
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" /> Order Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>Total Orders:</span>
-                  <span className="font-medium">{orders.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>In Progress:</span>
-                  <span className="font-medium text-blue-600">
-                    {orders.filter((o: any) => o.status === "In Progress").length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Completed:</span>
-                  <span className="font-medium text-green-600">
-                    {orders.filter((o: any) => o.status === "Completed").length}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Orders table */}
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="container mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle>Orders List</CardTitle>
-            <CardDescription>
-              {filteredOrders.length} of {orders.length} orders shown
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-6 w-6" /> Your Orders
+            </CardTitle>
+            <CardDescription>View and manage all your logistics orders.</CardDescription>
           </CardHeader>
           <CardContent>
-            {filteredOrders.length === 0 ? (
-              <div className="py-12 text-center">
-                <Package className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-                <h3 className="mb-2 text-lg font-medium text-gray-900">No orders found</h3>
-                <p className="text-gray-600">Try adjusting your search or filters.</p>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+              <div className="relative w-full md:w-1/3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                <Input
+                  placeholder="Search by PO number or status..."
+                  className="pl-9"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-4 w-full md:w-auto justify-end">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-2 bg-transparent">
+                      <Filter className="h-4 w-4" />
+                      {filterStatus ? `Status: ${filterStatus}` : "Filter by Status"}
+                      <ChevronDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Filter Status</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setFilterStatus(null)}>All</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterStatus("In Progress")}>In Progress</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterStatus("Completed")}>Completed</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterStatus("Pending")}>Pending</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterStatus("Cancelled")}>Cancelled</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button onClick={fetchOrders} variant="outline" size="icon" title="Refresh Orders">
+                  <RefreshCcw className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {currentOrders.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                No orders found matching your criteria.
+                <Button
+                  variant="link"
+                  onClick={() => {
+                    setSearchTerm("")
+                    setFilterStatus(null)
+                  }}
+                >
+                  Clear Filters
+                </Button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>PO Number</TableHead>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Freight Type</TableHead>
-                      <TableHead>Vessel Name</TableHead>
-                      <TableHead>Cargo Status</TableHead>
-                      <TableHead>ETA at Port</TableHead>
-                      <TableHead>Est. Delivery</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredOrders.map(
-                      (
-                        o: any, // Added any type for o
-                      ) => (
-                        <TableRow key={o.id}>
-                          <TableCell className="font-medium">{o.po_number}</TableCell>{" "}
-                          {/* Fix: First TableCell on same line as TableRow */}
-                          <TableCell>{o.supplier}</TableCell>
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>PO Number</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Cargo Status</TableHead>
+                        <TableHead>Freight Type</TableHead>
+                        <TableHead>Est. Delivery</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {currentOrders.map((order) => (
+                        <TableRow key={order.id}>
+                          <TableCell className="font-medium">{order.po_number}</TableCell>
                           <TableCell>
-                            <Badge className={getStatusColor(o.status)}>{o.status}</Badge>
+                            <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                           </TableCell>
-                          <TableCell>{new Date(o.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell>{o.freight_type}</TableCell>
-                          <TableCell>{o.vessel_name}</TableCell>
                           <TableCell>
-                            <Badge className={getCargoStatusColor(o.cargo_status)}>
-                              {formatCargoStatus(o.cargo_status)}
+                            <Badge className={getCargoStatusColor(order.cargo_status)}>
+                              {formatCargoStatus(order.cargo_status)}
                             </Badge>
                           </TableCell>
-                          <TableCell>{new Date(o.eta_at_port).toLocaleDateString()}</TableCell>
-                          <TableCell>{new Date(o.estimated_delivery).toLocaleDateString()}</TableCell>
+                          <TableCell>{order.freight_type}</TableCell>
+                          <TableCell>{new Date(order.estimated_delivery).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => router.push(`/client-portal/orders/${order.id}`)}
+                            >
+                              View Details
+                            </Button>
+                          </TableCell>
                         </TableRow>
-                      ),
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <Pagination className="mt-6">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (currentPage > 1) handlePageChange(currentPage - 1)
+                        }}
+                        aria-disabled={currentPage === 1}
+                        tabIndex={currentPage === 1 ? -1 : undefined}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : undefined}
+                      />
+                    </PaginationItem>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          href="#"
+                          isActive={page === currentPage}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            handlePageChange(page)
+                          }}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (currentPage < totalPages) handlePageChange(currentPage + 1)
+                        }}
+                        aria-disabled={currentPage === totalPages}
+                        tabIndex={currentPage === totalPages ? -1 : undefined}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : undefined}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </>
             )}
           </CardContent>
         </Card>

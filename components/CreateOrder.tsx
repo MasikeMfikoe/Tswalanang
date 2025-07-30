@@ -15,6 +15,7 @@ import { NewOrderDocumentUpload } from "@/components/NewOrderDocumentUpload"
 import { supabase } from "@/lib/supabase"
 import type { Order, Customer, Status, CargoStatus, FreightType } from "@/types/models"
 import { Textarea } from "@/components/ui/textarea"
+import { v4 as uuidv4 } from "uuid" // Import uuidv4
 
 export default function CreateOrder() {
   const router = useRouter()
@@ -181,14 +182,9 @@ export default function CreateOrder() {
     }
   }
 
-  // Generate a unique PO number
+  // Generate a unique PO number using UUID
   function generatePONumber() {
-    const prefix = "PO"
-    const timestamp = Date.now().toString().slice(-6)
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0")
-    return `${prefix}-${timestamp}-${random}`
+    return uuidv4()
   }
 
   // Handle form field changes
