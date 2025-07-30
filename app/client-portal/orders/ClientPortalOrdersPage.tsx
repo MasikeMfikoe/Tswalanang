@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Calendar, DollarSign, Filter, Package, Search, Truck } from "lucide-react"
 
@@ -11,10 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Spinner } from "@/components/ui/spinner"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal } from "lucide-react"
-import { format } from "date-fns"
 
 interface Order {
   id: string
@@ -32,7 +28,7 @@ interface Order {
   tracking_number?: string
 }
 
-// Mock data - used as fallback if API fails or no customer ID
+// Mock data - replace with real API integration when available
 const mockClientOrders: Order[] = [
   {
     id: "ORD-2024-001",
@@ -117,18 +113,23 @@ const formatCargoStatus = (status: string) =>
     .map((w) => w[0].toUpperCase() + w.slice(1))
     .join(" ")
 
-const formatDate = (dateString: string | null | undefined): string => {
+const formatDate = (dateString: string) => {
   if (!dateString) return "TBD"
   try {
-    return format(new Date(dateString), "dd MMM yyyy")
-  } catch (e) {
-    console.error("Error formatting date:", dateString, e)
-    return "Invalid Date"
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return "TBD"
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+  } catch {
+    return "TBD"
   }
 }
 
 export default function ClientPortalOrdersPage() {
-  const { user, isLoading: isAuthLoading } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
 
   const [orders, setOrders] = useState<Order[]>([])
@@ -137,62 +138,10 @@ export default function ClientPortalOrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [freightFilter, setFreightFilter] = useState("all")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchCustomerOrders = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    if (!user?.id) {
-      setLoading(false)
-      setError("User not logged in or user ID not available.")
-      setOrders(mockClientOrders) // Fallback to mock data
-      return
-    }
-
-    try {
-      // Fetch customer-specific orders using clientId
-      const response = await fetch(`/api/client-portal/orders?clientId=${user.id}`)
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to fetch orders from API.")
-      }
-      const data = await response.json()
-      if (data.success) {
-        // Transform API data to match our interface
-        const transformedOrders = data.data.orders.map((order: any) => ({
-          id: order.id,
-          po_number: order.po_number || order.poNumber,
-          status: order.status,
-          cargo_status: order.cargo_status || order.cargoStatus,
-          freight_type: order.freight_type || order.freightType,
-          total_value: order.total_value || order.totalValue,
-          created_at: order.created_at || order.createdAt,
-          estimated_delivery: order.estimated_delivery || order.estimatedDelivery,
-          supplier: order.supplier,
-          destination: order.destination,
-          vessel_name: order.vessel_name || order.vesselName,
-          eta_at_port: order.eta_at_port || order.etaAtPort,
-          tracking_number: order.tracking_number || order.trackingNumber,
-        }))
-        setOrders(transformedOrders)
-      } else {
-        setOrders(mockClientOrders) // Fallback to mock data if API returns success: false
-        setError("API returned success: false. Using mock data.")
-      }
-    } catch (err: any) {
-      console.error("Error fetching orders:", err)
-      setError(err.message || "An unexpected error occurred while fetching orders. Using mock data.")
-      setOrders(mockClientOrders) // Fallback to mock data on error
-    } finally {
-      setLoading(false)
-    }
-  }, [user?.id])
 
   useEffect(() => {
-    if (!isAuthLoading) {
-      fetchCustomerOrders()
-    }
-  }, [isAuthLoading, fetchCustomerOrders])
+    fetchCustomerOrders()
+  }, [user?.id])
 
   useEffect(() => {
     let next = orders
@@ -214,6 +163,49 @@ export default function ClientPortalOrdersPage() {
     setFilteredOrders(next)
   }, [searchTerm, statusFilter, freightFilter, orders])
 
+  const fetchCustomerOrders = async () => {
+    try {
+      setLoading(true)
+
+      // Fetch customer-specific orders
+      const response = await fetch(`/api/client-portal/orders?clientId=${user?.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          // Transform API data to match our interface
+          const transformedOrders = data.data.orders.map((order: any) => ({
+            id: order.id,
+            po_number: order.po_number || order.poNumber,
+            status: order.status,
+            cargo_status: order.cargo_status || order.cargoStatus,
+            freight_type: order.freight_type || order.freightType,
+            total_value: order.total_value || order.totalValue,
+            created_at: order.created_at || order.createdAt,
+            estimated_delivery: order.estimated_delivery || order.estimatedDelivery,
+            supplier: order.supplier,
+            destination: order.destination,
+            vessel_name: order.vessel_name || order.vesselName,
+            eta_at_port: order.eta_at_port || order.etaAtPort,
+            tracking_number: order.tracking_number || order.trackingNumber,
+          }))
+          setOrders(transformedOrders)
+        } else {
+          // Fallback to mock data
+          setOrders(mockClientOrders)
+        }
+      } else {
+        // Fallback to mock data
+        setOrders(mockClientOrders)
+      }
+    } catch (error) {
+      console.error("Error fetching orders:", error)
+      // Fallback to mock data
+      setOrders(mockClientOrders)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleTrackOrder = (order: Order) => {
     if (order.tracking_number) {
       router.push(`/client-portal/tracking/${order.id}?trackingNumber=${order.tracking_number}`)
@@ -224,31 +216,12 @@ export default function ClientPortalOrdersPage() {
 
   const isAdmin = user?.role === "admin"
 
-  if (isAuthLoading || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Spinner size="lg" />
-          <p className="mt-2 text-gray-500">Loading your orders...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error && orders.length === 0) {
-    return (
-      <div className="container mx-auto p-6">
-        <Alert variant="destructive">
-          <Terminal className="h-4 w-4" />
-          <AlertTitle>Error Loading Orders</AlertTitle>
-          <AlertDescription>
-            {error} Please ensure your Supabase database is correctly configured and accessible.
-          </AlertDescription>
-        </Alert>
-        <div className="py-12 text-center">
-          <Package className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-          <h3 className="mb-2 text-lg font-medium text-gray-900">No orders found</h3>
-          <p className="text-gray-600">Try adjusting your search or filters.</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading your orders...</p>
         </div>
       </div>
     )

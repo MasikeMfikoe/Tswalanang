@@ -1,42 +1,37 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabaseClient" // Assuming this is the server-side client
-import { cookies } from "next/headers"
+import { supabase } from "@/lib/supabaseClient"
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const clientId = searchParams.get("clientId")
-    const customerIdParam = searchParams.get("customerId") // Use a different name to avoid conflict
 
-    if (!clientId && !customerIdParam) {
-      return NextResponse.json({ error: "Client ID or Customer ID is required" }, { status: 400 })
+    if (!clientId) {
+      return NextResponse.json({ error: "Client ID is required" }, { status: 400 })
     }
 
-    const cookieStore = cookies()
-    const supabase = createClient(cookieStore) // Use server-side client
+    // Get the user profile to find customer association
+    const { data: userProfile, error: userError } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .eq("id", clientId)
+      .single()
 
-    let customerId: string | null = customerIdParam // Initialize with customerIdParam if provided
-    let customerName: string | null = null
+    if (userError) {
+      console.error("Error fetching user profile:", userError)
+      return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 })
+    }
 
-    // If customerId is not provided as a param, try to get it from user_profiles
+    // Check if customer_id column exists and has a value
+    let customerId = userProfile.customer_id
+    let customerName = null
+
+    // If customer_id doesn't exist or is null, try to find a customer by email domain
     if (!customerId) {
-      const { data: userProfile, error: userError } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .eq("id", clientId)
-        .single()
-
-      if (userError) {
-        console.error("Error fetching user profile:", userError)
-        return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 })
-      }
-
-      customerId = userProfile.customer_id
-
-      // If customer_id doesn't exist or is null, try to find a customer by email domain
-      if (!customerId && userProfile.email) {
+      if (userProfile.email) {
         const emailDomain = userProfile.email.split("@")[1]
 
+        // Try to find a customer with matching email domain
         const { data: customers } = await supabase
           .from("customers")
           .select("id, name")
@@ -47,19 +42,19 @@ export async function GET(request: NextRequest) {
           customerId = customers[0].id
           customerName = customers[0].name
 
-          // Optionally update the user profile with the found customer_id
+          // Update the user profile with the found customer_id
           await supabase.from("user_profiles").update({ customer_id: customerId }).eq("id", clientId)
         }
       }
     }
 
-    // If we still don't have a customerId, return mock data
+    // If we still don't have a customer, use mock data specific to this client
     if (!customerId) {
-      console.warn("No customer ID found for user, returning mock data.")
+      // Return client-specific mock data
       return NextResponse.json({
         success: true,
         data: {
-          customer: { name: "Demo Company" },
+          customer: { name: userProfile.department || "Demo Company" },
           orders: [
             {
               id: "1",
@@ -128,7 +123,6 @@ export async function GET(request: NextRequest) {
         .single()
 
       if (customerError) {
-        console.error("Error fetching customer:", customerError)
         return NextResponse.json({ error: "Customer not found" }, { status: 404 })
       }
 
@@ -146,8 +140,8 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
 
     if (ordersError) {
-      console.error("Error fetching orders from Supabase:", ordersError)
-      return NextResponse.json({ error: `Failed to fetch orders: ${ordersError.message}` }, { status: 500 })
+      console.error("Error fetching orders:", ordersError)
+      return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 })
     }
 
     // Calculate statistics
@@ -170,8 +164,8 @@ export async function GET(request: NextRequest) {
         },
       },
     })
-  } catch (error: any) {
-    console.error("Internal server error fetching client orders:", error)
-    return NextResponse.json({ error: `Internal server error: ${error.message}` }, { status: 500 })
+  } catch (error) {
+    console.error("Error fetching client orders:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

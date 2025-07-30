@@ -1,272 +1,367 @@
 "use client"
 
-import { CardDescription } from "@/components/ui/card"
-
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState, useCallback } from "react"
+import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Package, MapPin, Calendar, Truck, Ship, Plane, AlertCircle } from "lucide-react"
-import { Spinner } from "@/components/ui/spinner"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { format } from "date-fns"
+import { ArrowLeft, Package, Ship, MapPin, Clock, Truck } from "lucide-react"
 
 interface TrackingEvent {
-  timestamp: string
-  location: string
+  id: string
   status: string
+  location: string
+  timestamp: string
   description: string
 }
 
-interface TrackingData {
-  orderId: string
-  poNumber: string
-  currentStatus: string
-  lastUpdated: string
+interface OrderTrackingData {
+  id: string
+  po_number: string
+  tracking_number?: string
+  status: string
+  cargo_status: string
+  supplier: string
   origin: string
   destination: string
-  estimatedDelivery: string
-  carrier: string
-  trackingNumber?: string
+  vessel_name?: string
+  freight_type: string
+  estimated_delivery?: string
   events: TrackingEvent[]
 }
 
-const mockTrackingData: TrackingData = {
-  orderId: "ORD-2024-001",
-  poNumber: "PO-ABC-001",
-  currentStatus: "In Transit",
-  lastUpdated: "2024-07-29T14:30:00Z",
-  origin: "Shanghai, China",
-  destination: "Cape Town, South Africa",
-  estimatedDelivery: "2024-08-15T00:00:00Z",
-  carrier: "MSC",
-  trackingNumber: "MRSU0547355",
-  events: [
-    {
-      timestamp: "2024-07-29T14:30:00Z",
-      location: "Port of Singapore",
-      status: "Departed",
-      description: "Vessel departed from Singapore.",
-    },
-    {
-      timestamp: "2024-07-25T09:00:00Z",
-      location: "Port of Shanghai",
-      status: "Loaded on Vessel",
-      description: "Container loaded onto vessel MSC Pamela.",
-    },
-    {
-      timestamp: "2024-07-24T16:00:00Z",
-      location: "Shanghai Terminal",
-      status: "Arrived at Port",
-      description: "Shipment arrived at origin port terminal.",
-    },
-    {
-      timestamp: "2024-07-23T10:00:00Z",
-      location: "Supplier Warehouse, Shanghai",
-      status: "Picked Up",
-      description: "Shipment picked up from supplier.",
-    },
-  ],
-}
-
-const formatDate = (dateString: string | null | undefined): string => {
-  if (!dateString) return "TBD"
-  try {
-    return format(new Date(dateString), "dd MMM yyyy")
-  } catch (e) {
-    console.error("Error formatting date:", dateString, e)
-    return "Invalid Date"
+const getStatusColor = (status: string) => {
+  switch (status.toLowerCase()) {
+    case "completed":
+    case "delivered":
+      return "bg-green-100 text-green-800"
+    case "in progress":
+    case "in-transit":
+      return "bg-blue-100 text-blue-800"
+    case "pending":
+    case "at-origin":
+      return "bg-yellow-100 text-yellow-800"
+    case "cancelled":
+      return "bg-red-100 text-red-800"
+    default:
+      return "bg-gray-100 text-gray-800"
   }
 }
 
-const formatDateTime = (dateString: string | null | undefined): string => {
+const formatCargoStatus = (status: string) =>
+  status
+    .split("-")
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ")
+
+const formatDate = (dateString: string) => {
   if (!dateString) return "TBD"
   try {
-    return format(new Date(dateString), "dd MMM yyyy HH:mm")
-  } catch (e) {
-    console.error("Error formatting date time:", dateString, e)
-    return "Invalid Date"
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return "TBD"
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  } catch {
+    return "TBD"
   }
 }
 
-export default function TrackingResultsPage({ params }: { params: { id: string } }) {
+export default function OrderTrackingPage({ params }: { params: { id: string } }) {
+  const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const orderId = params.id
-  const trackingNumberFromUrl = searchParams.get("trackingNumber")
+  const trackingNumber = searchParams.get("trackingNumber")
 
-  const [trackingData, setTrackingData] = useState<TrackingData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [trackingData, setTrackingData] = useState<OrderTrackingData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchTrackingDetails = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await fetch(
-        `/api/client-portal/tracking/${orderId}?trackingNumber=${trackingNumberFromUrl || ""}`,
-      )
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to fetch tracking details.")
-      }
-      const data = await response.json()
-      if (data.success) {
-        setTrackingData(data.data)
-      } else {
-        setTrackingData(mockTrackingData) // Fallback to mock data
-        setError("API returned success: false. Using mock data.")
-      }
-    } catch (err: any) {
-      console.error("Error fetching tracking details:", err)
-      setError(err.message || "An unexpected error occurred while fetching tracking details. Using mock data.")
-      setTrackingData(mockTrackingData) // Fallback to mock data on error
-    } finally {
-      setLoading(false)
-    }
-  }, [orderId, trackingNumberFromUrl])
+  // Mock tracking data
+  const mockTrackingData: OrderTrackingData = {
+    id: params.id,
+    po_number: "PO-ABC-001",
+    tracking_number: trackingNumber || "MRSU0547355",
+    status: "In Progress",
+    cargo_status: "in-transit",
+    supplier: "Global Electronics Ltd",
+    origin: "Shanghai, China",
+    destination: "Cape Town, South Africa",
+    vessel_name: "MSC Pamela",
+    freight_type: "Sea Freight",
+    estimated_delivery: "2024-02-15T10:00:00Z",
+    events: [
+      {
+        id: "1",
+        status: "Cargo Departed",
+        location: "Shanghai Port, China",
+        timestamp: "2024-01-15T08:00:00Z",
+        description: "Container loaded and vessel departed from origin port",
+      },
+      {
+        id: "2",
+        status: "In Transit",
+        location: "Indian Ocean",
+        timestamp: "2024-01-25T14:30:00Z",
+        description: "Vessel in transit, on schedule",
+      },
+      {
+        id: "3",
+        status: "Approaching Destination",
+        location: "South Atlantic Ocean",
+        timestamp: "2024-02-05T09:15:00Z",
+        description: "Vessel approaching destination port",
+      },
+      {
+        id: "4",
+        status: "At Destination Port",
+        location: "Cape Town Port, South Africa",
+        timestamp: "2024-02-10T16:45:00Z",
+        description: "Vessel arrived at destination port, awaiting discharge",
+      },
+    ],
+  }
 
   useEffect(() => {
-    fetchTrackingDetails()
-  }, [fetchTrackingDetails])
+    fetchTrackingData()
+  }, [params.id])
 
-  const getFreightIcon = (carrier: string) => {
-    if (
-      carrier.toLowerCase().includes("sea") ||
-      carrier.toLowerCase().includes("msc") ||
-      carrier.toLowerCase().includes("maersk")
-    ) {
-      return <Ship className="h-5 w-5 text-blue-500" />
+  const fetchTrackingData = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      // In production, this would fetch from your tracking API
+      /*
+      const response = await fetch(`/api/client-portal/tracking/${params.id}?clientId=${user?.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setTrackingData(data.data)
+        } else {
+          setError(data.error || "Failed to fetch tracking data")
+        }
+      } else {
+        setError("Failed to fetch tracking data")
+      }
+      */
+
+      // Using mock data for demonstration
+      setTimeout(() => {
+        setTrackingData(mockTrackingData)
+        setIsLoading(false)
+      }, 1000)
+    } catch (error) {
+      console.error("Error fetching tracking data:", error)
+      setError("An error occurred while fetching tracking data")
+      setIsLoading(false)
     }
-    if (carrier.toLowerCase().includes("air")) {
-      return <Plane className="h-5 w-5 text-purple-500" />
-    }
-    return <Truck className="h-5 w-5 text-gray-500" />
   }
 
-  if (loading) {
+  if (!user || (user.role !== "client" && user.role !== "guest" && user.role !== "admin")) {
     return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-64px)]">
-        <Spinner size="lg" />
+      <div className="flex items-center justify-center h-screen">
+        <Card className="w-96">
+          <CardHeader>
+            <CardTitle className="text-center text-red-600">Access Denied</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-center text-gray-600">You don't have permission to view this tracking information.</p>
+            <Button className="w-full mt-4" onClick={() => router.push("/client-portal")}>
+              Return to Portal
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
-  if (error && !trackingData) {
+  if (isLoading) {
     return (
-      <div className="container mx-auto p-4">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-        <Button onClick={() => router.push("/client-portal/orders")} className="mt-4">
-          <ArrowLeft className="h-4 w-4 mr-2" /> Back to Orders
-        </Button>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Package className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading tracking information...</p>
+        </div>
       </div>
     )
   }
 
-  if (!trackingData) {
+  if (error || !trackingData) {
     return (
-      <div className="container mx-auto p-4 text-center">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Tracking Data Not Found</AlertTitle>
-          <AlertDescription>No tracking information could be retrieved for order ID: {orderId}.</AlertDescription>
-        </Alert>
-        <Button onClick={() => router.push("/client-portal/orders")} className="mt-4">
-          <ArrowLeft className="h-4 w-4 mr-2" /> Back to Orders
-        </Button>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-96">
+          <CardHeader>
+            <CardTitle className="text-center text-red-600">Tracking Error</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-center text-gray-600 mb-4">
+              {error || "Unable to load tracking information for this order."}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 bg-transparent"
+                onClick={() => router.push("/client-portal/orders")}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Orders
+              </Button>
+              <Button className="flex-1" onClick={fetchTrackingData}>
+                Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-6 px-4">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Shipment Tracking</h1>
-        <Button variant="outline" onClick={() => router.push("/client-portal/orders")}>
-          <ArrowLeft className="h-4 w-4 mr-2" /> Back to Orders
-        </Button>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <Button variant="outline" onClick={() => router.push("/client-portal/orders")} className="mb-4">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Orders
+          </Button>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" /> Order: {trackingData.poNumber}
-          </CardTitle>
-          <CardDescription>Tracking details for your shipment</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-gray-500">Current Status</p>
-            <p className="text-lg font-semibold">{trackingData.currentStatus}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Last Updated</p>
-            <p className="text-lg font-semibold">{formatDateTime(trackingData.lastUpdated)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Origin</p>
-            <p className="text-lg font-semibold flex items-center gap-1">
-              <MapPin className="h-4 w-4" /> {trackingData.origin}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Destination</p>
-            <p className="text-lg font-semibold flex items-center gap-1">
-              <MapPin className="h-4 w-4" /> {trackingData.destination}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Estimated Delivery</p>
-            <p className="text-lg font-semibold flex items-center gap-1">
-              <Calendar className="h-4 w-4" /> {formatDate(trackingData.estimatedDelivery)}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Carrier</p>
-            <p className="text-lg font-semibold flex items-center gap-1">
-              {getFreightIcon(trackingData.carrier)} {trackingData.carrier}
-            </p>
-          </div>
-          {trackingData.trackingNumber && (
+          <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-gray-500">Tracking Number</p>
-              <p className="text-lg font-semibold">{trackingData.trackingNumber}</p>
+              <h1 className="text-3xl font-bold text-gray-900">Order Tracking</h1>
+              <p className="text-gray-600 mt-2">{trackingData.po_number}</p>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Tracking History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {trackingData.events.length === 0 ? (
-            <p className="text-gray-500">No tracking events found yet.</p>
-          ) : (
-            <ol className="relative border-l border-gray-200 dark:border-gray-700 ml-4">
-              {trackingData.events.map((event, index) => (
-                <li key={index} className="mb-10 ml-6">
-                  <span className="absolute flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full -left-3 ring-8 ring-white dark:ring-gray-900 dark:bg-blue-900">
-                    <Truck className="w-3 h-3 text-blue-800 dark:text-blue-300" />
-                  </span>
-                  <h3 className="flex items-center mb-1 text-lg font-semibold text-gray-900 dark:text-white">
-                    {event.status}
-                  </h3>
-                  <time className="block mb-2 text-sm font-normal leading-none text-gray-400 dark:text-gray-500">
-                    {formatDateTime(event.timestamp)} - {event.location}
-                  </time>
-                  <p className="mb-4 text-base font-normal text-gray-500 dark:text-gray-400">{event.description}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </CardContent>
-      </Card>
+            <div className="flex space-x-2">
+              <Badge className={getStatusColor(trackingData.status)}>{trackingData.status}</Badge>
+              <Badge className={getStatusColor(trackingData.cargo_status)}>
+                {formatCargoStatus(trackingData.cargo_status)}
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* Order Summary */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Ship className="h-5 w-5" />
+              Shipment Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div>
+                <label className="text-sm font-medium text-gray-600">Tracking Number</label>
+                <p className="text-lg font-mono">{trackingData.tracking_number || "N/A"}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Supplier</label>
+                <p className="text-lg">{trackingData.supplier}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Freight Type</label>
+                <p className="text-lg">{trackingData.freight_type}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Origin</label>
+                <p className="text-lg">{trackingData.origin}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Destination</label>
+                <p className="text-lg">{trackingData.destination}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Vessel</label>
+                <p className="text-lg">{trackingData.vessel_name || "N/A"}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tracking Timeline */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Tracking Timeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {trackingData.events && trackingData.events.length > 0 ? (
+              <div className="space-y-6">
+                {trackingData.events.map((event, index) => (
+                  <div key={event.id} className="flex items-start gap-4">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`w-4 h-4 rounded-full ${
+                          index === trackingData.events.length - 1 ? "bg-blue-500" : "bg-green-500"
+                        }`}
+                      />
+                      {index < trackingData.events.length - 1 && <div className="w-px h-12 bg-gray-300 mt-2" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-900">{event.status}</h3>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Clock className="h-4 w-4 mr-1" />
+                          {formatDate(event.timestamp)}
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">{event.location}</p>
+                      <p className="text-sm text-gray-500 mt-1">{event.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Truck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No tracking events available</h3>
+                <p className="text-gray-600">Tracking information will be updated as your shipment progresses.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* External Tracking Links */}
+        {trackingData.tracking_number && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>External Tracking</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    window.open(
+                      `https://www.msc.com/track-a-shipment?trackingNumber=${trackingData.tracking_number}`,
+                      "_blank",
+                    )
+                  }
+                >
+                  Track on MSC Website
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    window.open(`https://www.maersk.com/tracking/${trackingData.tracking_number}`, "_blank")
+                  }
+                >
+                  Track on Maersk Website
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }
