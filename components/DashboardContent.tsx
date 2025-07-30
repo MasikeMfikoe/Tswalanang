@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { format, subDays, startOfDay, endOfDay } from "date-fns"
+import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader"
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs"
 import { RecentOrdersList } from "@/components/dashboard/RecentOrdersList"
@@ -27,6 +27,24 @@ type PeriodOption = {
   getDateRange: () => DateRange
 }
 
+interface DashboardData {
+  orders: any[]
+  customers: any[]
+  courierOrders: any[]
+  estimates: any[]
+  deliveries: any[]
+  documents: any[]
+}
+
+interface PerformanceData {
+  avgProcessingTime: number
+  onTimeDeliveryRate: number
+  customerRetentionRate: number
+  monthlyOrderTrend: Array<{ name: string; value: number }>
+  customerAcquisitionTrend: Array<{ name: string; value: number }>
+  orderValueDistribution: Array<{ range: string; percentage: number }>
+}
+
 export default function DashboardContent() {
   // Supabase client
   const supabase = createClientComponentClient()
@@ -41,8 +59,22 @@ export default function DashboardContent() {
   const [endDate, setEndDate] = useState<string>("")
   const [showCustomDateRange, setShowCustomDateRange] = useState(false)
   const [filteredOrders, setFilteredOrders] = useState<any[]>([])
-  const [allOrders, setAllOrders] = useState<any[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    orders: [],
+    customers: [],
+    courierOrders: [],
+    estimates: [],
+    deliveries: [],
+    documents: [],
+  })
+  const [performanceData, setPerformanceData] = useState<PerformanceData>({
+    avgProcessingTime: 0,
+    onTimeDeliveryRate: 0,
+    customerRetentionRate: 0,
+    monthlyOrderTrend: [],
+    customerAcquisitionTrend: [],
+    orderValueDistribution: [],
+  })
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null])
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -51,46 +83,63 @@ export default function DashboardContent() {
   const [activeTab, setActiveTab] = useState("overview")
   const [noDataMessage, setNoDataMessage] = useState("")
 
-  // Fetch data from Supabase
+  // Fetch comprehensive data from Supabase
   useEffect(() => {
-    async function fetchData() {
+    async function fetchAllData() {
       setIsLoading(true)
       try {
-        // Fetch orders from Supabase
-        const { data: ordersData, error: ordersError } = await supabase.from("orders").select("*")
+        // Fetch all data in parallel
+        const [ordersResult, customersResult, courierOrdersResult, estimatesResult, deliveriesResult, documentsResult] =
+          await Promise.all([
+            supabase.from("orders").select("*").order("created_at", { ascending: false }),
+            supabase.from("customers").select("*").order("created_at", { ascending: false }),
+            supabase.from("courier_orders").select("*").order("created_at", { ascending: false }),
+            supabase.from("estimates").select("*").order("created_at", { ascending: false }),
+            supabase.from("deliveries").select("*").order("created_at", { ascending: false }),
+            supabase.from("documents").select("*").order("created_at", { ascending: false }),
+          ])
 
-        if (ordersError) {
-          console.error("Error fetching orders:", ordersError)
+        // Handle orders
+        if (ordersResult.error) {
+          console.error("Error fetching orders:", ordersResult.error)
           toast({
             title: "Error fetching orders",
             description: "Could not retrieve orders from database",
             variant: "destructive",
           })
-          setNoDataMessage("Could not retrieve orders from database. Please check your connection.")
-          setAllOrders([])
-        } else if (ordersData && ordersData.length > 0) {
-          setAllOrders(ordersData)
-          setNoDataMessage("")
-        } else {
-          setAllOrders([])
-          setNoDataMessage("No orders found in the database. Please create some orders first.")
         }
 
-        // Fetch customers from Supabase
-        const { data: customersData, error: customersError } = await supabase.from("customers").select("*")
-
-        if (customersError) {
-          console.error("Error fetching customers:", customersError)
+        // Handle customers
+        if (customersResult.error) {
+          console.error("Error fetching customers:", customersResult.error)
           toast({
             title: "Error fetching customers",
             description: "Could not retrieve customers from database",
             variant: "destructive",
           })
-          setCustomers([])
-        } else if (customersData && customersData.length > 0) {
-          setCustomers(customersData)
+        }
+
+        // Set dashboard data
+        const newDashboardData: DashboardData = {
+          orders: ordersResult.data || [],
+          customers: customersResult.data || [],
+          courierOrders: courierOrdersResult.data || [],
+          estimates: estimatesResult.data || [],
+          deliveries: deliveriesResult.data || [],
+          documents: documentsResult.data || [],
+        }
+
+        setDashboardData(newDashboardData)
+
+        // Calculate performance metrics from real data
+        const perfData = calculatePerformanceMetrics(newDashboardData)
+        setPerformanceData(perfData)
+
+        // Set no data message if needed
+        if (newDashboardData.orders.length === 0) {
+          setNoDataMessage("No orders found in the database. Please create some orders first.")
         } else {
-          setCustomers([])
+          setNoDataMessage("")
         }
       } catch (error) {
         console.error("Error in data fetching:", error)
@@ -105,8 +154,115 @@ export default function DashboardContent() {
       }
     }
 
-    fetchData()
+    fetchAllData()
   }, [supabase])
+
+  // Calculate performance metrics from real data
+  const calculatePerformanceMetrics = (data: DashboardData): PerformanceData => {
+    const { orders, customers, courierOrders, deliveries } = data
+
+    // Calculate average processing time
+    const completedOrders = orders.filter((order) => order.status === "Completed" || order.status === "completed")
+
+    let avgProcessingTime = 0
+    if (completedOrders.length > 0) {
+      const totalProcessingTime = completedOrders.reduce((sum, order) => {
+        const created = new Date(order.created_at || order.createdAt)
+        const updated = new Date(order.updated_at || order.updatedAt || order.created_at || order.createdAt)
+        const diffDays = Math.max(1, Math.ceil((updated.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)))
+        return sum + diffDays
+      }, 0)
+      avgProcessingTime = totalProcessingTime / completedOrders.length
+    }
+
+    // Calculate on-time delivery rate
+    const deliveredOrders = [...orders, ...courierOrders, ...deliveries].filter(
+      (item) => item.status === "delivered" || item.status === "Completed",
+    )
+    const onTimeDeliveries = deliveredOrders.filter((item) => {
+      // Assume on-time if delivered within estimated time or no delays recorded
+      return !item.delayed && !item.late
+    })
+    const onTimeDeliveryRate = deliveredOrders.length > 0 ? (onTimeDeliveries.length / deliveredOrders.length) * 100 : 0
+
+    // Calculate customer retention rate
+    const customersWithMultipleOrders = customers.filter((customer) => {
+      const customerOrders = orders.filter(
+        (order) => order.customer_id === customer.id || order.customerName === customer.name,
+      )
+      return customerOrders.length > 1
+    })
+    const customerRetentionRate =
+      customers.length > 0 ? (customersWithMultipleOrders.length / customers.length) * 100 : 0
+
+    // Calculate monthly order trend (last 12 months)
+    const monthlyOrderTrend = []
+    for (let i = 11; i >= 0; i--) {
+      const monthStart = startOfMonth(subMonths(new Date(), i))
+      const monthEnd = endOfMonth(subMonths(new Date(), i))
+      const monthOrders = orders.filter((order) => {
+        const orderDate = new Date(order.created_at || order.createdAt)
+        return orderDate >= monthStart && orderDate <= monthEnd
+      })
+      monthlyOrderTrend.push({
+        name: format(monthStart, "MMM"),
+        value: monthOrders.length,
+      })
+    }
+
+    // Calculate customer acquisition trend (last 6 months)
+    const customerAcquisitionTrend = []
+    for (let i = 5; i >= 0; i--) {
+      const monthStart = startOfMonth(subMonths(new Date(), i))
+      const monthEnd = endOfMonth(subMonths(new Date(), i))
+      const newCustomers = customers.filter((customer) => {
+        const customerDate = new Date(customer.created_at || customer.createdAt)
+        return customerDate >= monthStart && customerDate <= monthEnd
+      })
+      customerAcquisitionTrend.push({
+        name: format(monthStart, "MMM"),
+        value: newCustomers.length,
+      })
+    }
+
+    // Calculate order value distribution
+    const orderValues = orders.map((order) => order.total_value || order.totalValue || 0)
+    const totalOrders = orderValues.length
+
+    const orderValueDistribution = [
+      {
+        range: "R 0 - R 1,000",
+        percentage: totalOrders > 0 ? (orderValues.filter((v) => v <= 1000).length / totalOrders) * 100 : 0,
+      },
+      {
+        range: "R 1,001 - R 5,000",
+        percentage: totalOrders > 0 ? (orderValues.filter((v) => v > 1000 && v <= 5000).length / totalOrders) * 100 : 0,
+      },
+      {
+        range: "R 5,001 - R 10,000",
+        percentage:
+          totalOrders > 0 ? (orderValues.filter((v) => v > 5000 && v <= 10000).length / totalOrders) * 100 : 0,
+      },
+      {
+        range: "R 10,001 - R 50,000",
+        percentage:
+          totalOrders > 0 ? (orderValues.filter((v) => v > 10000 && v <= 50000).length / totalOrders) * 100 : 0,
+      },
+      {
+        range: "R 50,001+",
+        percentage: totalOrders > 0 ? (orderValues.filter((v) => v > 50000).length / totalOrders) * 100 : 0,
+      },
+    ]
+
+    return {
+      avgProcessingTime,
+      onTimeDeliveryRate,
+      customerRetentionRate,
+      monthlyOrderTrend,
+      customerAcquisitionTrend,
+      orderValueDistribution,
+    }
+  }
 
   // Predefined period options
   const periodOptions: PeriodOption[] = useMemo(
@@ -221,23 +377,23 @@ export default function DashboardContent() {
 
   // Filter orders when date range changes
   useEffect(() => {
-    if (startDate && endDate && allOrders.length > 0) {
+    if (startDate && endDate && dashboardData.orders.length > 0) {
       setIsLoading(true)
       setTimeout(() => {
-        const filtered = allOrders.filter((order) => {
-          const orderDate = new Date(order.createdAt || order.created_at)
+        const filtered = dashboardData.orders.filter((order) => {
+          const orderDate = new Date(order.created_at || order.createdAt)
           return orderDate >= new Date(startDate) && orderDate <= new Date(endDate)
         })
         setFilteredOrders(filtered)
         setIsLoading(false)
       }, 500)
     } else {
-      setFilteredOrders(allOrders)
+      setFilteredOrders(dashboardData.orders)
     }
-  }, [startDate, endDate, allOrders])
+  }, [startDate, endDate, dashboardData.orders])
 
   // Calculate order statistics
-  const totalOrderValue = filteredOrders.reduce((sum, order) => sum + (order.totalValue || order.total_value || 0), 0)
+  const totalOrderValue = filteredOrders.reduce((sum, order) => sum + (order.total_value || order.totalValue || 0), 0)
   const activeOrders = filteredOrders.filter(
     (order) => order.status === "In Progress" || order.status === "in_progress",
   )
@@ -246,12 +402,23 @@ export default function DashboardContent() {
 
   // Sort orders by date for recent activity
   const recentOrders = [...filteredOrders]
-    .sort((a, b) => new Date(b.createdAt || b.created_at).getTime() - new Date(a.createdAt || a.created_at).getTime())
+    .sort((a, b) => new Date(b.created_at || b.createdAt).getTime() - new Date(a.created_at || a.createdAt).getTime())
     .slice(0, 5)
 
   // Sort customers by total orders for top customers
-  const topCustomers = [...customers]
-    .sort((a, b) => (b.totalOrders || b.total_orders || 0) - (a.totalOrders || a.total_orders || 0))
+  const topCustomers = [...dashboardData.customers]
+    .map((customer) => {
+      const customerOrders = dashboardData.orders.filter(
+        (order) => order.customer_id === customer.id || order.customerName === customer.name,
+      )
+      const totalSpent = customerOrders.reduce((sum, order) => sum + (order.total_value || order.totalValue || 0), 0)
+      return {
+        ...customer,
+        totalOrders: customerOrders.length,
+        totalSpent,
+      }
+    })
+    .sort((a, b) => b.totalOrders - a.totalOrders)
     .slice(0, 3)
 
   // Combined order status data for visualization
@@ -261,67 +428,110 @@ export default function DashboardContent() {
     { name: "Pending", value: pendingOrders.length, color: "#f59e0b" },
   ]
 
-  // Monthly order trend data - this should ideally come from Supabase too
-  // For now we'll keep this as is since it requires more complex aggregation
-  const monthlyOrderTrendData = [
-    { name: "Jan", value: 42 },
-    { name: "Feb", value: 55 },
-    { name: "Mar", value: 67 },
-    { name: "Apr", value: 45 },
-    { name: "May", value: 78 },
-    { name: "Jun", value: 63 },
-    { name: "Jul", value: 82 },
-    { name: "Aug", value: 91 },
-    { name: "Sep", value: 65 },
-    { name: "Oct", value: 73 },
-    { name: "Nov", value: 88 },
-    { name: "Dec", value: 94 },
-  ]
-
-  // Performance metrics data
+  // Performance metrics data from real calculations
   const performanceMetrics = [
     {
-      title: "Delivery Target",
-      description: "Monthly delivery completion rate",
-      value: 65,
-      target: 100,
-      timeframe: "Dec 2024",
-      status: "In Progress",
-      statusColor: "bg-blue-900",
-      progressColor: "bg-blue-500",
-      color: "text-blue-500",
+      title: "Delivery Performance",
+      description: "On-time delivery completion rate",
+      value: Math.round(performanceData.onTimeDeliveryRate),
+      target: 95,
+      timeframe: "Current Period",
+      status:
+        performanceData.onTimeDeliveryRate >= 90
+          ? "On Track"
+          : performanceData.onTimeDeliveryRate >= 75
+            ? "At Risk"
+            : "Behind",
+      statusColor:
+        performanceData.onTimeDeliveryRate >= 90
+          ? "bg-green-900"
+          : performanceData.onTimeDeliveryRate >= 75
+            ? "bg-yellow-900"
+            : "bg-red-900",
+      progressColor:
+        performanceData.onTimeDeliveryRate >= 90
+          ? "bg-green-500"
+          : performanceData.onTimeDeliveryRate >= 75
+            ? "bg-yellow-500"
+            : "bg-red-500",
+      color:
+        performanceData.onTimeDeliveryRate >= 90
+          ? "text-green-500"
+          : performanceData.onTimeDeliveryRate >= 75
+            ? "text-yellow-500"
+            : "text-red-500",
       icon: "Truck",
-      daysLeft: 45,
+      daysLeft: 30,
     },
     {
       title: "Order Processing",
-      description: "Order completion efficiency",
-      value: 30,
-      target: 500,
-      timeframe: "Jun 2024",
-      status: "Pending",
-      statusColor: "bg-orange-900",
-      progressColor: "bg-orange-500",
-      color: "text-orange-500",
+      description: "Average processing time efficiency",
+      value: Math.round(performanceData.avgProcessingTime * 10), // Convert days to a percentage-like metric
+      target: 100,
+      timeframe: "Current Period",
+      status:
+        performanceData.avgProcessingTime <= 2
+          ? "Excellent"
+          : performanceData.avgProcessingTime <= 3
+            ? "Good"
+            : "Needs Improvement",
+      statusColor:
+        performanceData.avgProcessingTime <= 2
+          ? "bg-green-900"
+          : performanceData.avgProcessingTime <= 3
+            ? "bg-yellow-900"
+            : "bg-red-900",
+      progressColor:
+        performanceData.avgProcessingTime <= 2
+          ? "bg-green-500"
+          : performanceData.avgProcessingTime <= 3
+            ? "bg-yellow-500"
+            : "bg-red-500",
+      color:
+        performanceData.avgProcessingTime <= 2
+          ? "text-green-500"
+          : performanceData.avgProcessingTime <= 3
+            ? "text-yellow-500"
+            : "text-red-500",
       icon: "Package",
-      daysLeft: 180,
+      daysLeft: 30,
     },
     {
-      title: "Documentation",
-      description: "Document processing rate",
-      value: 45,
-      target: 1000,
-      timeframe: "Mar 2025",
-      status: "On Track",
-      statusColor: "bg-green-900",
-      progressColor: "bg-green-500",
-      color: "text-green-500",
+      title: "Customer Retention",
+      description: "Customer retention and loyalty rate",
+      value: Math.round(performanceData.customerRetentionRate),
+      target: 80,
+      timeframe: "Current Period",
+      status:
+        performanceData.customerRetentionRate >= 75
+          ? "Excellent"
+          : performanceData.customerRetentionRate >= 60
+            ? "Good"
+            : "Needs Focus",
+      statusColor:
+        performanceData.customerRetentionRate >= 75
+          ? "bg-green-900"
+          : performanceData.customerRetentionRate >= 60
+            ? "bg-yellow-900"
+            : "bg-red-900",
+      progressColor:
+        performanceData.customerRetentionRate >= 75
+          ? "bg-green-500"
+          : performanceData.customerRetentionRate >= 60
+            ? "bg-yellow-500"
+            : "bg-red-500",
+      color:
+        performanceData.customerRetentionRate >= 75
+          ? "text-green-500"
+          : performanceData.customerRetentionRate >= 60
+            ? "text-yellow-500"
+            : "text-red-500",
       icon: "FileText",
-      daysLeft: 120,
+      daysLeft: 30,
     },
   ]
 
-  // Mock notifications
+  // Mock notifications (these could also be made dynamic)
   const notifications = [
     { id: 1, title: "New Order", message: "Order PO-2024-006 has been created", time: "5 minutes ago", read: false },
     {
@@ -376,7 +586,6 @@ export default function DashboardContent() {
 
   // Mark all notifications as read
   const markAllAsRead = () => {
-    // In a real app, this would call an API to update the notification status
     console.log("Marking all notifications as read")
   }
 
@@ -384,7 +593,6 @@ export default function DashboardContent() {
   const applyDateRange = () => {
     if (startDate && endDate) {
       console.log(`Applying date range: ${startDate} to ${endDate}`)
-      // This would trigger a data fetch in a real application
     }
   }
 
@@ -474,47 +682,62 @@ export default function DashboardContent() {
           filteredOrders={filteredOrders}
           totalOrderValue={totalOrderValue}
           completedOrders={completedOrders}
-          customers={customers}
+          customers={dashboardData.customers}
           orderStatusData={orderStatusData}
-          monthlyOrderTrendData={monthlyOrderTrendData}
+          monthlyOrderTrendData={performanceData.monthlyOrderTrend}
           activeOrders={activeOrders}
           pendingOrders={pendingOrders}
         >
-          {/* Orders Tab Content */}
-          <TabsContent value="orders" className="mt-4">
-            {isLoading ? (
-              renderSkeleton()
-            ) : (
-              <>
-                <RecentOrdersList isDarkMode={isDarkMode} recentOrders={recentOrders} />
-                <OrderStatistics isDarkMode={isDarkMode} />
-              </>
-            )}
-          </TabsContent>
+          <Tabs>
+            {/* Orders Tab Content */}
+            <TabsContent value="orders" className="mt-4">
+              {isLoading ? (
+                renderSkeleton()
+              ) : (
+                <>
+                  <RecentOrdersList isDarkMode={isDarkMode} recentOrders={recentOrders} />
+                  <OrderStatistics
+                    isDarkMode={isDarkMode}
+                    avgProcessingTime={performanceData.avgProcessingTime}
+                    orderValueDistribution={performanceData.orderValueDistribution}
+                  />
+                </>
+              )}
+            </TabsContent>
 
-          {/* Customers Tab Content */}
-          <TabsContent value="customers" className="mt-4">
-            {isLoading ? (
-              renderSkeleton()
-            ) : (
-              <>
-                <TopCustomers isDarkMode={isDarkMode} topCustomers={topCustomers} />
-                <CustomerStatistics isDarkMode={isDarkMode} />
-              </>
-            )}
-          </TabsContent>
+            {/* Customers Tab Content */}
+            <TabsContent value="customers" className="mt-4">
+              {isLoading ? (
+                renderSkeleton()
+              ) : (
+                <>
+                  <TopCustomers isDarkMode={isDarkMode} topCustomers={topCustomers} />
+                  <CustomerStatistics
+                    isDarkMode={isDarkMode}
+                    customerAcquisitionTrend={performanceData.customerAcquisitionTrend}
+                    customerRetentionRate={performanceData.customerRetentionRate}
+                  />
+                </>
+              )}
+            </TabsContent>
 
-          {/* Performance Tab Content */}
-          <TabsContent value="performance" className="mt-4">
-            {isLoading ? (
-              renderSkeleton()
-            ) : (
-              <>
-                <PerformanceMetrics isDarkMode={isDarkMode} performanceMetrics={performanceMetrics} />
-                <PerformanceCharts isDarkMode={isDarkMode} />
-              </>
-            )}
-          </TabsContent>
+            {/* Performance Tab Content */}
+            <TabsContent value="performance" className="mt-4">
+              {isLoading ? (
+                renderSkeleton()
+              ) : (
+                <>
+                  <PerformanceMetrics isDarkMode={isDarkMode} performanceMetrics={performanceMetrics} />
+                  <PerformanceCharts
+                    isDarkMode={isDarkMode}
+                    onTimeDeliveryRate={performanceData.onTimeDeliveryRate}
+                    avgProcessingTime={performanceData.avgProcessingTime}
+                    monthlyOrderTrend={performanceData.monthlyOrderTrend}
+                  />
+                </>
+              )}
+            </TabsContent>
+          </Tabs>
         </DashboardTabs>
       </div>
     </div>

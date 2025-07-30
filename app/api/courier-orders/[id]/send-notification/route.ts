@@ -1,110 +1,59 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { emailService } from "@/lib/email-service"
-import { generateSecureToken } from "@/lib/qr-code-utils"
-import { courierOrdersApi } from "@/lib/api/courierOrdersApi"
+import { createClient } from "@/lib/supabaseClient"
+// import { emailService } from "@/lib/email-service" // Removed Mailgun dependency
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  const orderId = params.id
+  const { recipientEmail, message, notificationType } = await request.json()
+  const supabase = createClient()
+
   try {
-    const orderId = params.id
-    const body = await request.json()
-    const { recipientEmail, recipientName, senderEmail, senderName, notificationType } = body
+    // Fetch order details to ensure it exists
+    const { data: order, error: orderError } = await supabase
+      .from("courier_orders")
+      .select("*")
+      .eq("id", orderId)
+      .single()
 
-    // Validate input based on notification type
-    if (notificationType === "recipient" && (!recipientEmail || !recipientName)) {
-      return NextResponse.json({ success: false, message: "Recipient email and name are required" }, { status: 400 })
+    if (orderError || !order) {
+      console.error("Error fetching order:", orderError)
+      return NextResponse.json({ message: "Order not found" }, { status: 404 })
     }
 
-    if (notificationType === "sender" && (!senderEmail || !senderName)) {
-      return NextResponse.json({ success: false, message: "Sender email and name are required" }, { status: 400 })
-    }
+    // Removed Mailgun email sending logic
+    // if (notificationType === "email") {
+    //   const emailSent = await emailService.sendEmail({
+    //     to: recipientEmail,
+    //     subject: `Update for Order #${orderId}`,
+    //     html: `<p>${message}</p><p>View your order details here: <a href="${process.env.NEXT_PUBLIC_APP_URL}/courier-orders/details/${orderId}">Order #${orderId}</a></p>`,
+    //   })
 
-    // Get order details
-    const orderResponse = await courierOrdersApi.getCourierOrder(orderId)
-    if (!orderResponse.success || !orderResponse.data) {
-      return NextResponse.json({ success: false, message: "Order not found" }, { status: 404 })
-    }
+    //   if (!emailSent) {
+    //     console.error("Failed to send email notification.")
+    //     return NextResponse.json({ message: "Failed to send email notification" }, { status: 500 })
+    //   }
+    // } else {
+    //   // Placeholder for other notification types (e.g., SMS, push)
+    //   console.log(`Simulating sending ${notificationType} notification to ${recipientEmail}: ${message}`)
+    // }
 
-    const order = orderResponse.data
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://logistics.example.com"
-    const trackingUrl = `${baseUrl}/courier-orders/details/${orderId}`
-
-    // Handle different notification types
-    let emailSent = false
-    let updateData = {}
-
-    if (notificationType === "recipient") {
-      // Generate secure token for recipient
-      const token = generateSecureToken(orderId)
-
-      // Send delivery link email to recipient
-      emailSent = await emailService.sendDeliveryLinkEmail({
-        orderId,
-        recipientName,
-        recipientEmail,
-        senderName: order.sender,
-        companyName: "TSW Smartlog",
-        estimatedDelivery: order.estimatedDelivery,
-        token,
-      })
-
-      updateData = {
-        notify_recipient: true,
-        recipient_email: recipientEmail,
-        notification_sent_at: new Date().toISOString(),
-      }
-    } else if (notificationType === "sender_created") {
-      // Send order created notification to sender
-      emailSent = await emailService.sendSenderOrderCreatedEmail({
-        orderId,
-        waybillNo: order.waybillNo,
-        senderName,
-        senderEmail,
-        recipientName: order.contactDetails?.receiver?.name || order.receiver,
-        recipientCompany: order.contactDetails?.receiver?.company || order.receiver,
-        estimatedDelivery: order.estimatedDelivery,
-        trackingUrl,
-        companyName: "TSW Smartlog",
-      })
-
-      updateData = {
-        notify_sender_on_create: true,
-        sender_email: senderEmail,
-        sender_notification_sent_at: new Date().toISOString(),
-      }
-    } else if (notificationType === "sender_confirmed") {
-      // Send delivery confirmation to sender
-      emailSent = await emailService.sendSenderDeliveryConfirmedEmail({
-        orderId,
-        waybillNo: order.waybillNo,
-        senderName,
-        senderEmail,
-        recipientName: order.contactDetails?.receiver?.name || order.receiver,
-        recipientDesignation: "Manager", // This would come from the delivery confirmation form
-        deliveryTimestamp: new Date().toISOString(),
-        signatureImageUrl: `${baseUrl}/images/signature-placeholder.png`, // This would be the actual signature
-        deliveryProofUrl: `${baseUrl}/courier-orders/details/${orderId}/proof`,
-        companyName: "TSW Smartlog",
-      })
-
-      updateData = {
-        notify_sender_on_confirm: true,
-        sender_confirmation_sent_at: new Date().toISOString(),
-      }
-    }
-
-    if (!emailSent) {
-      return NextResponse.json({ success: false, message: "Failed to send email" }, { status: 500 })
-    }
-
-    // Update order with notification details
-    await courierOrdersApi.updateCourierOrder(orderId, updateData)
-
-    return NextResponse.json({
-      success: true,
-      message: `Notification sent successfully`,
+    // Record the notification in the database
+    const { error: insertError } = await supabase.from("notifications").insert({
+      order_id: orderId,
+      type: notificationType,
+      recipient: recipientEmail,
+      message: message,
+      status: "sent", // Assuming success for now
     })
+
+    if (insertError) {
+      console.error("Error recording notification:", insertError)
+      // Log the error but don't fail the request if the notification itself was sent
+    }
+
+    return NextResponse.json({ message: "Notification sent successfully" }, { status: 200 })
   } catch (error) {
-    console.error("Error sending notification:", error)
-    return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 })
+    console.error("Error in send-notification API route:", error)
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }

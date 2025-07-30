@@ -1,200 +1,36 @@
 "use client"
-
-import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import {
-  PlaneTakeoff,
-  Ship,
-  Package,
-  MapPin,
-  Calendar,
-  Clock,
-  Info,
-  FileText,
-  ArrowRight,
-  Loader2,
-  XCircle,
-  CheckCircle,
-  Truck,
-  Warehouse,
-  Container,
-  Sailboat,
-  Anchor,
-  ClipboardList,
-  CircleDot,
-  PlaneTakeoffIcon as PlaneDeparture,
-  PlaneLandingIcon as PlaneArrival,
-  BadgeCheck,
-  Hourglass,
-} from "lucide-react"
-import type { TrackingData, TrackingEvent, ShipmentType } from "@/types/tracking"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { cn } from "@/lib/utils"
+import { Ship, PlaneTakeoff, Package } from "lucide-react"
+import type { ShipmentTrackingData } from "@/types/tracking"
 
 interface ShipmentTrackingResultsProps {
-  trackingNumber: string
-  bookingType?: ShipmentType
-  carrierHint?: string
-  preferScraping?: boolean
-}
-
-const getIconForEventType = (type: TrackingEvent["type"]) => {
-  switch (type) {
-    case "vessel-departure":
-      return <Sailboat className="h-5 w-5 text-blue-600" />
-    case "vessel-arrival":
-      return <Anchor className="h-5 w-5 text-blue-600" />
-    case "plane-takeoff":
-      return <PlaneDeparture className="h-5 w-5 text-green-600" />
-    case "plane-landing":
-      return <PlaneArrival className="h-5 w-5 text-green-600" />
-    case "gate":
-      return <Truck className="h-5 w-5 text-gray-600" />
-    case "load":
-      return <Container className="h-5 w-5 text-yellow-600" />
-    case "cargo-received":
-      return <Warehouse className="h-5 w-5 text-purple-600" />
-    case "customs-cleared":
-      return <BadgeCheck className="h-5 w-5 text-teal-600" />
-    case "event":
-    default:
-      return <CircleDot className="h-5 w-5 text-gray-500" />
-  }
+  trackingData: ShipmentTrackingData | null
+  isLoading: boolean
+  error: string | null
 }
 
 const getStatusColorClass = (status: string) => {
-  const lowerStatus = status.toLowerCase()
-  if (lowerStatus.includes("delivered") || lowerStatus.includes("completed")) {
-    return "text-green-600"
-  }
-  if (lowerStatus.includes("in transit") || lowerStatus.includes("shipped") || lowerStatus.includes("departed")) {
-    return "text-blue-600"
-  }
-  if (lowerStatus.includes("pending") || lowerStatus.includes("hold") || lowerStatus.includes("exception")) {
-    return "text-orange-600"
-  }
-  if (lowerStatus.includes("cancelled") || lowerStatus.includes("failed")) {
-    return "text-red-600"
-  }
-  return "text-gray-700"
-}
-
-const formatDate = (dateValue: string | undefined | null): string => {
-  if (
-    !dateValue ||
-    dateValue === "N/A" ||
-    dateValue === "Unknown" ||
-    dateValue === "" ||
-    dateValue === "null" ||
-    dateValue === "undefined"
-  ) {
-    return "Not Available"
-  }
-
-  try {
-    let date = new Date(dateValue)
-
-    if (isNaN(date.getTime())) {
-      const formats = [
-        dateValue.replace(/\//g, "-"),
-        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$1-$2"),
-        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$2-$1"),
-        dateValue.replace(/(\d{4})-(\d{2})-(\d{2}).*/, "$1-$2-$3"),
-      ]
-
-      for (const format of formats) {
-        date = new Date(format)
-        if (!isNaN(date.getTime())) {
-          break
-        }
-      }
-    }
-
-    if (isNaN(date.getTime())) {
-      console.warn("Could not parse date for display:", dateValue)
-      return "Not Available"
-    }
-
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  } catch (error) {
-    console.warn("Error formatting date for display:", dateValue, error)
-    return "Not Available"
+  switch (status.toLowerCase()) {
+    case "delivered":
+      return "text-green-600"
+    case "in transit":
+      return "text-blue-600"
+    case "pending":
+      return "text-yellow-600"
+    case "exception":
+      return "text-red-600"
+    default:
+      return "text-gray-600"
   }
 }
 
-export default function ShipmentTrackingResults({
-  trackingNumber,
-  bookingType,
-  carrierHint,
-  preferScraping,
-}: ShipmentTrackingResultsProps) {
-  const [trackingResult, setTrackingResult] = useState<TrackingData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [source, setSource] = useState<string | null>(null)
-  const [isLiveData, setIsLiveData] = useState<boolean>(false)
-  const [scrapedAt, setScrapedAt] = useState<string | null>(null)
-
-  useEffect(() => {
-    const fetchTrackingData = async () => {
-      setIsLoading(true)
-      setError(null)
-      setTrackingResult(null)
-      setSource(null)
-      setIsLiveData(false)
-      setScrapedAt(null)
-
-      try {
-        const response = await fetch("/api/tracking", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            trackingNumber,
-            bookingType,
-            carrierHint,
-            preferScraping,
-          }),
-        })
-
-        const result = await response.json()
-
-        if (result.success) {
-          setTrackingResult(result.data)
-          setSource(result.source)
-          setIsLiveData(result.isLiveData)
-          setScrapedAt(result.scrapedAt)
-        } else {
-          setError(result.error || "Failed to retrieve tracking information.")
-          setSource(result.source)
-        }
-      } catch (err: any) {
-        console.error("Error fetching tracking data:", err)
-        setError(err.message || "An unexpected error occurred while fetching tracking data.")
-        setSource("Client-side Fetch")
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (trackingNumber) {
-      fetchTrackingData()
-    }
-  }, [trackingNumber, bookingType, carrierHint, preferScraping])
-
+export default function ShipmentTrackingResults({ trackingData, isLoading, error }: ShipmentTrackingResultsProps) {
   if (isLoading) {
     return (
-      <Card className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm shadow-lg">
-        <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]">
-          <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
-          <p className="mt-4 text-lg text-gray-700">Tracking your shipment...</p>
-          <p className="text-sm text-gray-500">This may take a few moments.</p>
+      <Card className="w-full max-w-4xl">
+        <CardContent className="p-6 text-center">
+          <p>Loading tracking information...</p>
         </CardContent>
       </Card>
     )
@@ -202,57 +38,33 @@ export default function ShipmentTrackingResults({
 
   if (error) {
     return (
-      <Card className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-red-600 flex items-center gap-2">
-            <XCircle className="h-6 w-6" /> Tracking Error
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <p className="text-gray-700 mb-2">{error}</p>
-          {source && <p className="text-sm text-gray-500">Source: {source}</p>}
-          <p className="text-sm text-gray-500 mt-2">Please double-check your tracking number and try again.</p>
+      <Card className="w-full max-w-4xl">
+        <CardContent className="p-6 text-center text-red-500">
+          <p>Error: {error}</p>
+          <p>Please try again or check the tracking number.</p>
         </CardContent>
       </Card>
     )
   }
 
-  if (!trackingResult) {
+  if (!trackingData) {
     return (
-      <Card className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm shadow-lg">
-        <CardContent className="p-6 text-center text-gray-600">
-          No tracking information available for "{trackingNumber}".
+      <Card className="w-full max-w-4xl">
+        <CardContent className="p-6 text-center">
+          <p>Enter a tracking number to see shipment details.</p>
         </CardContent>
       </Card>
     )
   }
 
-  const {
-    shipmentNumber,
-    status,
-    containerNumber,
-    weight,
-    origin,
-    destination,
-    pol,
-    pod,
-    estimatedArrival,
-    estimatedDeparture,
-    lastLocation,
-    timeline,
-    documents,
-    details,
-    demurrageDetentionDays,
-  } = trackingResult
+  const { shipmentNumber, status, vesselName, freightType, events } = trackingData
 
-  const displayShipmentType = details?.shipmentType || bookingType || "unknown"
-  const formattedEstimatedDeparture = formatDate(estimatedDeparture)
-  const formattedEstimatedArrival = formatDate(estimatedArrival)
+  const displayShipmentType = freightType?.toLowerCase()
 
   return (
-    <Card className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm shadow-lg">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-3xl font-bold text-gray-800 flex items-center justify-between">
+    <Card className="w-full max-w-4xl">
+      <CardHeader>
+        <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <span>Shipment: {shipmentNumber}</span>
           <span className={cn("text-xl font-semibold", getStatusColorClass(status))}>{status}</span>
         </CardTitle>
@@ -260,177 +72,30 @@ export default function ShipmentTrackingResults({
           {displayShipmentType === "ocean" && <Ship className="h-4 w-4" />}
           {displayShipmentType === "air" && <PlaneTakeoff className="h-4 w-4" />}
           {displayShipmentType === "lcl" && <Package className="h-4 w-4" />}
-          <span className="capitalize">{displayShipmentType} Freight</span>
-          {source && <span className="ml-2">| Source: {source}</span>}
-          {isLiveData && (
-            <span className="ml-2 text-green-600 flex items-center">
-              <CheckCircle className="h-3 w-3 mr-1" /> Live Data
-            </span>
-          )}
-          {scrapedAt && (
-            <span className="ml-2 text-gray-500 text-xs">(Scraped: {new Date(scrapedAt).toLocaleString()})</span>
-          )}
+          {freightType && <span>{freightType}</span>}
+          {vesselName && <span>Vessel: {vesselName}</span>}
         </div>
       </CardHeader>
-      <CardContent className="p-6 pt-0">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
-          <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-gray-500" />
-            <strong>Origin:</strong> {origin} {pol && pol !== "N/A" && `(${pol})`}
-          </div>
-          <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-gray-500" />
-            <strong>Destination:</strong> {destination} {pod && pod !== "N/A" && `(${pod})`}
-          </div>
-
-          {(estimatedDeparture || estimatedArrival) && (
-            <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {estimatedDeparture && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-gray-500" />
-                  <strong>Est. Departure:</strong>
-                  <span className={formattedEstimatedDeparture === "Not Available" ? "text-gray-400 italic" : ""}>
-                    {formattedEstimatedDeparture}
-                  </span>
+      <CardContent>
+        <h3 className="text-lg font-semibold mb-4">Tracking Events</h3>
+        {events && events.length > 0 ? (
+          <div className="space-y-4">
+            {events.map((event, index) => (
+              <div key={index} className="flex items-start gap-3">
+                <div className="flex flex-col items-center">
+                  <div className="w-3 h-3 rounded-full bg-blue-500" />
+                  {index < events.length - 1 && <div className="w-px h-10 bg-gray-300" />}
                 </div>
-              )}
-              {estimatedArrival && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-gray-500" />
-                  <strong>Est. Arrival:</strong>
-                  <span className={formattedEstimatedArrival === "Not Available" ? "text-gray-400 italic" : ""}>
-                    {formattedEstimatedArrival}
-                  </span>
+                <div>
+                  <p className="font-medium">{event.location}</p>
+                  <p className="text-sm text-gray-600">{event.description}</p>
+                  <p className="text-xs text-gray-500">{new Date(event.timestamp).toLocaleString()}</p>
                 </div>
-              )}
-            </div>
-          )}
-
-          {lastLocation && lastLocation !== "N/A" && (
-            <div className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-gray-500" />
-              <strong>Last Location:</strong> {lastLocation}
-            </div>
-          )}
-          {containerNumber && containerNumber !== "N/A" && (
-            <div className="flex items-center gap-2">
-              <Container className="h-5 w-5 text-gray-500" />
-              <strong>Container No:</strong> {containerNumber}
-            </div>
-          )}
-          {/* Display Demurrage & Detention Days */}
-          {demurrageDetentionDays !== undefined && demurrageDetentionDays !== null && (
-            <div className="flex items-center gap-2">
-              <Hourglass className="h-5 w-5 text-orange-500" />
-              <strong>Demurrage & Detention Days:</strong>
-              <span className={demurrageDetentionDays > 0 ? "text-orange-600 font-semibold" : "text-green-600"}>
-                {demurrageDetentionDays}
-              </span>
-            </div>
-          )}
-          {weight && weight !== "N/A" && (
-            <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-gray-500" />
-              <strong>Weight:</strong> {weight}
-            </div>
-          )}
-        </div>
-
-        <Separator className="my-6" />
-
-        <h3 className="text-xl font-semibold text-gray-800 mb-4">Shipment Timeline</h3>
-        {timeline.length > 0 ? (
-          <Accordion type="multiple" className="w-full">
-            {timeline.map((locationEntry, locIndex) => (
-              <AccordionItem key={locIndex} value={`item-${locIndex}`}>
-                <AccordionTrigger className="text-lg font-medium text-gray-700 hover:no-underline">
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-5 w-5 text-gray-600" />
-                    {locationEntry.location}
-                    {locationEntry.terminal && (
-                      <span className="text-sm text-gray-500">({locationEntry.terminal})</span>
-                    )}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pl-8 border-l-2 border-gray-200 ml-3">
-                  {locationEntry.events.map((event, eventIndex) => (
-                    <div key={eventIndex} className="relative pb-8 last:pb-0">
-                      <div className="absolute -left-4 top-0 h-full w-px bg-gray-300" />
-                      <div className="absolute -left-5 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-white z-10">
-                        {getIconForEventType(event.type)}
-                      </div>
-                      <div className="ml-4">
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Calendar className="h-4 w-4" /> {event.date}
-                          <Clock className="h-4 w-4 ml-2" /> {event.time}
-                        </div>
-                        <h4 className="font-semibold text-gray-800 mt-1">{event.status}</h4>
-                        {event.description && <p className="text-gray-600 text-sm mt-1">{event.description}</p>}
-                        {event.vessel && <p className="text-gray-600 text-xs mt-1">Vessel: {event.vessel}</p>}
-                        {event.flightNumber && (
-                          <p className="text-gray-600 text-xs mt-1">Flight: {event.flightNumber}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </AccordionContent>
-              </AccordionItem>
+              </div>
             ))}
-          </Accordion>
+          </div>
         ) : (
-          <p className="text-gray-600">No detailed timeline available.</p>
-        )}
-
-        {documents && documents.length > 0 && (
-          <>
-            <Separator className="my-6" />
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Documents</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {documents.map((doc, index) => (
-                <a
-                  key={index}
-                  href={doc.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <FileText className="h-6 w-6 text-blue-500" />
-                  <div>
-                    <p className="font-medium text-gray-800">{doc.type || "Document"}</p>
-                    {doc.description && <p className="text-sm text-gray-600">{doc.description}</p>}
-                  </div>
-                  <ArrowRight className="ml-auto h-5 w-5 text-gray-500" />
-                </a>
-              ))}
-            </div>
-          </>
-        )}
-
-        {details && (
-          <>
-            <Separator className="my-6" />
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Shipment Details</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-700">
-              {details.packages && details.packages !== "N/A" && (
-                <div className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-gray-500" />
-                  <strong>Packages:</strong> {details.packages}
-                </div>
-              )}
-              {details.dimensions && details.dimensions !== "N/A" && (
-                <div className="flex items-center gap-2">
-                  <Info className="h-5 w-5 text-gray-500" />
-                  <strong>Dimensions:</strong> {details.dimensions}
-                </div>
-              )}
-              {details.specialInstructions && details.specialInstructions !== "N/A" && (
-                <div className="flex items-center gap-2 col-span-full">
-                  <ClipboardList className="h-5 w-5 text-gray-500" />
-                  <strong>Instructions:</strong> {details.specialInstructions}
-                </div>
-              )}
-            </div>
-          </>
+          <p className="text-gray-500">No tracking events available.</p>
         )}
       </CardContent>
     </Card>

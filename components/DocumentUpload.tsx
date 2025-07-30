@@ -403,16 +403,6 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
 
   return (
     <div className="grid grid-cols-4 gap-12 mt-8">
-      {/* Debug Info */}
-      <div className="col-span-4 mb-4 p-4 bg-gray-100 rounded-lg text-sm">
-        <div className="flex justify-between items-center">
-          <div>
-            <strong>Debug Info:</strong> Order ID: {orderId} | Documents loaded: {uploadedDocuments.length} | Editing:{" "}
-            {isEditing ? "Yes" : "No"}
-          </div>
-        </div>
-      </div>
-
       {isEditing && (
         <div className="col-span-4 mb-6">
           <div className="space-y-2">

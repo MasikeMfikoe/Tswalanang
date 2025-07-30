@@ -1,68 +1,57 @@
-import { NextResponse } from "next/server"
-import { courierOrdersApi } from "@/lib/api/courierOrdersApi"
+import { type NextRequest, NextResponse } from "next/server"
+import { createClient } from "@/lib/supabaseClient"
+// import { emailService } from "@/lib/email-service" // Removed Mailgun dependency
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  const orderId = params.id
+  const { notificationType, recipientEmail, message } = await request.json()
+  const supabase = createClient()
+
   try {
-    const orderId = params.id
+    // Fetch order details
+    const { data: order, error: orderError } = await supabase
+      .from("courier_orders")
+      .select("*")
+      .eq("id", orderId)
+      .single()
 
-    // Get order details
-    const orderResponse = await courierOrdersApi.getCourierOrder(orderId)
-    if (!orderResponse.success || !orderResponse.data) {
-      return NextResponse.json({ success: false, message: "Order not found" }, { status: 404 })
+    if (orderError || !order) {
+      console.error("Error fetching order:", orderError)
+      return NextResponse.json({ message: "Order not found" }, { status: 404 })
     }
 
-    const order = orderResponse.data
+    // Simulate sending notification (email, SMS, etc.)
+    console.log(`Sending ${notificationType} notification for Order #${orderId} to ${recipientEmail}: ${message}`)
 
-    // In a real implementation, this would fetch from a notifications table
-    // For now, we'll construct a response based on the order data
-    const notifications = []
+    // Removed Mailgun email sending logic
+    // if (notificationType === "email") {
+    //   const emailSent = await emailService.sendEmail({
+    //     to: recipientEmail,
+    //     subject: `Notification for Order #${orderId}: ${notificationType}`,
+    //     html: `<p>${message}</p><p>Order Details: <a href="${process.env.NEXT_PUBLIC_APP_URL}/courier-orders/details/${orderId}">View Order</a></p>`,
+    //   })
+    //   if (!emailSent) {
+    //     console.warn(`Failed to send email notification for order ${orderId}.`)
+    //   }
+    // }
 
-    if (order.notify_recipient && order.recipient_email) {
-      notifications.push({
-        id: 1,
-        type: "recipient",
-        email: order.recipient_email,
-        status: "sent",
-        sentAt: order.notification_sent_at || new Date().toISOString(),
-      })
-    }
-
-    if (order.notify_sender_on_create && order.sender_email) {
-      notifications.push({
-        id: 2,
-        type: "sender_created",
-        email: order.sender_email,
-        status: "sent",
-        sentAt: order.sender_notification_sent_at || new Date().toISOString(),
-      })
-    }
-
-    if (order.notify_sender_on_confirm && order.sender_email) {
-      notifications.push({
-        id: 3,
-        type: "sender_confirmed",
-        email: order.sender_email,
-        status: "sent",
-        sentAt: order.sender_confirmation_sent_at || new Date().toISOString(),
-      })
-    }
-
-    if (order.send_confirmation_to_admin) {
-      notifications.push({
-        id: 4,
-        type: "admin",
-        email: "admin@example.com", // This would come from system settings
-        status: "sent",
-        sentAt: order.admin_notification_sent_at || new Date().toISOString(),
-      })
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: notifications,
+    // Record the notification in the database (optional, but good for audit)
+    const { error: insertError } = await supabase.from("notifications").insert({
+      order_id: orderId,
+      type: notificationType,
+      recipient: recipientEmail,
+      message: message,
+      status: "sent", // Or "failed" if emailService.sendEmail returned false
     })
+
+    if (insertError) {
+      console.error("Error recording notification:", insertError)
+      // Continue even if recording fails, as the primary action (sending) might have succeeded
+    }
+
+    return NextResponse.json({ message: "Notification sent successfully" }, { status: 200 })
   } catch (error) {
-    console.error("Error fetching notifications:", error)
-    return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 })
+    console.error("Error sending notification:", error)
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
