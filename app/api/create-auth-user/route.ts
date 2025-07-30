@@ -1,10 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabaseClient"
-import { generateTemporaryPassword } from "@/lib/password-utils"
-// import { emailService } from "@/lib/email-service" // This import will be removed
+import { createClient } from "@supabase/supabase-js"
 
 // Create a Supabase client with service role key for admin operations
-const supabaseAdmin = createClient()
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, // This key has admin privileges
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  },
+)
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +21,11 @@ export async function POST(request: NextRequest) {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
       console.error("❌ Missing NEXT_PUBLIC_SUPABASE_URL")
       return NextResponse.json({ error: "Server configuration error: Missing Supabase URL" }, { status: 500 })
+    }
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("❌ Missing SUPABASE_SERVICE_ROLE_KEY")
+      return NextResponse.json({ error: "Server configuration error: Missing service role key" }, { status: 500 })
     }
 
     // Parse request body
@@ -33,12 +45,12 @@ export async function POST(request: NextRequest) {
     const { email, password, userData } = requestData
 
     // Validate required fields
-    if (!email || !userData) {
-      console.error("❌ Missing required fields:", { email: !!email, userData: !!userData })
+    if (!email || !password || !userData) {
+      console.error("❌ Missing required fields:", { email: !!email, password: !!password, userData: !!userData })
       return NextResponse.json(
         {
           error: "Missing required fields",
-          details: { email: !!email, userData: !!userData },
+          details: { email: !!email, password: !!password, userData: !!userData },
         },
         { status: 400 },
       )
@@ -113,7 +125,7 @@ export async function POST(request: NextRequest) {
       try {
         const authResult = await supabaseAdmin.auth.admin.createUser({
           email,
-          password: password || generateTemporaryPassword(),
+          password,
           email_confirm: true,
           user_metadata: {
             name: userData.name,
@@ -200,15 +212,14 @@ export async function POST(request: NextRequest) {
     const profilePayload = {
       id: finalUser.id,
       username: userData.username || `${userData.name.toLowerCase()}.${userData.surname.toLowerCase()}`,
-      first_name: userData.name,
-      last_name: userData.surname,
+      name: userData.name,
+      surname: userData.surname,
       email: email,
       role: userData.role,
       department: userData.department,
       page_access: userData.page_access || [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      customer_id: userData.customerId || null, // Link to customer if it's a client user
     }
 
     console.log("📝 Profile payload:", { ...profilePayload, id: finalUser.id })
@@ -248,80 +259,46 @@ export async function POST(request: NextRequest) {
 
       console.log("✅ User profile created successfully:", profile?.id)
 
-      // Removed Mailgun email sending logic
-      // const companyName = process.env.NEXT_PUBLIC_COMPANY_NAME || "TSW Smartlog"
-      // const emailSent = await emailService.sendEmail({
-      //   to: email,
-      //   subject: isClientUser ? `Welcome to ${companyName} Client Portal!` : `Welcome to TSW Smartlog, ${firstName}!`,
-      //   html: isClientUser
-      //     ? `
-      //       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      //         <div style="background-color: #f8f9fa; padding: 20px; text-align: center;">
-      //           <h1 style="color: #333;">Welcome to ${companyName} Client Portal!</h1>
-      //         </div>
-      //         <div style="padding: 20px; border: 1px solid #ddd; border-top: none;">
-      //           <p>Hello ${userData.name} ${userData.surname},</p>
-      //           <p>Welcome to the ${companyName} Client Portal! You can now log in to manage your orders and track shipments.</p>
-      //           <p>Your login credentials are:</p>
-      //           <p><strong>Email:</strong> ${email}</p>
-      //           <p><strong>Temporary Password:</strong> ${password || generateTemporaryPassword()}</p>
-      //           <p>Please log in and change your password as soon as possible.</p>
-      //           <div style="text-align: center; margin: 20px 0;">
-      //             <a href="${process.env.NEXT_PUBLIC_APP_URL}/login" style="background-color: #0070f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
-      //               Go to Client Portal
-      //             </a>
-      //           </div>
-      //           <p>If you have any questions, please contact our support team.</p>
-      //           <p>Thank you,<br>${companyName} Team</p>
-      //         </div>
-      //         <div style="background-color: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #777;">
-      //           <p>This is an automated message. Please do not reply to this email.</p>
-      //         </div>
-      //       </div>
-      //     `
-      //     : `
-      //       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      //         <div style="background-color: #f8f9fa; padding: 20px; text-align: center;">
-      //           <h1 style="color: #333;">Welcome to TSW Smartlog!</h1>
-      //         </div>
-      //         <div style="padding: 20px; border: 1px solid #ddd; border-top: none;">
-      //           <p>Hello ${userData.name} ${userData.surname},</p>
-      //           <p>Welcome to TSW Smartlog! Your account has been created.</p>
-      //           <p>Your login credentials are:</p>
-      //           <p><strong>Email:</strong> ${email}</p>
-      //           <p><strong>Temporary Password:</strong> ${password || generateTemporaryPassword()}</p>
-      //           <p>Please log in and change your password as soon as possible.</p>
-      //           <div style="text-align: center; margin: 20px 0;">
-      //             <a href="${process.env.NEXT_PUBLIC_APP_URL}/login" style="background-color: #0070f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
-      //               Go to TSW Smartlog
-      //             </a>
-      //           </div>
-      //           <p>If you have any questions, please contact your administrator.</p>
-      //           <p>Thank you,<br>TSW Smartlog Team</p>
-      //         </div>
-      //         <div style="background-color: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #777;">
-      //           <p>This is an automated message. Please do not reply to this email.</p>
-      //         </div>
-      //       </div>
-      //     `,
-      // })
-
-      // if (!emailSent) {
-      //   console.warn(`Failed to send welcome email for user ${email}.`)
-      // }
-
-      return NextResponse.json(
-        {
-          success: true,
-          user: {
-            id: finalUser.id,
-            email: finalUser.email,
-            profile: profile || profilePayload,
+      // Send welcome email if requested
+      try {
+        console.log("📧 Sending welcome email...")
+        const welcomeEmailResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/send-welcome-email`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userEmail: email,
+              userName: userData.name,
+              userSurname: userData.surname,
+              temporaryPassword: password,
+              companyName: userData.role === "client" ? userData.department : "TSW Smartlog",
+              isClientUser: userData.role === "client",
+            }),
           },
-          message: existingAuthUser ? "User profile created for existing auth user" : "User created successfully",
+        )
+
+        if (welcomeEmailResponse.ok) {
+          console.log("✅ Welcome email sent successfully")
+        } else {
+          console.error("❌ Failed to send welcome email:", await welcomeEmailResponse.text())
+        }
+      } catch (emailError) {
+        console.error("❌ Error sending welcome email:", emailError)
+        // Don't fail user creation if email fails
+      }
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: finalUser.id,
+          email: finalUser.email,
+          profile: profile || profilePayload,
         },
-        { status: 201 },
-      )
+        message: existingAuthUser ? "User profile created for existing auth user" : "User created successfully",
+      })
     } catch (profileException) {
       console.error("❌ Exception during profile creation:", profileException)
 

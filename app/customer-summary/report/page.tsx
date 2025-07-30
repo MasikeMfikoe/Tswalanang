@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { format, parse } from "date-fns"
 import { ArrowLeft, Download, FileText } from "lucide-react"
 import { toast } from "@/lib/toast"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 type LineItem = {
   id: string
@@ -34,7 +33,6 @@ type LineItem = {
 export default function CustomerReport() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createClientComponentClient()
   const [isLoading, setIsLoading] = useState(true)
   const [lineItems, setLineItems] = useState<LineItem[]>([])
 
@@ -49,87 +47,54 @@ export default function CustomerReport() {
   const formattedEndDate = endDate ? format(parse(endDate, "yyyy-MM-dd", new Date()), "dd/MM/yyyy") : ""
 
   useEffect(() => {
-    const fetchRealData = async () => {
+    // Simulate fetching data
+    const fetchData = async () => {
       setIsLoading(true)
       try {
-        // Fetch real orders for the customer within date range
-        let query = supabase.from("orders").select(`
-            *,
-            customer:customers(name),
-            documents(*)
-          `)
+        // Simulate API delay
+        await new Promise((resolve) => setTimeout(resolve, 1000))
 
-        // Filter by customer if specified
-        if (customerId) {
-          query = query.eq("customer_id", customerId)
-        } else if (customerName) {
-          query = query.eq("customer_name", customerName)
-        }
+        // Generate mock data
+        const mockData: LineItem[] = Array.from({ length: 20 }, (_, i) => {
+          // Generate a date within the range
+          const startDateObj = startDate ? new Date(startDate) : new Date()
+          const endDateObj = endDate ? new Date(endDate) : new Date()
+          const dateRange = endDateObj.getTime() - startDateObj.getTime()
+          const randomDate = new Date(startDateObj.getTime() + Math.random() * dateRange)
 
-        // Filter by date range
-        if (startDate) {
-          query = query.gte("created_at", startDate)
-        }
-        if (endDate) {
-          query = query.lte("created_at", endDate + "T23:59:59")
-        }
+          // Generate random values for financial fields (some might be null)
+          const generateValue = () => {
+            return Math.random() > 0.1 ? Math.round(Math.random() * 10000) / 100 : null
+          }
 
-        const { data: orders, error } = await query.order("created_at", { ascending: false })
+          return {
+            id: `ITEM-${i + 1}`,
+            date: format(randomDate, "yyyy-MM-dd"),
+            documentNumber: `DOC-${Math.floor(Math.random() * 10000)}`,
+            freight: generateValue() || 0,
+            caf: generateValue() || 0,
+            customsVat: generateValue() || 0,
+            customsDuty: generateValue() || 0,
+            customsEdiSurcharge: generateValue() || 0,
+            cartage: generateValue() || 0,
+            fuelSurcharge: generateValue() || 0,
+            cargoDues: generateValue() || 0,
+            slineCharges: generateValue() || 0,
+            repoFee: generateValue() || 0,
+            turnInFee: generateValue() || 0,
+            customsEdi: generateValue() || 0,
+            communication: generateValue() || 0,
+            documentation: generateValue() || 0,
+            facilityFee: generateValue() || 0,
+            agencyFee: generateValue() || 0,
+            vat: generateValue() || 0,
+          }
+        })
 
-        if (error) {
-          console.error("Error fetching orders:", error)
-          toast({
-            title: "Error",
-            description: "Failed to load customer data",
-            variant: "destructive",
-          })
-          setLineItems([])
-          return
-        }
+        // Sort by date (newest first)
+        mockData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-        // Transform real order data into line items
-        const realLineItems: LineItem[] =
-          orders?.map((order, index) => {
-            // Calculate financial values based on order data
-            const baseValue = order.total_value || order.totalValue || 0
-            const freight = baseValue * 0.6 // 60% of total value typically freight
-            const customsDuty = baseValue * 0.15 // 15% customs duty
-            const vat = baseValue * 0.15 // 15% VAT
-            const customsVat = customsDuty * 0.15 // VAT on customs duty
-
-            return {
-              id: order.id,
-              date: order.created_at || order.createdAt,
-              documentNumber: order.po_number || order.poNumber || `DOC-${order.id}`,
-              freight: Math.round(freight * 100) / 100,
-              caf: Math.round(baseValue * 0.05 * 100) / 100, // 5% CAF
-              customsVat: Math.round(customsVat * 100) / 100,
-              customsDuty: Math.round(customsDuty * 100) / 100,
-              customsEdiSurcharge: Math.round(baseValue * 0.02 * 100) / 100, // 2% EDI surcharge
-              cartage: Math.round(baseValue * 0.03 * 100) / 100, // 3% cartage
-              fuelSurcharge: Math.round(baseValue * 0.08 * 100) / 100, // 8% fuel surcharge
-              cargoDues: Math.round(baseValue * 0.01 * 100) / 100, // 1% cargo dues
-              slineCharges: Math.round(baseValue * 0.02 * 100) / 100, // 2% shipping line charges
-              repoFee: order.freight_type === "Sea Freight" ? 500 : 0, // Fixed repo fee for sea freight
-              turnInFee: order.freight_type === "Sea Freight" ? 300 : 0, // Fixed turn-in fee for sea freight
-              customsEdi: 250, // Fixed customs EDI fee
-              communication: 150, // Fixed communication fee
-              documentation: 350, // Fixed documentation fee
-              facilityFee: Math.round(baseValue * 0.015 * 100) / 100, // 1.5% facility fee
-              agencyFee: Math.round(baseValue * 0.035 * 100) / 100, // 3.5% agency fee
-              vat: Math.round(vat * 100) / 100,
-            }
-          }) || []
-
-        setLineItems(realLineItems)
-
-        if (realLineItems.length === 0) {
-          toast({
-            title: "No Data",
-            description: "No orders found for the selected criteria",
-            variant: "default",
-          })
-        }
+        setLineItems(mockData)
       } catch (error) {
         console.error("Error fetching report data:", error)
         toast({
@@ -137,18 +102,17 @@ export default function CustomerReport() {
           description: "Failed to load report data",
           variant: "destructive",
         })
-        setLineItems([])
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchRealData()
-  }, [customerId, customerName, startDate, endDate, supabase])
+    fetchData()
+  }, [customerId, startDate, endDate])
 
   // Format currency
   const formatCurrency = (amount: number | null) => {
-    if (amount === null || amount === 0) return "R 0.00"
+    if (amount === null) return "N/A"
     return new Intl.NumberFormat("en-ZA", {
       style: "currency",
       currency: "ZAR",
@@ -277,7 +241,7 @@ export default function CustomerReport() {
     ]
 
     // Combine headers and data
-    const csvContent = [headers.join(","), ...dataRows.map((row) => row.join(",")), totalsRow.join(",")].join("\n")
+    const csvContent = [headers.join(","), ...dataRows.map((row) => row.join(",")), totalsRow.join("\n")].join("\n")
 
     // Create blob and download
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
@@ -458,12 +422,7 @@ export default function CustomerReport() {
     <div className="min-h-screen bg-background p-6">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mb-2 bg-transparent"
-            onClick={() => router.push("/customer-summary")}
-          >
+          <Button variant="outline" size="sm" className="mb-2" onClick={() => router.push("/customer-summary")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Summary
           </Button>
           <h1 className="text-2xl font-bold">Customer Line Items Report</h1>
@@ -475,7 +434,7 @@ export default function CustomerReport() {
           <Button
             variant="outline"
             size="sm"
-            className="self-start bg-transparent"
+            className="self-start"
             onClick={exportToPDF}
             disabled={isLoading || lineItems.length === 0}
           >
@@ -484,7 +443,7 @@ export default function CustomerReport() {
           <Button
             variant="outline"
             size="sm"
-            className="self-start bg-transparent"
+            className="self-start"
             onClick={exportToCSV}
             disabled={isLoading || lineItems.length === 0}
           >

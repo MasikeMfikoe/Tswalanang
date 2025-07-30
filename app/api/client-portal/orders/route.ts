@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Client ID is required" }, { status: 400 })
     }
 
-    // Get the user profile to find customer association
+    // Get the user profile
     const { data: userProfile, error: userError } = await supabase
       .from("user_profiles")
       .select("*")
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     let customerId = userProfile.customer_id
     let customerName = null
 
-    // If customer_id doesn't exist or is null, try to find a customer by email domain
+    // If customer_id doesn't exist or is null, try to find a customer by email domain or use mock data
     if (!customerId) {
       if (userProfile.email) {
         const emailDomain = userProfile.email.split("@")[1]
@@ -42,15 +42,15 @@ export async function GET(request: NextRequest) {
           customerId = customers[0].id
           customerName = customers[0].name
 
-          // Update the user profile with the found customer_id
+          // Optionally update the user profile with the found customer_id
           await supabase.from("user_profiles").update({ customer_id: customerId }).eq("id", clientId)
         }
       }
     }
 
-    // If we still don't have a customer, use mock data specific to this client
+    // If we still don't have a customer, use mock data
     if (!customerId) {
-      // Return client-specific mock data
+      // Return mock data
       return NextResponse.json({
         success: true,
         data: {
@@ -58,48 +58,24 @@ export async function GET(request: NextRequest) {
           orders: [
             {
               id: "1",
-              po_number: "PO-2024-001",
-              created_at: "2024-01-15T10:00:00Z",
-              status: "In Progress",
-              cargo_status: "in-transit",
+              po_number: "PO-2023-001",
+              created_at: "2023-06-15",
+              status: "Completed",
               total_value: 25000,
-              supplier: "Global Electronics Ltd",
-              freight_type: "Sea Freight",
-              vessel_name: "MSC Pamela",
-              eta_at_port: "2024-02-10T10:00:00Z",
-              estimated_delivery: "2024-02-15T10:00:00Z",
-              tracking_number: "MRSU0547355",
-              destination: "Cape Town, South Africa",
             },
             {
               id: "2",
-              po_number: "PO-2024-002",
-              created_at: "2024-01-20T10:00:00Z",
-              status: "Completed",
-              cargo_status: "delivered",
+              po_number: "PO-2023-002",
+              created_at: "2023-06-20",
+              status: "In Progress",
               total_value: 30000,
-              supplier: "Tech Components Inc",
-              freight_type: "Air Freight",
-              vessel_name: "N/A",
-              eta_at_port: "2024-01-25T10:00:00Z",
-              estimated_delivery: "2024-01-30T10:00:00Z",
-              tracking_number: "AIRTRACK123",
-              destination: "Johannesburg, South Africa",
             },
             {
               id: "3",
-              po_number: "PO-2024-003",
-              created_at: "2024-01-25T10:00:00Z",
-              status: "Pending",
-              cargo_status: "at-origin",
+              po_number: "PO-2023-003",
+              created_at: "2023-06-25",
+              status: "Processing",
               total_value: 45000,
-              supplier: "Industrial Supplies Co",
-              freight_type: "Sea Freight",
-              vessel_name: "Maersk Seletar",
-              eta_at_port: "2024-02-25T10:00:00Z",
-              estimated_delivery: "2024-03-01T10:00:00Z",
-              tracking_number: "MAEU9876543",
-              destination: "Durban, South Africa",
             },
           ],
           statistics: {
@@ -107,8 +83,8 @@ export async function GET(request: NextRequest) {
             totalValue: 100000,
             activeOrders: 2,
             completedOrders: 1,
-            activeValue: 70000,
-            completedValue: 30000,
+            activeValue: 75000,
+            completedValue: 25000,
           },
         },
       })
@@ -129,18 +105,17 @@ export async function GET(request: NextRequest) {
       customerName = customer.name
     }
 
-    // Get orders for this specific customer only
+    // Get orders for this customer
     const { data: orders, error: ordersError } = await supabase
       .from("orders")
       .select(`
         *,
         documents:documents(*)
       `)
-      .eq("customer_id", customerId) // Filter by customer_id for security
+      .eq("customer_name", customerName)
       .order("created_at", { ascending: false })
 
     if (ordersError) {
-      console.error("Error fetching orders:", ordersError)
       return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 })
     }
 

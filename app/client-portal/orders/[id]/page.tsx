@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, Download, Eye, Truck, Package, FileText } from "lucide-react"
+import { supabase } from "@/lib/supabaseClient" // Import supabase
 
 interface OrderDetails {
   id: string
@@ -32,6 +33,8 @@ interface Document {
   type: string
   url: string
   uploaded_at: string
+  order_id: string // Added order_id to document interface
+  client_accessible: boolean // Added client_accessible
 }
 
 export default function ClientOrderDetails({ params }: { params: { id: string } }) {
@@ -66,6 +69,8 @@ export default function ClientOrderDetails({ params }: { params: { id: string } 
       type: "invoice",
       url: "/documents/commercial-invoice.pdf",
       uploaded_at: "2024-01-15T10:00:00Z",
+      order_id: params.id,
+      client_accessible: true,
     },
     {
       id: "doc-2",
@@ -73,6 +78,8 @@ export default function ClientOrderDetails({ params }: { params: { id: string } 
       type: "bol",
       url: "/documents/bill-of-lading.pdf",
       uploaded_at: "2024-01-16T08:00:00Z",
+      order_id: params.id,
+      client_accessible: true,
     },
     {
       id: "doc-3",
@@ -80,46 +87,87 @@ export default function ClientOrderDetails({ params }: { params: { id: string } 
       type: "packing",
       url: "/documents/packing-list.pdf",
       uploaded_at: "2024-01-15T12:00:00Z",
+      order_id: params.id,
+      client_accessible: true,
     },
   ]
 
   useEffect(() => {
+    if (!user || (!user.role && !user.id)) {
+      setIsLoading(false)
+      setOrder(mockOrder)
+      setDocuments(mockDocuments)
+      return
+    }
+
     fetchOrderDetails()
-  }, [params.id])
+
+    // Set up Realtime subscriptions
+    const orderChannel = supabase
+      .channel(`order_details_${params.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `id=eq.${params.id}` },
+        (payload) => {
+          console.log("Specific order change received!", payload)
+          // Re-fetch order details when this specific order changes
+          fetchOrderDetails()
+        },
+      )
+      .subscribe()
+
+    const documentsChannel = supabase
+      .channel(`order_documents_${params.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "documents", filter: `order_id=eq.${params.id}` },
+        (payload) => {
+          console.log("Document change for this order received!", payload)
+          // Re-fetch documents when documents related to this order change
+          fetchOrderDetails() // Re-fetches both order and documents
+        },
+      )
+      .subscribe()
+
+    // Cleanup subscriptions on component unmount
+    return () => {
+      supabase.removeChannel(orderChannel)
+      supabase.removeChannel(documentsChannel)
+    }
+  }, [params.id, user]) // Re-run effect if order ID or user changes
 
   const fetchOrderDetails = async () => {
     try {
       setIsLoading(true)
 
       // In production, this would fetch from Supabase with proper client access controls
-      /*
       const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', params.id)
-        .eq('customer_id', user?.id) // Ensure client can only see their orders
+        .from("orders")
+        .select("*")
+        .eq("id", params.id)
         .single()
-      
-      if (orderError) throw orderError
-      
-      const { data: docsData, error: docsError } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('order_id', params.id)
-        .eq('client_accessible', true) // Only show client-accessible documents
-      
-      if (docsError) throw docsError
-      
-      setOrder(orderData)
-      setDocuments(docsData || [])
-      */
 
-      // Using mock data for demonstration
-      setOrder(mockOrder)
-      setDocuments(mockDocuments)
+      if (orderError) {
+        console.error("Error fetching order data from Supabase:", orderError)
+        throw orderError
+      }
+
+      const { data: docsData, error: docsError } = await supabase
+        .from("documents")
+        .select("*")
+        .eq("order_id", params.id)
+        .eq("client_accessible", true) // Only show client-accessible documents
+
+      if (docsError) {
+        console.error("Error fetching documents from Supabase:", docsError)
+        throw docsError
+      }
+
+      setOrder(orderData as OrderDetails)
+      setDocuments((docsData as Document[]) || [])
     } catch (error) {
       console.error("Error fetching order details:", error)
-      // Fallback to mock data
+      // Fallback to mock data if real data fetch fails
       setOrder(mockOrder)
       setDocuments(mockDocuments)
     } finally {
@@ -153,7 +201,8 @@ export default function ClientOrderDetails({ params }: { params: { id: string } 
     }
   }
 
-  if (!user || (user.role !== "client" && user.role !== "guest")) {
+  if (!user || (user.role !== "client" && user.role !== "guest" && user.role !== "admin")) {
+    // Allow admin to view
     return (
       <div className="flex items-center justify-center h-screen">
         <Card className="w-96">

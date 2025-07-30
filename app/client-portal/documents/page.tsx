@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, Search, FileText, Download, Eye, Filter, Calendar } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabaseClient" // Import supabase
 
 // Mock documents data - in real app, this would come from API filtered by client
 const mockClientDocuments = [
@@ -18,58 +19,76 @@ const mockClientDocuments = [
     id: "DOC-001",
     name: "Commercial Invoice - PO-ABC-001",
     type: "Commercial Invoice",
-    orderId: "ORD-2024-001",
-    poNumber: "PO-ABC-001",
+    order_id: "ORD-2024-001", // Changed to order_id to match DB schema
+    po_number: "PO-ABC-001", // Changed to po_number
     size: "245 KB",
-    uploadedAt: "2024-01-15",
+    created_at: "2024-01-15", // Changed to created_at
     status: "Approved",
-    downloadUrl: "#",
+    url: "#", // Changed to url
+    client_accessible: true,
   },
   {
     id: "DOC-002",
     name: "Bill of Lading - PO-ABC-001",
     type: "Bill of Lading",
-    orderId: "ORD-2024-001",
-    poNumber: "PO-ABC-001",
+    order_id: "ORD-2024-001",
+    po_number: "PO-ABC-001",
     size: "189 KB",
-    uploadedAt: "2024-01-16",
+    created_at: "2024-01-16",
     status: "Approved",
-    downloadUrl: "#",
+    url: "#",
+    client_accessible: true,
   },
   {
     id: "DOC-003",
     name: "Packing List - PO-ABC-002",
     type: "Packing List",
-    orderId: "ORD-2024-002",
-    poNumber: "PO-ABC-002",
+    order_id: "ORD-2024-002",
+    po_number: "PO-ABC-002",
     size: "156 KB",
-    uploadedAt: "2024-01-12",
+    created_at: "2024-01-12",
     status: "Approved",
-    downloadUrl: "#",
+    url: "#",
+    client_accessible: true,
   },
   {
     id: "DOC-004",
     name: "Certificate of Origin - PO-ABC-003",
     type: "Certificate of Origin",
-    orderId: "ORD-2024-003",
-    poNumber: "PO-ABC-003",
+    order_id: "ORD-2024-003",
+    po_number: "PO-ABC-003",
     size: "198 KB",
-    uploadedAt: "2024-01-22",
+    created_at: "2024-01-22",
     status: "Pending Review",
-    downloadUrl: "#",
+    url: "#",
+    client_accessible: true,
   },
   {
     id: "DOC-005",
     name: "Insurance Certificate - PO-ABC-001",
     type: "Insurance Certificate",
-    orderId: "ORD-2024-001",
-    poNumber: "PO-ABC-001",
+    order_id: "ORD-2024-001",
+    po_number: "PO-ABC-001",
     size: "167 KB",
-    uploadedAt: "2024-01-17",
+    created_at: "2024-01-17",
     status: "Approved",
-    downloadUrl: "#",
+    url: "#",
+    client_accessible: true,
   },
 ]
+
+interface Document {
+  id: string
+  name: string
+  type: string
+  order_id: string
+  po_number: string // Added po_number
+  size: string
+  created_at: string // Changed to created_at
+  status: string
+  url: string // Changed to url
+  client_accessible: boolean
+}
 
 const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
@@ -91,12 +110,73 @@ const getDocumentTypeIcon = (type: string) => {
 export default function ClientPortalDocumentsPage() {
   const { user } = useAuth()
   const router = useRouter()
-  const [documents, setDocuments] = useState(mockClientDocuments)
-  const [filteredDocuments, setFilteredDocuments] = useState(mockClientDocuments)
+  const [documents, setDocuments] = useState<Document[]>(mockClientDocuments)
+  const [filteredDocuments, setFilteredDocuments] = useState<Document[]>(mockClientDocuments)
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([])
+
+  // ─── Data Fetching and Realtime Subscription ─────────────────────────
+  useEffect(() => {
+    if (!user?.id) {
+      // If no user, use mock data and return
+      setDocuments(mockClientDocuments)
+      setFilteredDocuments(mockClientDocuments)
+      return
+    }
+
+    const fetchDocuments = async () => {
+      try {
+        const documentsResponse = await fetch(`/api/client-portal/documents?clientId=${user.id}`)
+        if (documentsResponse.ok) {
+          const documentsData = await documentsResponse.json()
+          if (documentsData.success) {
+            // Map the fetched documents to match the local Document interface
+            const fetchedDocs: Document[] = documentsData.data.documents.map((doc: any) => ({
+              id: doc.id,
+              name: doc.name,
+              type: doc.type,
+              order_id: doc.order_id,
+              po_number: doc.order?.po_number || "N/A", // Access po_number from nested order object
+              size: doc.size,
+              created_at: doc.created_at,
+              status: doc.status,
+              url: doc.url,
+              client_accessible: doc.client_accessible,
+            }))
+            setDocuments(fetchedDocs)
+          } else {
+            console.warn("Failed to fetch documents, using fallback data:", documentsData.error)
+            setDocuments(mockClientDocuments)
+          }
+        } else {
+          console.warn("Failed to fetch documents, using fallback data (HTTP error):", documentsResponse.status)
+          setDocuments(mockClientDocuments)
+        }
+      } catch (error) {
+        console.error("Error fetching documents:", error)
+        setDocuments(mockClientDocuments)
+      }
+    }
+
+    fetchDocuments() // Initial fetch
+
+    // Set up Realtime subscription
+    const documentsChannel = supabase
+      .channel("client_documents_list_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "documents" }, (payload) => {
+        console.log("Document change received for list!", payload)
+        // Re-fetch documents when a change occurs
+        fetchDocuments()
+      })
+      .subscribe()
+
+    // Cleanup subscription on component unmount
+    return () => {
+      supabase.removeChannel(documentsChannel)
+    }
+  }, [user?.id]) // Re-run effect if user ID changes
 
   // Filter documents based on search and filters
   useEffect(() => {
@@ -108,7 +188,7 @@ export default function ClientPortalDocumentsPage() {
         (doc) =>
           doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           doc.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          doc.poNumber.toLowerCase().includes(searchTerm.toLowerCase()),
+          doc.po_number.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
@@ -263,7 +343,7 @@ export default function ClientPortalDocumentsPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">This Month</p>
                   <p className="text-2xl font-bold text-purple-600">
-                    {documents.filter((d) => new Date(d.uploadedAt).getMonth() === new Date().getMonth()).length}
+                    {documents.filter((d) => new Date(d.created_at).getMonth() === new Date().getMonth()).length}
                   </p>
                 </div>
               </div>
@@ -382,7 +462,7 @@ export default function ClientPortalDocumentsPage() {
                             size="sm"
                             onClick={handleDownloadSelected}
                             disabled={selectedDocuments.length === 0}
-                            className="ml-2"
+                            className="ml-2 bg-transparent"
                           >
                             Download Selected ({selectedDocuments.length})
                           </Button>
@@ -410,24 +490,24 @@ export default function ClientPortalDocumentsPage() {
                         <TableCell>{document.type}</TableCell>
                         <TableCell>
                           <Link
-                            href={`/client-portal/orders/${document.orderId}`}
+                            href={`/client-portal/orders/${document.order_id}`}
                             className="text-blue-600 hover:text-blue-800 hover:underline"
                           >
-                            {document.poNumber}
+                            {document.po_number}
                           </Link>
                         </TableCell>
                         <TableCell>
                           <Badge className={getStatusColor(document.status)}>{document.status}</Badge>
                         </TableCell>
                         <TableCell>{document.size}</TableCell>
-                        <TableCell>{new Date(document.uploadedAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{new Date(document.created_at).toLocaleDateString()}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" onClick={() => window.open(document.url, "_blank")}>
                               <Eye className="h-4 w-4 mr-2" />
                               View
                             </Button>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" onClick={() => window.open(document.url, "_blank")}>
                               <Download className="h-4 w-4 mr-2" />
                               Download
                             </Button>

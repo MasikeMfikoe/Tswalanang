@@ -1,100 +1,27 @@
-# Dependencies
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
 /node_modules
-/.pnp
-.pnp.js
-.yarn/install-state.gz
 
-# Testing
-/coverage
-
-# Next.js
+# next.js
 /.next/
 /out/
 
-# Production
+# production
 /build
 
-# Misc
-.DS_Store
-*.pem
-
-# Debug
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
-# Local env files
-.env*.local
+# env files
+.env*
 
-# Vercel
+# vercel
 .vercel
 
-# TypeScript
+# typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# IDE
-.vscode/
-.idea/
-
-# OS generated files
-Thumbs.db
-
-# Large files that might cause issues
-logs
-*.log
-*.gz
-*.zip
-*.tar
-*.rar
-*.jpg
-*.png
-*.mp4
-*.mov
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Build artifacts
-dist/
-
-# Cache directories
-.cache/
-.parcel-cache/
-
-# Temporary files
-tmp/
-temp/
-
-# Development files that shouldn't be in production
-scripts/
-*.md
-*.json
-
-# Test and debug pages
-app/test-*/
-app/debug-*/
-app/*test*/
-app/mailgun-setup-check/
-app/test-mailgun-simple/
-app/user-login-guide/
-
-# Documentation that's not needed in production
-DEPLOYMENT_CHECKLIST.md
-DEPLOYMENT_READINESS_REPORT.md
-USER_MANAGEMENT_ANALYSIS.md
-USER_MANAGEMENT_FIXES_SUMMARY.md
-deployment-checklist.json
-
-# Standalone components not used in app structure
-tracking-user-creator.tsx
-ShipmentTracker.tsx
