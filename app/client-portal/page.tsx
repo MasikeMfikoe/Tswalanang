@@ -5,7 +5,8 @@ import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Package, FileText, Ship, AlertCircle } from "lucide-react"
+import { ArrowLeft, Package, FileText, Ship, AlertCircle, Truck } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 interface ClientStats {
   totalOrders: number
@@ -13,6 +14,21 @@ interface ClientStats {
   activeOrders: number
   completedOrders: number
   totalDocuments: number
+}
+
+interface Order {
+  id: string
+  po_number: string
+  supplier: string
+  status: string
+  created_at: string
+  freight_type: string
+  vessel_name?: string
+  cargo_status: string
+  eta_at_port?: string
+  estimated_delivery?: string
+  tracking_number?: string
+  total_value?: number
 }
 
 const getStatusColor = (status: string) => {
@@ -55,6 +71,21 @@ const formatCargoStatus = (status?: string) => {
     .join(" ")
 }
 
+const formatDate = (dateString?: string) => {
+  if (!dateString) return "TBD"
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return "TBD"
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+  } catch {
+    return "TBD"
+  }
+}
+
 export default function ClientPortalPage() {
   const { user, logout } = useAuth()
   const router = useRouter()
@@ -65,7 +96,7 @@ export default function ClientPortalPage() {
     completedOrders: 0,
     totalDocuments: 0,
   })
-  const [recentOrders, setRecentOrders] = useState<any[]>([])
+  const [recentOrders, setRecentOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const isAdmin = user?.role === "admin"
 
@@ -81,7 +112,7 @@ export default function ClientPortalPage() {
     try {
       setLoading(true)
 
-      // Fetch orders and statistics
+      // Fetch orders and statistics with customer-specific filtering
       const ordersResponse = await fetch(`/api/client-portal/orders?clientId=${user?.id}`)
       if (ordersResponse.ok) {
         const ordersData = await ordersResponse.json()
@@ -93,8 +124,22 @@ export default function ClientPortalPage() {
             activeOrders: ordersData.data.statistics.activeOrders,
             completedOrders: ordersData.data.statistics.completedOrders,
           }))
-          // Get recent orders (last 3)
-          setRecentOrders(ordersData.data.orders.slice(0, 3))
+          // Get recent orders (last 3) with proper data structure
+          const orders = ordersData.data.orders.slice(0, 3).map((order: any) => ({
+            id: order.id,
+            po_number: order.po_number || order.poNumber,
+            supplier: order.supplier,
+            status: order.status,
+            created_at: order.created_at || order.createdAt,
+            freight_type: order.freight_type || order.freightType,
+            vessel_name: order.vessel_name || order.vesselName,
+            cargo_status: order.cargo_status || order.cargoStatus,
+            eta_at_port: order.eta_at_port || order.etaAtPort,
+            estimated_delivery: order.estimated_delivery || order.estimatedDelivery,
+            tracking_number: order.tracking_number || order.trackingNumber,
+            total_value: order.total_value || order.totalValue,
+          }))
+          setRecentOrders(orders)
         }
       } else {
         console.warn("Failed to fetch orders, using fallback data")
@@ -110,39 +155,42 @@ export default function ClientPortalPage() {
         setRecentOrders([
           {
             id: "1",
-            poNumber: "PO-2024-001",
+            po_number: "PO-2024-001",
             supplier: "Global Electronics Ltd",
             status: "Completed",
-            createdAt: "2024-01-15",
-            freightType: "Sea Freight",
-            vesselName: "MSC Pamela",
-            cargoStatus: "delivered",
-            etaAtPort: "2024-01-20",
-            estimatedDelivery: "2024-01-25",
+            created_at: "2024-01-15T10:00:00Z",
+            freight_type: "Sea Freight",
+            vessel_name: "MSC Pamela",
+            cargo_status: "delivered",
+            eta_at_port: "2024-01-20T10:00:00Z",
+            estimated_delivery: "2024-01-25T10:00:00Z",
+            tracking_number: "MRSU0547355",
           },
           {
             id: "2",
-            poNumber: "PO-2024-002",
+            po_number: "PO-2024-002",
             supplier: "Tech Components Inc",
             status: "In Progress",
-            createdAt: "2024-01-20",
-            freightType: "Air Freight",
-            vesselName: "N/A",
-            cargoStatus: "in-transit",
-            etaAtPort: "2024-02-05",
-            estimatedDelivery: "2024-02-10",
+            created_at: "2024-01-20T10:00:00Z",
+            freight_type: "Air Freight",
+            vessel_name: "N/A",
+            cargo_status: "in-transit",
+            eta_at_port: "2024-02-05T10:00:00Z",
+            estimated_delivery: "2024-02-10T10:00:00Z",
+            tracking_number: "AIRTRACK123",
           },
           {
             id: "3",
-            poNumber: "PO-2024-003",
+            po_number: "PO-2024-003",
             supplier: "Industrial Supplies Co",
             status: "Pending",
-            createdAt: "2024-01-25",
-            freightType: "Sea Freight",
-            vesselName: "Maersk Seletar",
-            cargoStatus: "at-origin",
-            etaAtPort: "2024-02-15",
-            estimatedDelivery: "2024-02-20",
+            created_at: "2024-01-25T10:00:00Z",
+            freight_type: "Sea Freight",
+            vessel_name: "Maersk Seletar",
+            cargo_status: "at-origin",
+            eta_at_port: "2024-02-15T10:00:00Z",
+            estimated_delivery: "2024-02-20T10:00:00Z",
+            tracking_number: "MAEU9876543",
           },
         ])
       }
@@ -175,39 +223,42 @@ export default function ClientPortalPage() {
       setRecentOrders([
         {
           id: "1",
-          poNumber: "PO-2024-001",
+          po_number: "PO-2024-001",
           supplier: "Global Electronics Ltd",
           status: "Completed",
-          createdAt: "2024-01-15",
-          freightType: "Sea Freight",
-          vesselName: "MSC Pamela",
-          cargoStatus: "delivered",
-          etaAtPort: "2024-01-20",
-          estimatedDelivery: "2024-01-25",
+          created_at: "2024-01-15T10:00:00Z",
+          freight_type: "Sea Freight",
+          vessel_name: "MSC Pamela",
+          cargo_status: "delivered",
+          eta_at_port: "2024-01-20T10:00:00Z",
+          estimated_delivery: "2024-01-25T10:00:00Z",
+          tracking_number: "MRSU0547355",
         },
         {
           id: "2",
-          poNumber: "PO-2024-002",
+          po_number: "PO-2024-002",
           supplier: "Tech Components Inc",
           status: "In Progress",
-          createdAt: "2024-01-20",
-          freightType: "Air Freight",
-          vesselName: "N/A",
-          cargoStatus: "in-transit",
-          etaAtPort: "2024-02-05",
-          estimatedDelivery: "2024-02-10",
+          created_at: "2024-01-20T10:00:00Z",
+          freight_type: "Air Freight",
+          vessel_name: "N/A",
+          cargo_status: "in-transit",
+          eta_at_port: "2024-02-05T10:00:00Z",
+          estimated_delivery: "2024-02-10T10:00:00Z",
+          tracking_number: "AIRTRACK123",
         },
         {
           id: "3",
-          poNumber: "PO-2024-003",
+          po_number: "PO-2024-003",
           supplier: "Industrial Supplies Co",
           status: "Pending",
-          createdAt: "2024-01-25",
-          freightType: "Sea Freight",
-          vesselName: "Maersk Seletar",
-          cargoStatus: "at-origin",
-          etaAtPort: "2024-02-15",
-          estimatedDelivery: "2024-02-20",
+          created_at: "2024-01-25T10:00:00Z",
+          freight_type: "Sea Freight",
+          vessel_name: "Maersk Seletar",
+          cargo_status: "at-origin",
+          eta_at_port: "2024-02-15T10:00:00Z",
+          estimated_delivery: "2024-02-20T10:00:00Z",
+          tracking_number: "MAEU9876543",
         },
       ])
     } finally {
@@ -215,9 +266,17 @@ export default function ClientPortalPage() {
     }
   }
 
+  const handleTrackOrder = (order: Order) => {
+    if (order.tracking_number) {
+      router.push(`/client-portal/tracking/${order.id}?trackingNumber=${order.tracking_number}`)
+    } else {
+      router.push(`/client-portal/tracking/${order.id}`)
+    }
+  }
+
   return (
     <div className="container mx-auto py-6 px-4">
-      {/* Header with Logout */}
+      {/* Header */}
       <div className="mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
@@ -267,7 +326,11 @@ export default function ClientPortalPage() {
             <p className="text-sm text-blue-600 mt-1">{stats.activeOrders} active</p>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => router.push("/client-portal/orders")}>
+            <Button
+              variant="outline"
+              className="w-full bg-transparent"
+              onClick={() => router.push("/client-portal/orders")}
+            >
               View Orders
             </Button>
           </CardFooter>
@@ -286,7 +349,11 @@ export default function ClientPortalPage() {
             <p className="text-sm text-gray-500">In transit</p>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => router.push("/shipment-tracker")}>
+            <Button
+              variant="outline"
+              className="w-full bg-transparent"
+              onClick={() => router.push("/shipment-tracker")}
+            >
               Track Shipments
             </Button>
           </CardFooter>
@@ -305,7 +372,11 @@ export default function ClientPortalPage() {
             <p className="text-sm text-gray-500">Available documents</p>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => router.push("/client-portal/documents")}>
+            <Button
+              variant="outline"
+              className="w-full bg-transparent"
+              onClick={() => router.push("/client-portal/documents")}
+            >
               View Documents
             </Button>
           </CardFooter>
@@ -351,37 +422,55 @@ export default function ClientPortalPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Est. Delivery
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {recentOrders.map((order) => (
                   <tr key={order.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.poNumber}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.po_number}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.supplier}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}
+                      <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(order.created_at)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.freight_type}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.vessel_name || "N/A"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex items-center gap-2">
+                        <Badge className={getCargoStatusColor(order.cargo_status || "")}>
+                          {formatCargoStatus(order.cargo_status)}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTrackOrder(order)}
+                          className="h-6 px-2 text-xs"
+                        >
+                          <Truck className="h-3 w-3 mr-1" />
+                          Track
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(order.eta_at_port)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(order.estimated_delivery)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => router.push(`/client-portal/orders/${order.id}`)}
+                        className="h-6 px-2 text-xs"
                       >
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(order.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.freightType}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.vesselName}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getCargoStatusColor(order.cargoStatus || "")}`}
-                      >
-                        {formatCargoStatus(order.cargoStatus)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(order.etaAtPort).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(order.estimatedDelivery).toLocaleDateString()}
+                        View Details
+                      </Button>
                     </td>
                   </tr>
                 ))}
