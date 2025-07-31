@@ -182,7 +182,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     }
   }, [isEditing, activeTab])
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | number) => {
     if (tempOrder) {
       setTempOrder((prev) => ({ ...prev!, [field]: value }))
     }
@@ -638,26 +638,30 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {/* Financial Form - Read Only */}
+                      {/* Financial Form - Editable */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="commercialValue">Commercial Value (R)</Label>
                           <Input
                             id="commercialValue"
-                            type="text"
-                            value={`R ${(order?.commercial_value || 0).toFixed(2)}`}
-                            readOnly
-                            className="bg-gray-50"
+                            type="number"
+                            step="0.01"
+                            value={tempOrder?.commercial_value || 0}
+                            onChange={(e) => handleChange("commercial_value", Number.parseFloat(e.target.value))}
+                            readOnly={!isEditing}
+                            className={!isEditing ? "bg-gray-50" : ""}
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="customsDuties">Customs Duties (R)</Label>
                           <Input
                             id="customsDuties"
-                            type="text"
-                            value={`R ${(order?.customs_duties || 0).toFixed(2)}`}
-                            readOnly
-                            className="bg-gray-50"
+                            type="number"
+                            step="0.01"
+                            value={tempOrder?.customs_duties || 0}
+                            onChange={(e) => handleChange("customs_duties", Number.parseFloat(e.target.value))}
+                            readOnly={!isEditing}
+                            className={!isEditing ? "bg-gray-50" : ""}
                           />
                         </div>
                         <div className="space-y-2">
@@ -665,7 +669,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                           <Input
                             id="customsVAT"
                             type="text"
-                            value={`R ${((order?.commercial_value || 0) * 0.15).toFixed(2)}`}
+                            value={`R ${((tempOrder?.commercial_value || 0) * 0.15).toFixed(2)}`}
                             readOnly
                             className="bg-gray-50"
                           />
@@ -674,44 +678,52 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                           <Label htmlFor="handlingFees">Handling Fees (R)</Label>
                           <Input
                             id="handlingFees"
-                            type="text"
-                            value={`R ${(order?.handling_fees || 0).toFixed(2)}`}
-                            readOnly
-                            className="bg-gray-50"
+                            type="number"
+                            step="0.01"
+                            value={tempOrder?.handling_fees || 0}
+                            onChange={(e) => handleChange("handling_fees", Number.parseFloat(e.target.value))}
+                            readOnly={!isEditing}
+                            className={!isEditing ? "bg-gray-50" : ""}
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="shippingCost">Shipping Cost (R)</Label>
                           <Input
                             id="shippingCost"
-                            type="text"
-                            value={`R ${(order?.shipping_cost || 0).toFixed(2)}`}
-                            readOnly
-                            className="bg-gray-50"
+                            type="number"
+                            step="0.01"
+                            value={tempOrder?.shipping_cost || 0}
+                            onChange={(e) => handleChange("shipping_cost", Number.parseFloat(e.target.value))}
+                            readOnly={!isEditing}
+                            className={!isEditing ? "bg-gray-50" : ""}
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="documentationFee">
-                            Documentation Fee ({order?.freight_type || "Air"}) (R)
+                            Documentation Fee ({tempOrder?.freight_type || "Air"}) (R)
                           </Label>
                           <Input
                             id="documentationFee"
-                            type="text"
-                            value={`R ${(order?.documentation_fee || 0).toFixed(2)}`}
-                            readOnly
-                            className="bg-gray-50"
+                            type="number"
+                            step="0.01"
+                            value={tempOrder?.documentation_fee || 0}
+                            onChange={(e) => handleChange("documentation_fee", Number.parseFloat(e.target.value))}
+                            readOnly={!isEditing}
+                            className={!isEditing ? "bg-gray-50" : ""}
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="communicationFee">
-                            Communication Fee ({order?.freight_type || "Air"}) (R)
+                            Communication Fee ({tempOrder?.freight_type || "Air"}) (R)
                           </Label>
                           <Input
                             id="communicationFee"
-                            type="text"
-                            value={`R ${(order?.communication_fee || 0).toFixed(2)}`}
-                            readOnly
-                            className="bg-gray-50"
+                            type="number"
+                            step="0.01"
+                            value={tempOrder?.communication_fee || 0}
+                            onChange={(e) => handleChange("communication_fee", Number.parseFloat(e.target.value))}
+                            readOnly={!isEditing}
+                            className={!isEditing ? "bg-gray-50" : ""}
                           />
                         </div>
                       </div>
@@ -719,9 +731,18 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                       {/* Notes - Full Width */}
                       <div className="space-y-2">
                         <Label htmlFor="financialNotes">Notes</Label>
-                        <div className="min-h-[100px] p-3 bg-gray-50 border rounded-md">
-                          {order?.financial_notes || "No financial notes available"}
-                        </div>
+                        {isEditing ? (
+                          <textarea
+                            id="financialNotes"
+                            value={tempOrder?.financial_notes || ""}
+                            onChange={(e) => handleChange("financial_notes", e.target.value)}
+                            className="min-h-[100px] w-full p-3 border rounded-md resize-y"
+                          />
+                        ) : (
+                          <div className="min-h-[100px] p-3 bg-gray-50 border rounded-md">
+                            {order?.financial_notes || "No financial notes available"}
+                          </div>
+                        )}
                       </div>
 
                       {/* Summary Section */}
@@ -729,13 +750,13 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                         <h3 className="text-lg font-semibold mb-4">Financial Summary</h3>
                         <div className="bg-gray-50 p-4 rounded-lg space-y-3">
                           {(() => {
-                            const commercialValue = order?.commercial_value || 0
-                            const customsDuties = order?.customs_duties || 0
+                            const commercialValue = tempOrder?.commercial_value || 0
+                            const customsDuties = tempOrder?.customs_duties || 0
                             const customsVAT = commercialValue * 0.15
-                            const handlingFees = order?.handling_fees || 0
-                            const shippingCost = order?.shipping_cost || 0
-                            const documentationFee = order?.documentation_fee || 0
-                            const communicationFee = order?.communication_fee || 0
+                            const handlingFees = tempOrder?.handling_fees || 0
+                            const shippingCost = tempOrder?.shipping_cost || 0
+                            const documentationFee = tempOrder?.documentation_fee || 0
+                            const communicationFee = tempOrder?.communication_fee || 0
 
                             const totalDisbursements =
                               customsDuties +
