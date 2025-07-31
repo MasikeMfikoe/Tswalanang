@@ -18,230 +18,214 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { X, Eye, EyeOff } from "lucide-react"
-import type { User, UserRole } from "@/types/auth"
+import { useAuth } from "@/contexts/AuthContext"
+import { type User, type UserRole, rolePermissions } from "@/types/auth"
+import { useToast } from "@/components/ui/use-toast"
+import { userSchema } from "@/lib/user-validation" // Import validation schemas
+import type { z } from "zod"
+import { defaultPermissions } from "@/lib/default-permissions" // Import defaultPermissions
 
 interface EditUserModalProps {
   isOpen: boolean
   onClose: () => void
-  onUpdateUser: (userData: Partial<User> & { password?: string; sendWelcomeEmail?: boolean }) => Promise<void>
   user: User | null
-  userType: "internal" | "client"
+  onUserUpdated: () => void
 }
 
-export default function EditUserModal({ isOpen, onClose, onUpdateUser, user, userType }: EditUserModalProps) {
-  const [formData, setFormData] = useState({
-    name: "",
-    surname: "",
-    email: "",
-    role: "employee" as UserRole,
-    department: "",
-    password: "",
-    sendWelcomeEmail: false,
-    pageAccess: [] as string[],
-  })
+export function EditUserModal({ isOpen, onClose, user, onUserUpdated }: EditUserModalProps) {
+  const { updateUser, isLoading: isAuthLoading } = useAuth()
+  const { toast } = useToast()
+
+  const [name, setName] = useState(user?.name || "")
+  const [surname, setSurname] = useState(user?.surname || "")
+  const [email, setEmail] = useState(user?.email || "")
+  const [department, setDepartment] = useState(user?.department || "")
+  const [role, setRole] = useState<UserRole>(user?.role || "employee")
+  const [pageAccess, setPageAccess] = useState<string[]>(user?.pageAccess || [])
+  const [password, setPassword] = useState("")
+  const [sendNotificationEmail, setSendNotificationEmail] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errors, setErrors] = useState<z.ZodIssue[] | null>(null)
 
-  const availablePages = [
-    "dashboard",
-    "orders",
-    "customers",
-    "documents",
-    "deliveries",
-    "courierOrders",
-    "shipmentTracker",
-    "clientPortal",
-    "userManagement",
-    "auditTrail",
-    "rateCard",
-    "currencyConversion",
-    "containerTracking",
-  ]
+  // Get all available modules from defaultPermissions
+  const allModules = Object.keys(defaultPermissions)
 
   useEffect(() => {
-    if (user) {
-      setFormData({
-        name: user.name,
-        surname: user.surname,
-        email: user.email || "",
-        role: user.role,
-        department: user.department,
-        password: "",
-        sendWelcomeEmail: false,
-        pageAccess: user.pageAccess || [],
-      })
+    if (isOpen && user) {
+      setName(user.name)
+      setSurname(user.surname)
+      setEmail(user.email || "")
+      setDepartment(user.department)
+      setRole(user.role)
+      setPageAccess(user.pageAccess || [])
+      setPassword("") // Clear password field on open
+      setSendNotificationEmail(false) // Reset checkbox
+      setErrors(null)
     }
-  }, [user])
+  }, [isOpen, user])
 
-  const getDefaultPageAccess = (role: UserRole): string[] => {
-    switch (role) {
-      case "admin":
-        return [
-          "dashboard",
-          "orders",
-          "customers",
-          "documents",
-          "deliveries",
-          "courierOrders",
-          "shipmentTracker",
-          "userManagement",
-          "auditTrail",
-          "rateCard",
-          "currencyConversion",
-          "containerTracking",
-        ]
-      case "manager":
-        return ["dashboard", "orders", "customers", "deliveries", "courierOrders", "rateCard"]
-      case "employee":
-        return ["dashboard", "orders", "documents"]
-      case "client":
-        return ["clientPortal", "shipmentTracker"]
-      default:
-        return ["dashboard"]
+  useEffect(() => {
+    // Update page access when role changes to reflect default permissions for the new role
+    const defaultAccess = rolePermissions[role]
+    if (defaultAccess) {
+      setPageAccess(Object.keys(defaultAccess).filter((module) => defaultAccess[module].view))
     }
+  }, [role])
+
+  const handleRoleChange = (newRole: UserRole) => {
+    setRole(newRole)
   }
 
-  const handleRoleChange = (role: UserRole) => {
-    setFormData({
-      ...formData,
-      role,
-      pageAccess: getDefaultPageAccess(role),
-    })
-  }
-
-  const handlePageAccessToggle = (page: string) => {
-    const newPageAccess = formData.pageAccess.includes(page)
-      ? formData.pageAccess.filter((p) => p !== page)
-      : [...formData.pageAccess, page]
-
-    setFormData({
-      ...formData,
-      pageAccess: newPageAccess,
-    })
+  const handlePageAccessToggle = (module: string, checked: boolean) => {
+    setPageAccess((prev) => (checked ? [...prev, module] : prev.filter((accessModule) => accessModule !== module)))
   }
 
   const generatePassword = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*"
-    let password = ""
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    setFormData({ ...formData, password })
+    const newPassword = Math.random().toString(36).slice(-8) + "!" // Ensure special char
+    setPassword(newPassword)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setErrors(null) // Clear previous errors
 
     try {
-      const updateData: Partial<User> & { password?: string; sendWelcomeEmail?: boolean } = {
-        name: formData.name,
-        surname: formData.surname,
-        email: formData.email,
-        role: formData.role,
-        department: formData.department,
-        pageAccess: formData.pageAccess,
-        sendWelcomeEmail: formData.sendWelcomeEmail,
+      const userDataToValidate = {
+        name,
+        surname,
+        email,
+        department,
+        role,
+        pageAccess,
+        password: password || undefined, // Only include password if it's not empty
       }
 
-      // Only include password if it's provided
-      if (formData.password.trim()) {
-        updateData.password = formData.password
+      const validationResult = userSchema.partial().safeParse(userDataToValidate)
+
+      if (!validationResult.success) {
+        setErrors(validationResult.error.issues)
+        toast({
+          title: "Validation Error",
+          description: "Please correct the errors in the form.",
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
+        return
       }
 
-      await onUpdateUser(updateData)
-    } catch (error) {
-      console.error("Error in edit modal:", error)
+      if (!user) {
+        throw new Error("User data not available for update.")
+      }
+
+      const success = await updateUser(user.id, {
+        name,
+        surname,
+        email,
+        department,
+        role,
+        pageAccess,
+        password: password || undefined, // Pass password only if changed
+        sendWelcomeEmail: sendNotificationEmail, // Use sendNotificationEmail for this context
+      })
+
+      if (success) {
+        toast({
+          title: "User Updated",
+          description: `User ${name} ${surname} has been successfully updated.`,
+          variant: "default",
+        })
+        onUserUpdated()
+        onClose()
+      } else {
+        toast({
+          title: "Update Failed",
+          description: "Failed to update user. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error updating user:", error)
+      setErrors([{ path: ["general"], message: error.message || "An unexpected error occurred." } as z.ZodIssue])
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred while updating the user.",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleClose = () => {
-    setFormData({
-      name: "",
-      surname: "",
-      email: "",
-      role: "employee",
-      department: "",
-      password: "",
-      sendWelcomeEmail: false,
-      pageAccess: [],
-    })
-    onClose()
+  const getErrorMessage = (field: string) => {
+    return errors?.find((err) => err.path[0] === field)?.message
   }
 
   if (!user) return null
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit {userType === "client" ? "Client" : "Internal"} User</DialogTitle>
-          <DialogDescription>
-            Update user information and permissions. Leave password blank to keep current password.
-          </DialogDescription>
+          <DialogTitle>
+            Edit User: {user.name} {user.surname}
+          </DialogTitle>
+          <DialogDescription>Update the details for this user account.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="name">First Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+              {getErrorMessage("name") && <p className="text-red-500 text-xs mt-1">{getErrorMessage("name")}</p>}
             </div>
             <div>
               <Label htmlFor="surname">Last Name *</Label>
-              <Input
-                id="surname"
-                value={formData.surname}
-                onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
-                required
-              />
+              <Input id="surname" value={surname} onChange={(e) => setSurname(e.target.value)} required />
+              {getErrorMessage("surname") && <p className="text-red-500 text-xs mt-1">{getErrorMessage("surname")}</p>}
             </div>
           </div>
 
           <div>
             <Label htmlFor="email">Email Address *</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
+            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            {getErrorMessage("email") && <p className="text-red-500 text-xs mt-1">{getErrorMessage("email")}</p>}
           </div>
 
           <div>
-            <Label htmlFor="department">{userType === "client" ? "Company Name *" : "Department *"}</Label>
+            <Label htmlFor="department">Department *</Label>
             <Input
               id="department"
-              value={formData.department}
-              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-              placeholder={userType === "client" ? "e.g., ABC Company Ltd" : "e.g., Operations, IT, Sales"}
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              placeholder="e.g., Operations, IT, Sales"
               required
             />
+            {getErrorMessage("department") && (
+              <p className="text-red-500 text-xs mt-1">{getErrorMessage("department")}</p>
+            )}
           </div>
 
-          {userType === "internal" && (
-            <div>
-              <Label htmlFor="role">Role *</Label>
-              <Select value={formData.role} onValueChange={handleRoleChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="employee">Employee</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {user.role !== "client" &&
+            user.role !== "tracking" && ( // Only show role selection for internal users
+              <div>
+                <Label htmlFor="role">Role *</Label>
+                <Select value={role} onValueChange={handleRoleChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="tracking">Tracking User</SelectItem>
+                  </SelectContent>
+                </Select>
+                {getErrorMessage("role") && <p className="text-red-500 text-xs mt-1">{getErrorMessage("role")}</p>}
+              </div>
+            )}
 
           <div>
             <Label htmlFor="password">New Password (leave blank to keep current)</Label>
@@ -250,8 +234,8 @@ export default function EditUserModal({ isOpen, onClose, onUpdateUser, user, use
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter new password or leave blank"
                 />
                 <Button
@@ -268,54 +252,56 @@ export default function EditUserModal({ isOpen, onClose, onUpdateUser, user, use
                 Generate
               </Button>
             </div>
+            {getErrorMessage("password") && <p className="text-red-500 text-xs mt-1">{getErrorMessage("password")}</p>}
           </div>
 
-          {userType === "internal" && (
-            <div>
-              <Label>Page Access</Label>
-              <div className="mt-2 space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  {formData.pageAccess.map((page) => (
-                    <Badge key={page} variant="default" className="flex items-center gap-1">
-                      {page}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => handlePageAccessToggle(page)} />
-                    </Badge>
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {availablePages
-                    .filter((page) => !formData.pageAccess.includes(page))
-                    .map((page) => (
-                      <Button
-                        key={page}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handlePageAccessToggle(page)}
-                      >
-                        + {page}
-                      </Button>
+          {user.role !== "client" &&
+            user.role !== "tracking" && ( // Only show page access for internal roles
+              <div>
+                <Label>Page Access</Label>
+                <div className="mt-2 space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {pageAccess.map((module) => (
+                      <Badge key={module} variant="default" className="flex items-center gap-1">
+                        {module.charAt(0).toUpperCase() + module.slice(1).replace(/([A-Z])/g, " $1")}
+                        <X className="h-3 w-3 cursor-pointer" onClick={() => handlePageAccessToggle(module, false)} />
+                      </Badge>
                     ))}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {allModules
+                      .filter((module) => !pageAccess.includes(module))
+                      .map((module) => (
+                        <Button
+                          key={module}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePageAccessToggle(module, true)}
+                        >
+                          + {module.charAt(0).toUpperCase() + module.slice(1).replace(/([A-Z])/g, " $1")}
+                        </Button>
+                      ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
           <div className="flex items-center space-x-2">
             <Checkbox
-              id="sendWelcomeEmail"
-              checked={formData.sendWelcomeEmail}
-              onCheckedChange={(checked) => setFormData({ ...formData, sendWelcomeEmail: checked as boolean })}
+              id="sendNotificationEmail"
+              checked={sendNotificationEmail}
+              onCheckedChange={(checked) => setSendNotificationEmail(checked === true)}
             />
-            <Label htmlFor="sendWelcomeEmail">Send notification email about changes</Label>
+            <Label htmlFor="sendNotificationEmail">Send notification email about changes</Label>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Updating..." : "Update User"}
+            <Button type="submit" disabled={isSubmitting || isAuthLoading}>
+              {isSubmitting || isAuthLoading ? "Updating..." : "Update User"}
             </Button>
           </DialogFooter>
         </form>
