@@ -6,6 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Package, BarChartIcon, Users, TrendingUp } from "lucide-react"
 import { KPISummaryCards } from "./KPISummaryCards"
 import { OrderStatusCharts } from "./OrderStatusCharts"
+import { RecentOrdersList } from "./RecentOrdersList"
+import { OrderStatistics } from "./OrderStatistics"
+import { TopCustomers } from "./TopCustomers"
+import { CustomerStatistics } from "./CustomerStatistics"
+import { PerformanceMetrics } from "./PerformanceMetrics"
+import { PerformanceCharts } from "./PerformanceCharts"
 
 interface DashboardTabsProps {
   isDarkMode: boolean
@@ -28,7 +34,33 @@ interface DashboardTabsProps {
   }>
   activeOrders: any[]
   pendingOrders: any[]
-  children?: React.ReactNode
+  // New props for other tabs
+  recentOrders: any[]
+  averageProcessingTime: { value: number; unit: string; target: number; trend: number }
+  orderValueDistribution: Array<{ label: string; percentage: number }>
+  topCustomers: any[]
+  customerAcquisitionData: {
+    data: Array<{ name: string; value: number }>
+    totalNew: number
+    monthlyAvg: number
+    growth: number
+  }
+  customerRetentionRate: { percentage: number; description: string }
+  performanceMetrics: Array<{
+    title: string
+    description: string
+    value: number
+    target: number
+    timeframe: string
+    status: string
+    statusColor: string
+    progressColor: string
+    color: string
+    icon: string
+    daysLeft: number
+  }>
+  deliveryPerformanceData: Array<{ name: string; value: number }>
+  operationalEfficiencyData: Array<{ name: string; value: number }>
 }
 
 export function DashboardTabs({
@@ -45,7 +77,15 @@ export function DashboardTabs({
   monthlyOrderTrendData,
   activeOrders,
   pendingOrders,
-  children,
+  recentOrders, // New
+  averageProcessingTime, // New
+  orderValueDistribution, // New
+  topCustomers, // New
+  customerAcquisitionData, // New
+  customerRetentionRate, // New
+  performanceMetrics, // New
+  deliveryPerformanceData, // New
+  operationalEfficiencyData, // New
 }: DashboardTabsProps) {
   return (
     <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="mb-6">
@@ -92,8 +132,53 @@ export function DashboardTabs({
         )}
       </TabsContent>
 
-      {/* Other tabs content will be passed as children */}
-      {children}
+      {/* Orders Tab Content */}
+      <TabsContent value="orders" className="mt-4">
+        {isLoading ? (
+          renderSkeleton()
+        ) : (
+          <>
+            <RecentOrdersList isDarkMode={isDarkMode} recentOrders={recentOrders} />
+            <OrderStatistics
+              isDarkMode={isDarkMode}
+              averageProcessingTime={averageProcessingTime}
+              orderValueDistribution={orderValueDistribution}
+            />
+          </>
+        )}
+      </TabsContent>
+
+      {/* Customers Tab Content */}
+      <TabsContent value="customers" className="mt-4">
+        {isLoading ? (
+          renderSkeleton()
+        ) : (
+          <>
+            <TopCustomers isDarkMode={isDarkMode} topCustomers={topCustomers} />
+            <CustomerStatistics
+              isDarkMode={isDarkMode}
+              customerAcquisitionData={customerAcquisitionData}
+              customerRetentionRate={customerRetentionRate}
+            />
+          </>
+        )}
+      </TabsContent>
+
+      {/* Performance Tab Content */}
+      <TabsContent value="performance" className="mt-4">
+        {isLoading ? (
+          renderSkeleton()
+        ) : (
+          <>
+            <PerformanceMetrics isDarkMode={isDarkMode} performanceMetrics={performanceMetrics} />
+            <PerformanceCharts
+              isDarkMode={isDarkMode}
+              deliveryPerformanceData={deliveryPerformanceData}
+              operationalEfficiencyData={operationalEfficiencyData}
+            />
+          </>
+        )}
+      </TabsContent>
     </Tabs>
   )
 }

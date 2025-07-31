@@ -40,6 +40,14 @@ interface OrderData {
   documentation_fee?: number
   communication_fee?: number
   financial_notes?: string
+  // New calculated financial fields (if added to Supabase)
+  customs_vat?: number
+  total_disbursements?: number
+  facility_fee?: number
+  agency_fee?: number
+  subtotal_amount?: number
+  vat_amount?: number
+  total_amount?: number
 }
 
 export default function OrderDetails({ params }: { params: { id: string } }) {
@@ -55,6 +63,8 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasFinancialColumns, setHasFinancialColumns] = useState(false)
+  // State to track if calculated financial columns exist in Supabase
+  const [hasCalculatedFinancialColumns, setHasCalculatedFinancialColumns] = useState(false)
 
   const [cargoStatusHistory, setCargoStatusHistory] = useState([
     {
@@ -87,8 +97,23 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         setHasFinancialColumns(false)
         console.log("Financial columns do not exist in orders table")
       }
+
+      // Check for calculated financial columns
+      const { data: calculatedData, error: calculatedError } = await supabase
+        .from("orders")
+        .select("customs_vat, total_disbursements, facility_fee, agency_fee, subtotal_amount, vat_amount, total_amount")
+        .limit(1)
+
+      if (!calculatedError) {
+        setHasCalculatedFinancialColumns(true)
+        console.log("Calculated financial columns exist in orders table")
+      } else {
+        setHasCalculatedFinancialColumns(false)
+        console.log("Calculated financial columns do not exist in orders table")
+      }
     } catch (error) {
       setHasFinancialColumns(false)
+      setHasCalculatedFinancialColumns(false)
       console.log("Financial columns check failed, assuming they don't exist")
     }
   }
@@ -221,6 +246,33 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         updateData.documentation_fee = tempOrder.documentation_fee || null
         updateData.communication_fee = tempOrder.communication_fee || null
         updateData.financial_notes = tempOrder.financial_notes || null
+
+        // Calculate derived financial fields and add them if columns exist
+        if (hasCalculatedFinancialColumns) {
+          const commercialValue = tempOrder.commercial_value || 0
+          const customsDuties = tempOrder.customs_duties || 0
+          const customsVAT = commercialValue * 0.15
+          const handlingFees = tempOrder.handling_fees || 0
+          const shippingCost = tempOrder.shipping_cost || 0
+          const documentationFee = tempOrder.documentation_fee || 0
+          const communicationFee = tempOrder.communication_fee || 0
+
+          const totalDisbursements =
+            customsDuties + customsVAT + handlingFees + shippingCost + documentationFee + communicationFee
+          const facilityFee = totalDisbursements * 0.025 // 2.5%
+          const agencyFee = totalDisbursements * 0.035 // 3.5%
+          const subtotal = totalDisbursements + facilityFee + agencyFee
+          const vat = subtotal * 0.15
+          const total = subtotal + vat
+
+          updateData.customs_vat = customsVAT
+          updateData.total_disbursements = totalDisbursements
+          updateData.facility_fee = facilityFee
+          updateData.agency_fee = agencyFee
+          updateData.subtotal_amount = subtotal
+          updateData.vat_amount = vat
+          updateData.total_amount = total
+        }
       }
 
       console.log("Updating order with data:", updateData)

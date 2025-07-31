@@ -5,9 +5,15 @@ import { LineChart } from "@/components/Charts"
 
 interface PerformanceChartsProps {
   isDarkMode: boolean
+  deliveryPerformanceData: Array<{ name: string; value: number }>
+  operationalEfficiencyData: Array<{ name: string; value: number }>
 }
 
-export function PerformanceCharts({ isDarkMode }: PerformanceChartsProps) {
+export function PerformanceCharts({
+  isDarkMode,
+  deliveryPerformanceData,
+  operationalEfficiencyData,
+}: PerformanceChartsProps) {
   return (
     <div className="grid gap-6 md:grid-cols-2">
       <Card className={`${isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white"} hover:shadow-md transition-all`}>
@@ -19,21 +25,17 @@ export function PerformanceCharts({ isDarkMode }: PerformanceChartsProps) {
         </CardHeader>
         <CardContent>
           <div className="h-[240px]">
-            <LineChart
-              data={[
-                { name: "Jan", value: 82 },
-                { name: "Feb", value: 78 },
-                { name: "Mar", value: 85 },
-                { name: "Apr", value: 91 },
-                { name: "May", value: 88 },
-                { name: "Jun", value: 92 },
-              ]}
-            />
+            <LineChart data={deliveryPerformanceData} />
           </div>
           <div className="flex justify-between items-center mt-4">
             <div>
               <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Current</p>
-              <p className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>92%</p>
+              <p className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                {deliveryPerformanceData.length > 0
+                  ? deliveryPerformanceData[deliveryPerformanceData.length - 1].value.toFixed(0)
+                  : 0}
+                %
+              </p>
             </div>
             <div>
               <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Target</p>
@@ -41,7 +43,13 @@ export function PerformanceCharts({ isDarkMode }: PerformanceChartsProps) {
             </div>
             <div>
               <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Trend</p>
-              <p className={`text-lg font-bold text-green-500`}>+4%</p>
+              <p
+                className={`text-lg font-bold ${deliveryPerformanceData.length > 1 && deliveryPerformanceData[deliveryPerformanceData.length - 1].value > deliveryPerformanceData[deliveryPerformanceData.length - 2].value ? "text-green-500" : "text-red-500"}`}
+              >
+                {deliveryPerformanceData.length > 1
+                  ? `${(deliveryPerformanceData[deliveryPerformanceData.length - 1].value - deliveryPerformanceData[deliveryPerformanceData.length - 2].value).toFixed(1)}%`
+                  : "N/A"}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -56,21 +64,17 @@ export function PerformanceCharts({ isDarkMode }: PerformanceChartsProps) {
         </CardHeader>
         <CardContent>
           <div className="h-[240px]">
-            <LineChart
-              data={[
-                { name: "Jan", value: 450 },
-                { name: "Feb", value: 420 },
-                { name: "Mar", value: 410 },
-                { name: "Apr", value: 390 },
-                { name: "May", value: 380 },
-                { name: "Jun", value: 375 },
-              ]}
-            />
+            <LineChart data={operationalEfficiencyData} />
           </div>
           <div className="flex justify-between items-center mt-4">
             <div>
               <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Current</p>
-              <p className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>R 375</p>
+              <p className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                R{" "}
+                {operationalEfficiencyData.length > 0
+                  ? operationalEfficiencyData[operationalEfficiencyData.length - 1].value.toFixed(0)
+                  : 0}
+              </p>
             </div>
             <div>
               <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Target</p>
@@ -78,7 +82,13 @@ export function PerformanceCharts({ isDarkMode }: PerformanceChartsProps) {
             </div>
             <div>
               <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Trend</p>
-              <p className={`text-lg font-bold text-green-500`}>-16.7%</p>
+              <p
+                className={`text-lg font-bold ${operationalEfficiencyData.length > 1 && operationalEfficiencyData[operationalEfficiencyData.length - 1].value < operationalEfficiencyData[operationalEfficiencyData.length - 2].value ? "text-green-500" : "text-red-500"}`}
+              >
+                {operationalEfficiencyData.length > 1
+                  ? `${(operationalEfficiencyData[operationalEfficiencyData.length - 1].value - operationalEfficiencyData[operationalEfficiencyData.length - 2].value).toFixed(1)}`
+                  : "N/A"}
+              </p>
             </div>
           </div>
         </CardContent>

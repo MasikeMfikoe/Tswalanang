@@ -1,17 +1,10 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { format, subDays, startOfDay, endOfDay } from "date-fns"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { format, subDays, startOfDay, endOfDay, subMonths, differenceInDays } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TabsContent } from "@/components/ui/tabs"
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader"
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs"
-import { RecentOrdersList } from "@/components/dashboard/RecentOrdersList"
-import { OrderStatistics } from "@/components/dashboard/OrderStatistics"
-import { TopCustomers } from "@/components/dashboard/TopCustomers"
-import { CustomerStatistics } from "@/components/dashboard/CustomerStatistics"
-import { PerformanceMetrics } from "@/components/dashboard/PerformanceMetrics"
-import { PerformanceCharts } from "@/components/dashboard/PerformanceCharts"
 import { ErrorDisplay } from "@/components/ErrorDisplay"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { toast } from "@/lib/toast"
@@ -28,14 +21,11 @@ type PeriodOption = {
 }
 
 export default function DashboardContent() {
-  // Supabase client
   const supabase = createClientComponentClient()
 
-  // Error handling state
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
 
-  // Dashboard state
   const [selectedPeriod, setSelectedPeriod] = useState<string>("last30days")
   const [startDate, setStartDate] = useState<string>("")
   const [endDate, setEndDate] = useState<string>("")
@@ -43,6 +33,8 @@ export default function DashboardContent() {
   const [filteredOrders, setFilteredOrders] = useState<any[]>([])
   const [allOrders, setAllOrders] = useState<any[]>([])
   const [customers, setCustomers] = useState<any[]>([])
+  const [documents, setDocuments] = useState<any[]>([]) // New state for documents
+  const [notifications, setNotifications] = useState<any[]>([]) // New state for notifications
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null])
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -51,14 +43,13 @@ export default function DashboardContent() {
   const [activeTab, setActiveTab] = useState("overview")
   const [noDataMessage, setNoDataMessage] = useState("")
 
-  // Fetch data from Supabase
+  // Fetch all necessary data from Supabase
   useEffect(() => {
     async function fetchData() {
       setIsLoading(true)
       try {
-        // Fetch orders from Supabase
+        // Fetch orders
         const { data: ordersData, error: ordersError } = await supabase.from("orders").select("*")
-
         if (ordersError) {
           console.error("Error fetching orders:", ordersError)
           toast({
@@ -76,9 +67,8 @@ export default function DashboardContent() {
           setNoDataMessage("No orders found in the database. Please create some orders first.")
         }
 
-        // Fetch customers from Supabase
+        // Fetch customers
         const { data: customersData, error: customersError } = await supabase.from("customers").select("*")
-
         if (customersError) {
           console.error("Error fetching customers:", customersError)
           toast({
@@ -91,6 +81,37 @@ export default function DashboardContent() {
           setCustomers(customersData)
         } else {
           setCustomers([])
+        }
+
+        // Fetch documents (assuming a 'documents' table with 'created_at' and 'processed_at')
+        const { data: documentsData, error: documentsError } = await supabase.from("documents").select("*")
+        if (documentsError) {
+          console.error("Error fetching documents:", documentsError)
+          toast({
+            title: "Error fetching documents",
+            description: "Could not retrieve documents from database",
+            variant: "destructive",
+          })
+          setDocuments([])
+        } else if (documentsData) {
+          setDocuments(documentsData)
+        }
+
+        // Fetch notifications (assuming a 'notifications' table)
+        const { data: notificationsData, error: notificationsError } = await supabase
+          .from("notifications")
+          .select("*")
+          .order("created_at", { ascending: false })
+        if (notificationsError) {
+          console.error("Error fetching notifications:", notificationsError)
+          toast({
+            title: "Error fetching notifications",
+            description: "Could not retrieve notifications from database",
+            variant: "destructive",
+          })
+          setNotifications([])
+        } else if (notificationsData) {
+          setNotifications(notificationsData)
         }
       } catch (error) {
         console.error("Error in data fetching:", error)
@@ -236,6 +257,8 @@ export default function DashboardContent() {
     }
   }, [startDate, endDate, allOrders])
 
+  // --- Real-time Data Calculations and Aggregations ---
+
   // Calculate order statistics
   const totalOrderValue = filteredOrders.reduce((sum, order) => sum + (order.totalValue || order.total_value || 0), 0)
   const activeOrders = filteredOrders.filter(
@@ -245,107 +268,298 @@ export default function DashboardContent() {
   const pendingOrders = filteredOrders.filter((order) => order.status === "Pending" || order.status === "pending")
 
   // Sort orders by date for recent activity
-  const recentOrders = [...filteredOrders]
-    .sort((a, b) => new Date(b.createdAt || b.created_at).getTime() - new Date(a.createdAt || a.created_at).getTime())
-    .slice(0, 5)
+  const recentOrders = useMemo(
+    () =>
+      [...filteredOrders]
+        .sort(
+          (a, b) => new Date(b.createdAt || b.created_at).getTime() - new Date(a.createdAt || a.created_at).getTime(),
+        )
+        .slice(0, 5),
+    [filteredOrders],
+  )
 
   // Sort customers by total orders for top customers
-  const topCustomers = [...customers]
-    .sort((a, b) => (b.totalOrders || b.total_orders || 0) - (a.totalOrders || a.total_orders || 0))
-    .slice(0, 3)
+  const topCustomers = useMemo(
+    () =>
+      [...customers]
+        .sort((a, b) => (b.totalOrders || b.total_orders || 0) - (a.totalOrders || a.total_orders || 0))
+        .slice(0, 3),
+    [customers],
+  )
 
   // Combined order status data for visualization
-  const orderStatusData = [
-    { name: "Active", value: activeOrders.length, color: "#3b82f6" },
-    { name: "Completed", value: completedOrders.length, color: "#10b981" },
-    { name: "Pending", value: pendingOrders.length, color: "#f59e0b" },
-  ]
+  const orderStatusData = useMemo(
+    () => [
+      { name: "Active", value: activeOrders.length, color: "#3b82f6" },
+      { name: "Completed", value: completedOrders.length, color: "#10b981" },
+      { name: "Pending", value: pendingOrders.length, color: "#f59e0b" },
+    ],
+    [activeOrders.length, completedOrders.length, pendingOrders.length],
+  )
 
-  // Monthly order trend data - this should ideally come from Supabase too
-  // For now we'll keep this as is since it requires more complex aggregation
-  const monthlyOrderTrendData = [
-    { name: "Jan", value: 42 },
-    { name: "Feb", value: 55 },
-    { name: "Mar", value: 67 },
-    { name: "Apr", value: 45 },
-    { name: "May", value: 78 },
-    { name: "Jun", value: 63 },
-    { name: "Jul", value: 82 },
-    { name: "Aug", value: 91 },
-    { name: "Sep", value: 65 },
-    { name: "Oct", value: 73 },
-    { name: "Nov", value: 88 },
-    { name: "Dec", value: 94 },
-  ]
+  // Monthly order trend data
+  const monthlyOrderTrendData = useMemo(() => {
+    const oneYearAgo = subMonths(new Date(), 11)
+    const monthlyCounts: { [key: string]: number } = {}
 
-  // Performance metrics data
-  const performanceMetrics = [
-    {
-      title: "Delivery Target",
-      description: "Monthly delivery completion rate",
-      value: 65,
-      target: 100,
-      timeframe: "Dec 2024",
-      status: "In Progress",
-      statusColor: "bg-blue-900",
-      progressColor: "bg-blue-500",
-      color: "text-blue-500",
-      icon: "Truck",
-      daysLeft: 45,
-    },
-    {
-      title: "Order Processing",
-      description: "Order completion efficiency",
-      value: 30,
-      target: 500,
-      timeframe: "Jun 2024",
-      status: "Pending",
-      statusColor: "bg-orange-900",
-      progressColor: "bg-orange-500",
-      color: "text-orange-500",
-      icon: "Package",
-      daysLeft: 180,
-    },
-    {
-      title: "Documentation",
-      description: "Document processing rate",
-      value: 45,
-      target: 1000,
-      timeframe: "Mar 2025",
-      status: "On Track",
-      statusColor: "bg-green-900",
-      progressColor: "bg-green-500",
-      color: "text-green-500",
-      icon: "FileText",
-      daysLeft: 120,
-    },
-  ]
+    for (let i = 0; i < 12; i++) {
+      const month = format(subMonths(new Date(), 11 - i), "MMM")
+      monthlyCounts[month] = 0
+    }
 
-  // Mock notifications
-  const notifications = [
-    { id: 1, title: "New Order", message: "Order PO-2024-006 has been created", time: "5 minutes ago", read: false },
-    {
-      id: 2,
-      title: "Order Status",
-      message: "Order PO-2024-003 has been completed",
-      time: "1 hour ago",
-      read: false,
-    },
-    {
-      id: 3,
-      title: "Delivery Alert",
-      message: "Delivery for Order PO-2024-002 is delayed",
-      time: "3 hours ago",
-      read: true,
-    },
-    {
-      id: 4,
-      title: "New Customer",
-      message: "New customer 'Global Enterprises' has been added",
-      time: "Yesterday",
-      read: true,
-    },
-  ]
+    allOrders.forEach((order) => {
+      const orderDate = new Date(order.created_at || order.createdAt)
+      if (orderDate >= oneYearAgo) {
+        const month = format(orderDate, "MMM")
+        monthlyCounts[month]++
+      }
+    })
+
+    return Object.keys(monthlyCounts).map((month) => ({
+      name: month,
+      value: monthlyCounts[month],
+    }))
+  }, [allOrders])
+
+  // Calculate average order processing time
+  const averageProcessingTime = useMemo(() => {
+    const completedOrdersWithDates = allOrders
+      .filter((order) => order.status === "Completed" || order.status === "completed")
+      .filter((order) => order.created_at && order.completed_at) // Assuming completed_at exists
+
+    if (completedOrdersWithDates.length === 0) return { value: 0, unit: "days", target: 2, trend: 0 }
+
+    const totalDays = completedOrdersWithDates.reduce((sum, order) => {
+      const created = new Date(order.created_at)
+      const completed = new Date(order.completed_at)
+      return sum + differenceInDays(completed, created)
+    }, 0)
+
+    const avgDays = totalDays / completedOrdersWithDates.length
+    // For trend, you'd need historical average. For simplicity, let's assume a target and calculate difference.
+    const targetDays = 2 // Example target
+    const trend = avgDays - targetDays // Positive means slower, negative means faster
+
+    return {
+      value: Number.parseFloat(avgDays.toFixed(1)),
+      unit: "days",
+      target: targetDays,
+      trend: Number.parseFloat(trend.toFixed(1)),
+    }
+  }, [allOrders])
+
+  // Calculate order value distribution
+  const orderValueDistribution = useMemo(() => {
+    const ranges = [
+      { label: "R 0 - R 1,000", min: 0, max: 1000 },
+      { label: "R 1,001 - R 5,000", min: 1001, max: 5000 },
+      { label: "R 5,001 - R 10,000", min: 5001, max: 10000 },
+      { label: "R 10,001 - R 50,000", min: 10001, max: 50000 },
+      { label: "R 50,001+", min: 50001, max: Number.POSITIVE_INFINITY },
+    ]
+
+    const counts: { [key: string]: number } = {}
+    ranges.forEach((range) => (counts[range.label] = 0))
+
+    filteredOrders.forEach((order) => {
+      const value = order.total_value || order.totalValue || 0
+      for (const range of ranges) {
+        if (value >= range.min && value <= range.max) {
+          counts[range.label]++
+          break
+        }
+      }
+    })
+
+    const totalOrdersInFiltered = filteredOrders.length
+    return ranges.map((range) => ({
+      label: range.label,
+      percentage: totalOrdersInFiltered > 0 ? (counts[range.label] / totalOrdersInFiltered) * 100 : 0,
+    }))
+  }, [filteredOrders])
+
+  // Customer Acquisition Data
+  const customerAcquisitionData = useMemo(() => {
+    const oneYearAgo = subMonths(new Date(), 11)
+    const monthlyCounts: { [key: string]: number } = {}
+
+    for (let i = 0; i < 12; i++) {
+      const month = format(subMonths(new Date(), 11 - i), "MMM")
+      monthlyCounts[month] = 0
+    }
+
+    customers.forEach((customer) => {
+      const customerDate = new Date(customer.created_at || customer.createdAt)
+      if (customerDate >= oneYearAgo) {
+        const month = format(customerDate, "MMM")
+        monthlyCounts[month]++
+      }
+    })
+
+    const data = Object.keys(monthlyCounts).map((month) => ({
+      name: month,
+      value: monthlyCounts[month],
+    }))
+
+    const totalNew = data.reduce((sum, item) => sum + item.value, 0)
+    const monthlyAvg = totalNew / data.length
+    // Simple growth calculation: (last month - first month) / first month
+    const growth = data.length > 1 ? ((data[data.length - 1].value - data[0].value) / data[0].value) * 100 : 0
+
+    return {
+      data,
+      totalNew: totalNew,
+      monthlyAvg: Number.parseFloat(monthlyAvg.toFixed(1)),
+      growth: Number.parseFloat(growth.toFixed(1)),
+    }
+  }, [customers])
+
+  // Customer Retention Rate
+  const customerRetentionRate = useMemo(() => {
+    const customerOrderCounts: { [key: string]: number } = {}
+    allOrders.forEach((order) => {
+      if (order.customer_id) {
+        customerOrderCounts[order.customer_id] = (customerOrderCounts[order.customer_id] || 0) + 1
+      }
+    })
+
+    const totalCustomersWithOrders = Object.keys(customerOrderCounts).length
+    const repeatCustomers = Object.values(customerOrderCounts).filter((count) => count > 1).length
+
+    if (totalCustomersWithOrders === 0) return { percentage: 0, description: "No customers with orders yet." }
+
+    const retention = (repeatCustomers / totalCustomersWithOrders) * 100
+    return {
+      percentage: Number.parseFloat(retention.toFixed(0)),
+      description: `${Number.parseFloat(retention.toFixed(0))}% of customers place repeat orders`,
+    }
+  }, [allOrders])
+
+  // Performance Metrics Data
+  const performanceMetrics = useMemo(() => {
+    // Delivery Target: On-time delivery rate
+    const completedDeliveries = allOrders.filter(
+      (order) =>
+        (order.status === "Completed" || order.status === "completed") &&
+        order.delivery_date &&
+        order.actual_delivery_date,
+    )
+    const onTimeDeliveries = completedDeliveries.filter(
+      (order) => new Date(order.actual_delivery_date) <= new Date(order.delivery_date),
+    ).length
+    const deliveryRate = completedDeliveries.length > 0 ? (onTimeDeliveries / completedDeliveries.length) * 100 : 0
+
+    // Order Processing: Average processing time (re-using calculated averageProcessingTime)
+    const orderProcessingValue = averageProcessingTime.value
+    const orderProcessingTarget = averageProcessingTime.target
+
+    // Documentation: Average document processing time
+    const processedDocuments = documents.filter((doc) => doc.created_at && doc.processed_at)
+    const totalDocProcessingDays = processedDocuments.reduce((sum, doc) => {
+      const created = new Date(doc.created_at)
+      const processed = new Date(doc.processed_at)
+      return sum + differenceInDays(processed, created)
+    }, 0)
+    const avgDocProcessingDays = processedDocuments.length > 0 ? totalDocProcessingDays / processedDocuments.length : 0
+
+    return [
+      {
+        title: "Delivery Target",
+        description: "On-time delivery rate",
+        value: Number.parseFloat(deliveryRate.toFixed(0)),
+        target: 100, // Target is 100%
+        timeframe: "Current",
+        status: deliveryRate >= 90 ? "On Track" : "Needs Attention",
+        statusColor: deliveryRate >= 90 ? "bg-green-900" : "bg-orange-900",
+        progressColor: deliveryRate >= 90 ? "bg-green-500" : "bg-orange-500",
+        color: deliveryRate >= 90 ? "text-green-500" : "text-orange-500",
+        icon: "Truck",
+        daysLeft: 0, // Not applicable for rate
+      },
+      {
+        title: "Order Processing",
+        description: "Average order completion time",
+        value: orderProcessingValue,
+        target: orderProcessingTarget,
+        timeframe: "Target: " + orderProcessingTarget + " days",
+        status: orderProcessingValue <= orderProcessingTarget ? "On Track" : "Delayed",
+        statusColor: orderProcessingValue <= orderProcessingTarget ? "bg-green-900" : "bg-red-900",
+        progressColor: orderProcessingValue <= orderProcessingTarget ? "bg-green-500" : "bg-red-500",
+        color: orderProcessingValue <= orderProcessingTarget ? "text-green-500" : "text-red-500",
+        icon: "Package",
+        daysLeft: 0, // Not applicable for average
+      },
+      {
+        title: "Documentation",
+        description: "Average document processing time",
+        value: Number.parseFloat(avgDocProcessingDays.toFixed(1)),
+        target: 3, // Example target for document processing in days
+        timeframe: "Target: 3 days",
+        status: avgDocProcessingDays <= 3 ? "On Track" : "Delayed",
+        statusColor: avgDocProcessingDays <= 3 ? "bg-green-900" : "bg-red-900",
+        progressColor: avgDocProcessingDays <= 3 ? "bg-green-500" : "bg-red-500",
+        color: avgDocProcessingDays <= 3 ? "text-green-500" : "text-red-500",
+        icon: "FileText",
+        daysLeft: 0, // Not applicable for average
+      },
+    ]
+  }, [allOrders, averageProcessingTime, documents])
+
+  // Delivery Performance Chart Data
+  const deliveryPerformanceData = useMemo(() => {
+    const oneYearAgo = subMonths(new Date(), 11)
+    const monthlyData: { [key: string]: { total: number; onTime: number } } = {}
+
+    for (let i = 0; i < 12; i++) {
+      const month = format(subMonths(new Date(), 11 - i), "MMM")
+      monthlyData[month] = { total: 0, onTime: 0 }
+    }
+
+    allOrders.forEach((order) => {
+      const orderDate = new Date(order.created_at || order.createdAt)
+      if (orderDate >= oneYearAgo && (order.status === "Completed" || order.status === "completed")) {
+        const month = format(orderDate, "MMM")
+        monthlyData[month].total++
+        if (
+          order.delivery_date &&
+          order.actual_delivery_date &&
+          new Date(order.actual_delivery_date) <= new Date(order.delivery_date)
+        ) {
+          monthlyData[month].onTime++
+        }
+      }
+    })
+
+    return Object.keys(monthlyData).map((month) => ({
+      name: month,
+      value: monthlyData[month].total > 0 ? (monthlyData[month].onTime / monthlyData[month].total) * 100 : 0,
+    }))
+  }, [allOrders])
+
+  // Operational Efficiency Chart Data (simplified: average order value per month)
+  const operationalEfficiencyData = useMemo(() => {
+    const oneYearAgo = subMonths(new Date(), 11)
+    const monthlyData: { [key: string]: { totalValue: number; count: number } } = {}
+
+    for (let i = 0; i < 12; i++) {
+      const month = format(subMonths(new Date(), 11 - i), "MMM")
+      monthlyData[month] = { totalValue: 0, count: 0 }
+    }
+
+    allOrders.forEach((order) => {
+      const orderDate = new Date(order.created_at || order.createdAt)
+      if (orderDate >= oneYearAgo) {
+        const month = format(orderDate, "MMM")
+        monthlyData[month].totalValue += order.total_value || order.totalValue || 0
+        monthlyData[month].count++
+      }
+    })
+
+    return Object.keys(monthlyData).map((month) => ({
+      name: month,
+      value: monthlyData[month].count > 0 ? monthlyData[month].totalValue / monthlyData[month].count : 0,
+    }))
+  }, [allOrders])
 
   // Toggle theme function
   const toggleTheme = () => {
@@ -375,10 +589,12 @@ export default function DashboardContent() {
   }
 
   // Mark all notifications as read
-  const markAllAsRead = () => {
+  const markAllAsRead = useCallback(() => {
     // In a real app, this would call an API to update the notification status
+    // For now, just update local state
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
     console.log("Marking all notifications as read")
-  }
+  }, [])
 
   // Apply date range
   const applyDateRange = () => {
@@ -407,7 +623,6 @@ export default function DashboardContent() {
   // Date range error handling
   const dateError = dateRange[0] && dateRange[1] && dateRange[0] > dateRange[1]
 
-  // Add this near the top of your component
   useEffect(() => {
     try {
       // Your initialization logic here
@@ -418,7 +633,6 @@ export default function DashboardContent() {
     }
   }, [])
 
-  // Use error boundary pattern instead
   if (hasError) {
     return <ErrorDisplay title="Error" message={errorMessage} />
   }
@@ -479,43 +693,16 @@ export default function DashboardContent() {
           monthlyOrderTrendData={monthlyOrderTrendData}
           activeOrders={activeOrders}
           pendingOrders={pendingOrders}
-        >
-          {/* Orders Tab Content */}
-          <TabsContent value="orders" className="mt-4">
-            {isLoading ? (
-              renderSkeleton()
-            ) : (
-              <>
-                <RecentOrdersList isDarkMode={isDarkMode} recentOrders={recentOrders} />
-                <OrderStatistics isDarkMode={isDarkMode} />
-              </>
-            )}
-          </TabsContent>
-
-          {/* Customers Tab Content */}
-          <TabsContent value="customers" className="mt-4">
-            {isLoading ? (
-              renderSkeleton()
-            ) : (
-              <>
-                <TopCustomers isDarkMode={isDarkMode} topCustomers={topCustomers} />
-                <CustomerStatistics isDarkMode={isDarkMode} />
-              </>
-            )}
-          </TabsContent>
-
-          {/* Performance Tab Content */}
-          <TabsContent value="performance" className="mt-4">
-            {isLoading ? (
-              renderSkeleton()
-            ) : (
-              <>
-                <PerformanceMetrics isDarkMode={isDarkMode} performanceMetrics={performanceMetrics} />
-                <PerformanceCharts isDarkMode={isDarkMode} />
-              </>
-            )}
-          </TabsContent>
-        </DashboardTabs>
+          recentOrders={recentOrders}
+          averageProcessingTime={averageProcessingTime}
+          orderValueDistribution={orderValueDistribution}
+          topCustomers={topCustomers}
+          customerAcquisitionData={customerAcquisitionData}
+          customerRetentionRate={customerRetentionRate}
+          performanceMetrics={performanceMetrics}
+          deliveryPerformanceData={deliveryPerformanceData}
+          operationalEfficiencyData={operationalEfficiencyData}
+        />
       </div>
     </div>
   )
