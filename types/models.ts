@@ -16,17 +16,34 @@ export type EstimateStatus = "Draft" | "Sent" | "Accepted" | "Rejected"
 // Order model
 export interface Order {
   id: string
-  poNumber: string
-  supplier: string
-  importer: string
-  status: Status
-  cargoStatus: CargoStatus
-  freightType: FreightType
-  cargoStatusComment?: string
-  totalValue: number
-  customerName: string
-  createdAt: string
-  updatedAt?: string
+  customer_id: string
+  customer_name: string
+  status: string
+  created_at: string
+  updated_at: string
+  origin: string
+  destination: string
+  total_amount: number
+  currency: string
+  tracking_number?: string
+  freight_type?: string
+  expected_delivery_date?: string
+  actual_delivery_date?: string
+  notes?: string
+  // Financial columns
+  base_freight_cost?: number
+  fuel_surcharge?: number
+  customs_duties?: number
+  insurance_cost?: number
+  other_charges?: number
+  discount_amount?: number
+  tax_amount?: number
+  total_billed_amount?: number
+  profit_margin?: number
+  payment_status?: string
+  invoice_number?: string
+  invoice_date?: string
+  payment_due_date?: string
   items?: OrderItem[]
   documents?: Document[]
 }
@@ -45,30 +62,43 @@ export interface Customer {
   name: string
   contactPerson: string
   email: string
-  phone: string
-  address: Address
+  phone?: string
+  address?: string
   totalOrders: number
   totalSpent: number
   vatNumber?: string
   importersCode?: string
-  rateCard?: RateCard
+  rate_card_id?: string
   createdAt?: string
   updatedAt?: string
+  rateCard?: RateCard
 }
 
 export interface RateCard {
-  seaFreight: {
-    communicationFee: number
-    documentationFee: number
-    agencyFee: number
-    facilityFee: number
-  }
-  airFreight: {
-    communicationFee: number
-    documentationFee: number
-    agencyFee: number
-    facilityFee: number
-  }
+  id: string
+  customer_id: string
+  name: string
+  valid_from: string
+  valid_to: string
+  rates: Rate[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Rate {
+  id: string
+  rate_card_id: string
+  freight_type: string // e.g., 'Air', 'Sea', 'Road'
+  service_type: string // e.g., 'Express', 'Standard', 'LCL', 'FCL'
+  origin_country?: string
+  destination_country?: string
+  origin_port?: string
+  destination_port?: string
+  unit_type: "per_kg" | "per_cbm" | "flat_rate" | "per_container"
+  unit_price: number
+  min_charge?: number
+  currency: string
+  notes?: string
 }
 
 export interface Address {
@@ -88,33 +118,39 @@ export interface Contact {
 // Estimate model
 export interface Estimate {
   id: string
+  displayId: string // Human-readable ID, e.g., "TSW-0001"
   customerId: string
   customerName: string
   customerEmail: string
-  status: string
+  status: "Draft" | "Sent" | "Accepted" | "Rejected"
+  freightType: string
+  commercialValue: number | string
+  customsDuties: number | string
+  customsVAT: number | string
+  handlingFees: number | string
+  shippingCost: number | string
+  documentationFee: number | string
+  communicationFee: number | string
+  totalDisbursements: number | string
+  facilityFee: number | string
+  agencyFee: number | string
+  subtotal: number | string
+  vat: number | string
+  totalAmount: number
+  notes?: string
   createdAt: string
   updatedAt?: string
-  freightType: string
-  commercialValue: string
-  customsDuties: string
-  handlingFees: string
-  shippingCost: string
-  documentationFee: string
-  communicationFee: string
-  notes: string
-  totalAmount: number
 }
 
 // Document model
 export interface Document {
   id: string
-  name: string
-  type: string
-  url: string
   order_id: string
-  created_at: string
-  updated_at?: string
-  required?: boolean
+  file_name: string
+  file_type: string
+  file_url: string
+  uploaded_at: string
+  document_type: string // e.g., 'POD', 'Invoice', 'Customs Declaration'
 }
 
 // Delivery model
@@ -237,40 +273,58 @@ export interface CargoStatusHistoryEntry {
   }
 }
 
-// Rate Card
-export interface RateItem {
+// Shipment
+export interface Shipment {
   id: string
-  name: string
-  seaFreight: number
-  airFreight: number
-  isPercentage: boolean
-  percentageBase?: string
+  tracking_number: string
+  carrier: string
+  status: string
+  origin: string
+  destination: string
+  scheduled_delivery: string
+  actual_delivery?: string
+  last_updated: string
+  vessel_name?: string
+  voyage_number?: string
+  container_number?: string
+  current_port?: string
+  next_port?: string
+  eta?: string
+  cargo_status_history?: CargoStatusHistory[]
+}
+
+export interface CargoStatusHistory {
+  id: string
+  shipment_id: string
+  status: string
+  location: string
+  timestamp: string
+  notes?: string
 }
 
 // Notification
 export interface Notification {
-  id: number
-  title: string
+  id: string
+  user_id: string
   message: string
-  time: string
+  type: "info" | "warning" | "error" | "success"
   read: boolean
+  created_at: string
 }
 
 // API Response types
 export interface ApiResponse<T> {
-  data: T
+  data: T | null
   success: boolean
   message?: string
-  error?: string
 }
 
-export interface PaginatedResponse<T> extends ApiResponse<T> {
-  pagination: {
-    page: number
-    pageSize: number
-    totalItems: number
-    totalPages: number
-  }
+export interface PaginatedResponse<T> {
+  data: T
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
 }
 
 // Dashboard metrics
@@ -287,4 +341,16 @@ export interface DashboardMetrics {
   recentOrders: Order[]
   topCustomers: Customer[]
   monthlyOrderTrend: Array<{ name: string; value: number }>
+}
+
+// User Profile
+export interface UserProfile {
+  id: string
+  email: string
+  full_name?: string
+  avatar_url?: string
+  user_role?: "admin" | "staff" | "client"
+  customer_id?: string // For client users
+  created_at?: string
+  updated_at?: string
 }

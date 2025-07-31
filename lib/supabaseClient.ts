@@ -1,23 +1,26 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Supabase URL or Anon Key is missing. Check your environment variables.")
+if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+  console.error("Missing Supabase environment variables")
+  // In a real application, you might want to throw an error or handle this more gracefully
 }
 
-export const supabase = createClient(supabaseUrl!, supabaseAnonKey!)
-
-// Server-side Supabase client (for use in API routes, server components, server actions)
-// This client should use the service role key for elevated privileges if needed,
-// or the anon key if only public access is required.
-// For this project, we'll assume the service role key is used where appropriate
-// and the anon key for general server-side reads/writes that don't require elevated access.
-export const createServerSupabaseClient = () => {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!serviceRoleKey) {
-    console.warn("SUPABASE_SERVICE_ROLE_KEY is not set. Server-side operations might be limited.")
+// Client-side Supabase client (for public actions)
+export const createBrowserClient = () => {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
   }
-  return createClient(supabaseUrl!, serviceRoleKey || supabaseAnonKey!)
+  return createSupabaseClient(supabaseUrl, supabaseAnonKey)
+}
+
+// Server-side Supabase client (for actions requiring service role)
+export const createServerClient = () => {
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
+  }
+  return createSupabaseClient(supabaseUrl, supabaseServiceRoleKey)
 }

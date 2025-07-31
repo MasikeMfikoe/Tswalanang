@@ -44,7 +44,7 @@ export default function EstimatesPage() {
       console.log("Estimates API response:", response)
       setDebugInfo(response)
 
-      if (response.data) {
+      if (response && response.data) {
         setEstimates(response.data)
         setTotalEstimates(response.total || 0)
         setFilteredEstimates(response.data)
@@ -57,12 +57,12 @@ export default function EstimatesPage() {
         setTotalEstimates(0)
         setFilteredEstimates([])
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch estimates:", err)
       setError("Failed to load estimates. Please try again.")
       toast({
         title: "Error",
-        description: "Failed to load estimates. Please try again.",
+        description: err.message || "Failed to load estimates. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -84,8 +84,9 @@ export default function EstimatesPage() {
 
     const filtered = estimates.filter(
       (estimate) =>
-        estimate.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        estimate.id.toLowerCase().includes(searchTerm.toLowerCase()),
+        estimate.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        estimate.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (estimate.displayId && estimate.displayId.toLowerCase().includes(searchTerm.toLowerCase())),
     )
     setFilteredEstimates(filtered)
   }, [searchTerm, estimates])
@@ -107,16 +108,20 @@ export default function EstimatesPage() {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A"
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat("en-ZA", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }).format(date)
+    try {
+      const date = new Date(dateString)
+      return new Intl.DateTimeFormat("en-ZA", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }).format(date)
+    } catch {
+      return "N/A"
+    }
   }
 
   const formatCurrency = (amount: number) => {
-    if (!amount) return "R 0.00"
+    if (typeof amount !== "number" || isNaN(amount)) return "R 0.00"
     return new Intl.NumberFormat("en-ZA", {
       style: "currency",
       currency: "ZAR",
@@ -155,12 +160,6 @@ export default function EstimatesPage() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-          <Link href="/debug-estimates">
-            <Button variant="outline">
-              <AlertCircle className="mr-2 h-4 w-4" />
-              Debug
-            </Button>
-          </Link>
           <Button variant="outline" asChild>
             <Link href="/dashboard">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -172,7 +171,6 @@ export default function EstimatesPage() {
 
       <Card>
         <CardContent className="pt-6">
-          {/* Filters and Controls Row */}
           <div className="mb-6 mt-2 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -204,7 +202,7 @@ export default function EstimatesPage() {
           ) : error ? (
             <div className="text-center py-8 text-red-500">
               <p>{error}</p>
-              <Button variant="outline" onClick={fetchEstimates} className="mt-4">
+              <Button variant="outline" onClick={fetchEstimates} className="mt-4 bg-transparent">
                 Try Again
               </Button>
             </div>
@@ -240,7 +238,7 @@ export default function EstimatesPage() {
                   ) : (
                     filteredEstimates.map((estimate) => (
                       <TableRow key={estimate.id}>
-                        <TableCell className="font-mono text-sm">{estimate.id}</TableCell>
+                        <TableCell className="font-mono text-sm">{estimate.displayId || estimate.id}</TableCell>
                         <TableCell>{estimate.customerName || "N/A"}</TableCell>
                         <TableCell>{formatDate(estimate.createdAt)}</TableCell>
                         <TableCell>
@@ -266,7 +264,6 @@ export default function EstimatesPage() {
             </div>
           )}
 
-          {/* Pagination and results summary */}
           <div className="mt-4 flex justify-between items-center text-sm text-muted-foreground">
             <div>
               Showing {filteredEstimates.length} of {totalEstimates} estimates

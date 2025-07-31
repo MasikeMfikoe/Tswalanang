@@ -1,25 +1,30 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-// Initialize Supabase client
+// Initialize Supabase client with service role key
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("Missing Supabase environment variables")
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 // GET: Fetch all estimates with optional filtering
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl?.searchParams
-    const status = searchParams?.get("status")
-    const customerId = searchParams?.get("customerId")
-    const page = Number.parseInt(searchParams?.get("page") || "1")
-    const pageSize = Number.parseInt(searchParams?.get("pageSize") || "10")
-    const sortBy = searchParams?.get("sortBy") || "created_at"
-    const sortOrder = searchParams?.get("sortOrder") || "desc"
+    console.log("GET /api/estimates - Starting request")
 
-    console.log("GET /api/estimates - Fetching from Supabase")
+    const { searchParams } = new URL(request.url)
+    const page = Number.parseInt(searchParams.get("page") || "1")
+    const pageSize = Number.parseInt(searchParams.get("pageSize") || "10")
+    const status = searchParams.get("status")
+    const search = searchParams.get("search")
 
-    // Build query
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
     let query = supabase.from("estimates").select("*", { count: "exact" })
 
     // Apply filters
@@ -27,40 +32,43 @@ export async function GET(request: NextRequest) {
       query = query.eq("status", status)
     }
 
-    if (customerId) {
-      query = query.eq("customer_id", customerId)
+    if (search) {
+      query = query.or(`customer_name.ilike.%${search}%,id.ilike.%${search}%,display_id.ilike.%${search}%`)
     }
 
     // Apply sorting
-    query = query.order(sortBy, { ascending: sortOrder === "asc" })
+    query = query.order("created_at", { ascending: false })
 
     // Apply pagination
-    const startIndex = (page - 1) * pageSize
-    query = query.range(startIndex, startIndex + pageSize - 1)
+    query = query.range(from, to)
 
+    console.log("Executing Supabase query...")
     const { data, error, count } = await query
 
     if (error) {
-      console.error("Supabase error:", error)
-      throw new Error(`Database error: ${error.message}`)
+      console.error("Supabase error fetching estimates:", error)
+      return NextResponse.json({ error: error.message, success: false }, { status: 500 })
     }
+
+    console.log(`Query successful. Found ${count} total records, returning ${data?.length || 0} records`)
 
     return NextResponse.json({
       data: data || [],
       total: count || 0,
-      pagination: {
-        page,
-        pageSize,
-        totalItems: count || 0,
-        totalPages: Math.ceil((count || 0) / pageSize),
-      },
+      page: page,
+      pageSize: pageSize,
+      totalPages: Math.ceil((count || 0) / pageSize),
       success: true,
-      source: "supabase",
+      message: "Estimates retrieved successfully",
     })
   } catch (error) {
     console.error("Error in estimates GET route:", error)
     return NextResponse.json(
-      { error: "An unexpected error occurred", details: (error as Error).message },
+      {
+        error: "An unexpected error occurred",
+        details: (error as Error).message,
+        success: false,
+      },
       { status: 500 },
     )
   }
@@ -69,16 +77,16 @@ export async function GET(request: NextRequest) {
 // POST: Create a new estimate
 export async function POST(request: NextRequest) {
   try {
-    console.log("POST /api/estimates - Creating new estimate in Supabase")
+    console.log("POST /api/estimates - Creating new estimate")
     const estimateData = await request.json()
     console.log("Estimate data received:", estimateData)
 
     // Validate required fields
-    const requiredFields = ["customer_id", "customer_name", "customer_email", "freight_type"]
+    const requiredFields = ["customer_name", "freight_type"]
     for (const field of requiredFields) {
       if (!estimateData[field]) {
         console.error(`Missing required field: ${field}`)
-        return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 })
+        return NextResponse.json({ error: `Missing required field: ${field}`, success: false }, { status: 400 })
       }
     }
 
@@ -87,54 +95,65 @@ export async function POST(request: NextRequest) {
       estimateData.status = "Draft"
     }
 
+    // Generate a simple display_id (e.g., TSW-YYYYMMDD-XXXX)
+    const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "") // YYYYMMDD
+    const randomPart = Math.floor(1000 + Math.random() * 9000) // 4-digit random number
+    const displayId = `TSW-${datePart}-${randomPart}`
+
     // Prepare data for Supabase insertion
     const supabaseData = {
-      customer_id: estimateData.customer_id,
+      customer_id: estimateData.customer_id || "",
       customer_name: estimateData.customer_name,
-      customer_email: estimateData.customer_email,
+      customer_email: estimateData.customer_email || "",
       status: estimateData.status,
       freight_type: estimateData.freight_type,
-      commercial_value: Number.parseFloat(estimateData.commercial_value || "0"),
-      customs_duties: Number.parseFloat(estimateData.customs_duties || "0"),
-      customs_vat: Number.parseFloat(estimateData.customs_vat || "0"),
-      handling_fees: Number.parseFloat(estimateData.handling_fees || "0"),
-      shipping_cost: Number.parseFloat(estimateData.shipping_cost || "0"),
-      documentation_fee: Number.parseFloat(estimateData.documentation_fee || "0"),
-      communication_fee: Number.parseFloat(estimateData.communication_fee || "0"),
-      total_disbursements: Number.parseFloat(estimateData.total_disbursements || "0"),
+      commercial_value: Number.parseFloat(estimateData.commercialValue || "0"),
+      customs_duties: Number.parseFloat(estimateData.customsDuties || "0"),
+      customs_vat: Number.parseFloat(estimateData.customsVAT || "0"),
+      handling_fees: Number.parseFloat(estimateData.handlingFees || "0"),
+      shipping_cost: Number.parseFloat(estimateData.shippingCost || "0"),
+      documentation_fee: Number.parseFloat(estimateData.documentationFee || "0"),
+      communication_fee: Number.parseFloat(estimateData.communicationFee || "0"),
+      total_disbursements: Number.parseFloat(estimateData.totalDisbursements || "0"),
       facility_fee: Number.parseFloat(estimateData.facility_fee || "0"),
       agency_fee: Number.parseFloat(estimateData.agency_fee || "0"),
       subtotal: Number.parseFloat(estimateData.subtotal || "0"),
       vat: Number.parseFloat(estimateData.vat || "0"),
-      total_amount: Number.parseFloat(estimateData.total_amount || "0"),
+      total_amount: Number.parseFloat(estimateData.totalAmount || "0"),
       notes: estimateData.notes || "",
+      display_id: displayId, // Add the generated display_id
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
 
     console.log("Inserting into Supabase:", supabaseData)
 
-    // Insert into Supabase
-    const { data, error } = await supabase.from("estimates").insert([supabaseData]).select().single()
+    // Insert into Supabase and select the newly created row
+    const { data, error } = await supabase.from("estimates").insert([supabaseData]).select("*").single()
 
     if (error) {
       console.error("Supabase insertion error:", error)
-      throw new Error(`Database error: ${error.message}`)
+      return NextResponse.json({ error: `Database error: ${error.message}`, success: false }, { status: 500 })
     }
 
-    console.log("Successfully created estimate in Supabase:", data)
+    console.log("Successfully created estimate:", data)
 
     return NextResponse.json(
       {
         data: data,
         success: true,
         message: "Estimate created successfully",
-        source: "supabase",
       },
       { status: 201 },
     )
   } catch (error) {
     console.error("Error in estimates POST route:", error)
     return NextResponse.json(
-      { error: "An unexpected error occurred", details: (error as Error).message },
+      {
+        error: "An unexpected error occurred",
+        details: (error as Error).message,
+        success: false,
+      },
       { status: 500 },
     )
   }

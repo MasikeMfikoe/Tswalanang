@@ -2,8 +2,13 @@ import type { Estimate, ApiResponse, PaginatedResponse } from "@/types/models"
 
 // Helper function to transform database row to frontend format
 function transformEstimateFromDB(item: any): Estimate {
+  if (!item) {
+    throw new Error("Invalid estimate data received from database")
+  }
+
   return {
-    id: item.id,
+    id: item.id || "",
+    displayId: item.display_id || item.id || "",
     customerId: item.customer_id || "",
     customerName: item.customer_name || "",
     customerEmail: item.customer_email || "",
@@ -23,7 +28,7 @@ function transformEstimateFromDB(item: any): Estimate {
     vat: item.vat?.toString() || "0",
     totalAmount: item.total_amount || 0,
     notes: item.notes || "",
-    createdAt: item.created_at,
+    createdAt: item.created_at || new Date().toISOString(),
     updatedAt: item.updated_at,
   }
 }
@@ -62,26 +67,24 @@ export const estimatesApi = {
       const result = await response.json()
       console.log("API response:", result)
 
-      if (!result.success) {
-        console.log("API returned error, using empty result")
-        return {
-          data: [],
-          total: 0,
-          page: params?.page || 1,
-          pageSize: params?.pageSize || 10,
-          totalPages: 0,
-        }
+      // Handle different response formats
+      if (result.error) {
+        throw new Error(result.error)
       }
 
-      // Transform the data
-      const transformedData = result.data.map(transformEstimateFromDB)
+      // Check if result has the expected structure
+      const data = result.data || result || []
+      const total = result.total || data.length || 0
+
+      // Transform the data safely
+      const transformedData = Array.isArray(data) ? data.map(transformEstimateFromDB) : []
 
       return {
         data: transformedData,
-        total: result.total,
-        page: result.pagination?.page || params?.page || 1,
-        pageSize: result.pagination?.pageSize || params?.pageSize || 10,
-        totalPages: result.pagination?.totalPages || Math.ceil(result.total / (params?.pageSize || 10)),
+        total: total,
+        page: params?.page || 1,
+        pageSize: params?.pageSize || 10,
+        totalPages: Math.ceil(total / (params?.pageSize || 10)),
       }
     } catch (error) {
       console.error("Error in getEstimates:", error)
@@ -100,6 +103,10 @@ export const estimatesApi = {
     try {
       console.log("getEstimateById called with id:", id)
 
+      if (!id) {
+        throw new Error("Estimate ID is required")
+      }
+
       const response = await fetch(`/api/estimates/${id}`)
 
       if (!response.ok) {
@@ -112,22 +119,27 @@ export const estimatesApi = {
       const result = await response.json()
       console.log("Single estimate API response:", result)
 
-      if (!result.success) {
-        throw new Error(result.error || "Failed to fetch estimate")
+      if (result.error) {
+        throw new Error(result.error)
+      }
+
+      const data = result.data || result
+      if (!data) {
+        throw new Error("No estimate data received")
       }
 
       // Transform snake_case to camelCase
-      const transformedData = transformEstimateFromDB(result.data)
+      const transformedData = transformEstimateFromDB(data)
 
       return {
         data: transformedData,
         success: true,
-        message: result.message || "Estimate retrieved successfully",
+        message: "Estimate retrieved successfully",
       }
     } catch (error: any) {
       console.error("Error in getEstimateById:", error)
       return {
-        data: null as any,
+        data: null,
         success: false,
         message: error.message || "Failed to retrieve estimate",
       }
@@ -138,6 +150,10 @@ export const estimatesApi = {
   async createEstimate(estimateData: any): Promise<ApiResponse<Estimate>> {
     try {
       console.log("Creating estimate via API route:", estimateData)
+
+      if (!estimateData) {
+        throw new Error("Estimate data is required")
+      }
 
       const response = await fetch("/api/estimates", {
         method: "POST",
@@ -154,19 +170,27 @@ export const estimatesApi = {
         throw new Error(result.error || `HTTP error! status: ${response.status}`)
       }
 
-      if (!result.success) {
-        throw new Error(result.error || "Failed to create estimate")
+      if (result.error) {
+        throw new Error(result.error)
       }
 
+      const data = result.data || result
+      if (!data) {
+        throw new Error("No estimate data received after creation")
+      }
+
+      // Transform the returned data to include displayId
+      const transformedData = transformEstimateFromDB(data)
+
       return {
-        data: result.data,
+        data: transformedData,
         success: true,
-        message: result.message || "Estimate created successfully",
+        message: "Estimate created successfully",
       }
     } catch (error: any) {
       console.error("Error in createEstimate:", error)
       return {
-        data: null as any,
+        data: null,
         success: false,
         message: error.message || "Failed to create estimate",
       }
@@ -177,6 +201,14 @@ export const estimatesApi = {
   async updateEstimate(id: string, estimateData: any): Promise<ApiResponse<Estimate>> {
     try {
       console.log("Updating estimate via API route:", id, estimateData)
+
+      if (!id) {
+        throw new Error("Estimate ID is required")
+      }
+
+      if (!estimateData) {
+        throw new Error("Estimate data is required")
+      }
 
       const response = await fetch(`/api/estimates/${id}`, {
         method: "PUT",
@@ -194,15 +226,27 @@ export const estimatesApi = {
       const result = await response.json()
       console.log("Estimate updated successfully:", result)
 
+      if (result.error) {
+        throw new Error(result.error)
+      }
+
+      const data = result.data || result
+      if (!data) {
+        throw new Error("No estimate data received after update")
+      }
+
+      // Transform the returned data to include displayId
+      const transformedData = transformEstimateFromDB(data)
+
       return {
-        data: result.data,
+        data: transformedData,
         success: true,
-        message: result.message || "Estimate updated successfully",
+        message: "Estimate updated successfully",
       }
     } catch (error: any) {
       console.error("Error in updateEstimate:", error)
       return {
-        data: null as any,
+        data: null,
         success: false,
         message: error.message || "Failed to update estimate",
       }
@@ -212,6 +256,10 @@ export const estimatesApi = {
   // Delete an estimate
   async deleteEstimate(id: string): Promise<ApiResponse<void>> {
     try {
+      if (!id) {
+        throw new Error("Estimate ID is required")
+      }
+
       const response = await fetch(`/api/estimates/${id}`, {
         method: "DELETE",
       })
@@ -221,12 +269,10 @@ export const estimatesApi = {
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
 
-      const result = await response.json()
-
       return {
         data: undefined,
         success: true,
-        message: result.message || "Estimate deleted successfully",
+        message: "Estimate deleted successfully",
       }
     } catch (error: any) {
       console.error("Error in deleteEstimate:", error)
@@ -241,6 +287,14 @@ export const estimatesApi = {
   // Update estimate status
   async updateEstimateStatus(id: string, status: string): Promise<ApiResponse<void>> {
     try {
+      if (!id) {
+        throw new Error("Estimate ID is required")
+      }
+
+      if (!status) {
+        throw new Error("Status is required")
+      }
+
       const response = await fetch(`/api/estimates/${id}`, {
         method: "PUT",
         headers: {
@@ -254,12 +308,10 @@ export const estimatesApi = {
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
 
-      const result = await response.json()
-
       return {
         data: undefined,
         success: true,
-        message: result.message || "Estimate status updated successfully",
+        message: "Estimate status updated successfully",
       }
     } catch (error: any) {
       console.error("Error in updateEstimateStatus:", error)
