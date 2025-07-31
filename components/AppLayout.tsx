@@ -25,8 +25,27 @@ import {
   ChevronRight,
 } from "lucide-react"
 
+// TypeScript interface for navigation items
+interface NavigationItem {
+  href?: string
+  label: string
+  icon: any
+  requiredPermission?: {
+    module: string
+    action: string
+  }
+  dropdown?: Array<{
+    href: string
+    label: string
+    requiredPermission?: {
+      module: string
+      action: string
+    }
+  }>
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth()
+  const { user, logout, hasPermission } = useAuth()
   const pathname = usePathname()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -118,44 +137,161 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     )
   }
 
-  const navigationItems = [
-    { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
-    { href: "/shipment-tracker", label: "Shipment Tracker", icon: Search },
+  // Navigation items with permission requirements for non-client users
+  const navigationItems: NavigationItem[] = [
+    {
+      href: "/dashboard",
+      label: "Dashboard",
+      icon: BarChart3,
+      requiredPermission: { module: "dashboard", action: "view" },
+    },
+    {
+      href: "/shipment-tracker",
+      label: "Shipment Tracker",
+      icon: Search,
+      requiredPermission: { module: "containerTracking", action: "view" },
+    },
     {
       label: "Orders",
       icon: Package,
+      requiredPermission: { module: "orders", action: "view" },
       dropdown: [
-        { href: "/orders", label: "Shipment Orders" },
-        { href: "/courier-orders", label: "Courier Orders" },
+        {
+          href: "/orders",
+          label: "Shipment Orders",
+          requiredPermission: { module: "orders", action: "view" },
+        },
+        {
+          href: "/courier-orders",
+          label: "Courier Orders",
+          requiredPermission: { module: "courierOrders", action: "view" },
+        },
       ],
     },
-    { href: "/estimates", label: "Estimates", icon: FileText },
+    {
+      href: "/estimates",
+      label: "Estimates",
+      icon: FileText,
+      requiredPermission: { module: "orders", action: "view" },
+    },
     {
       label: "Documents",
       icon: FileText,
+      requiredPermission: { module: "documents", action: "view" },
       dropdown: [
-        { href: "/documents", label: "All Documents" },
-        { href: "/documents/upload", label: "Upload Document" },
+        {
+          href: "/documents",
+          label: "All Documents",
+          requiredPermission: { module: "documents", action: "view" },
+        },
+        {
+          href: "/documents/upload",
+          label: "Upload Document",
+          requiredPermission: { module: "documents", action: "create" },
+        },
       ],
     },
-    { href: "/deliveries", label: "Deliveries", icon: Truck },
-    { href: "/customers", label: "Customers", icon: UserCheck },
-    { href: "/customer-summary", label: "Customer Summary", icon: TrendingUp },
-    { href: "/currency", label: "Currency Conversion", icon: DollarSign },
-    { href: "/rate-card", label: "Rate Card", icon: DollarSign },
-    { href: "/audit-trail", label: "Audit Trail", icon: FileText },
+    {
+      href: "/deliveries",
+      label: "Deliveries",
+      icon: Truck,
+      requiredPermission: { module: "deliveries", action: "view" },
+    },
+    {
+      href: "/customers",
+      label: "Customers",
+      icon: UserCheck,
+      requiredPermission: { module: "customers", action: "view" },
+    },
+    {
+      href: "/customer-summary",
+      label: "Customer Summary",
+      icon: TrendingUp,
+      requiredPermission: { module: "customers", action: "view" },
+    },
+    {
+      href: "/currency",
+      label: "Currency Conversion",
+      icon: DollarSign,
+      requiredPermission: { module: "currencyConversion", action: "view" },
+    },
+    {
+      href: "/rate-card",
+      label: "Rate Card",
+      icon: DollarSign,
+      requiredPermission: { module: "rateCard", action: "view" },
+    },
+    {
+      href: "/audit-trail",
+      label: "Audit Trail",
+      icon: FileText,
+      requiredPermission: { module: "auditTrail", action: "view" },
+    },
     {
       label: "Admin",
       icon: Settings,
+      requiredPermission: { module: "admin", action: "view" },
       dropdown: [
-        { href: "/admin/settings", label: "Settings" },
-        { href: "/admin/user-groups", label: "User Groups" },
-        { href: "/user-management", label: "Users" },
-        { href: "/admin/tracking-users", label: "Tracking Users" },
+        {
+          href: "/admin/settings",
+          label: "Settings",
+          requiredPermission: { module: "admin", action: "view" },
+        },
+        {
+          href: "/admin/user-groups",
+          label: "User Groups",
+          requiredPermission: { module: "admin", action: "view" },
+        },
+        {
+          href: "/user-management",
+          label: "Users",
+          requiredPermission: { module: "admin", action: "view" },
+        },
+        {
+          href: "/admin/tracking-users",
+          label: "Tracking Users",
+          requiredPermission: { module: "admin", action: "view" },
+        },
       ],
     },
-    { href: "/user-management", label: "User Management", icon: User },
+    {
+      href: "/user-management",
+      label: "User Management",
+      icon: User,
+      requiredPermission: { module: "admin", action: "view" },
+    },
   ]
+
+  // Filter function for dropdown items
+  const filterDropdownItems = (dropdownItems: NavigationItem["dropdown"]) => {
+    if (!dropdownItems) return []
+    return dropdownItems.filter((item) => {
+      if (!item.requiredPermission) return true
+      return hasPermission(item.requiredPermission.module, item.requiredPermission.action)
+    })
+  }
+
+  // Filter function for main navigation items
+  const getFilteredNavigationItems = () => {
+    return navigationItems.filter((item) => {
+      // Check if user has permission for the main item
+      if (item.requiredPermission) {
+        const hasMainPermission = hasPermission(item.requiredPermission.module, item.requiredPermission.action)
+        if (!hasMainPermission) return false
+      }
+
+      // If it's a dropdown, check if any dropdown items are accessible
+      if (item.dropdown) {
+        const accessibleDropdownItems = filterDropdownItems(item.dropdown)
+        return accessibleDropdownItems.length > 0
+      }
+
+      return true
+    })
+  }
+
+  // Get the filtered navigation items
+  const filteredNavigationItems = getFilteredNavigationItems()
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -198,8 +334,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Navigation Items */}
         <nav className="flex-1 overflow-y-auto py-4">
           <div className="space-y-1 px-3">
-            {navigationItems.map((item, index) => {
+            {filteredNavigationItems.map((item, index) => {
               if (item.dropdown) {
+                // Filter dropdown items for this specific dropdown
+                const accessibleDropdownItems = filterDropdownItems(item.dropdown)
+
                 return (
                   <DropdownMenu key={index}>
                     <DropdownMenuTrigger asChild>
@@ -219,7 +358,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent side="right" align="start" className="w-48">
-                      {item.dropdown.map((dropdownItem, dropdownIndex) => (
+                      {accessibleDropdownItems.map((dropdownItem, dropdownIndex) => (
                         <DropdownMenuItem key={dropdownIndex} asChild>
                           <Link href={dropdownItem.href} className="flex items-center px-3 py-2 text-sm">
                             {dropdownItem.label}
@@ -234,7 +373,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               return (
                 <Link
                   key={index}
-                  href={item.href}
+                  href={item.href!}
                   className={`flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                     pathname === item.href || pathname.startsWith(item.href + "/")
                       ? "text-blue-600 bg-blue-50"
@@ -250,7 +389,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Client Portal Badge (Admin Only) */}
-        {isAdmin && (
+        {isAdmin && hasPermission("clientPortal", "view") && (
           <div className="p-3 border-t">
             <Link
               href="/client-portal"

@@ -32,7 +32,7 @@ export default function CreateUserModal({ isOpen, onClose, onCreateUser, userTyp
     name: "",
     surname: "",
     email: "",
-    role: userType === "client" ? "client" : ("employee" as UserRole),
+    role: userType === "client" ? "client" : ("employee" as UserRole), // Role initialized based on userType
     department: "",
     password: "",
     sendWelcomeEmail: false,
@@ -217,7 +217,7 @@ export default function CreateUserModal({ isOpen, onClose, onCreateUser, userTyp
             />
           </div>
 
-          {userType === "internal" && (
+          {userType === "internal" && ( // Conditional rendering for internal users
             <div>
               <Label htmlFor="role">Role *</Label>
               <Select value={formData.role} onValueChange={handleRoleChange}>
@@ -260,7 +260,7 @@ export default function CreateUserModal({ isOpen, onClose, onCreateUser, userTyp
             </div>
           </div>
 
-          {userType === "internal" && (
+          {userType === "internal" && ( // Conditional rendering for internal users
             <div>
               <Label>Page Access</Label>
               <div className="mt-2 space-y-2">

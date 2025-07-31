@@ -64,7 +64,7 @@ export default function EditUserModal({ isOpen, onClose, onUpdateUser, user, use
         name: user.name,
         surname: user.surname,
         email: user.email || "",
-        role: user.role,
+        role: user.role, // Role is populated from the existing user data
         department: user.department,
         password: "",
         sendWelcomeEmail: false,
@@ -227,7 +227,7 @@ export default function EditUserModal({ isOpen, onClose, onUpdateUser, user, use
             />
           </div>
 
-          {userType === "internal" && (
+          {userType === "internal" && ( // Conditional rendering for internal users
             <div>
               <Label htmlFor="role">Role *</Label>
               <Select value={formData.role} onValueChange={handleRoleChange}>
@@ -270,7 +270,7 @@ export default function EditUserModal({ isOpen, onClose, onUpdateUser, user, use
             </div>
           </div>
 
-          {userType === "internal" && (
+          {userType === "internal" && ( // Conditional rendering for internal users
             <div>
               <Label>Page Access</Label>
               <div className="mt-2 space-y-2">
