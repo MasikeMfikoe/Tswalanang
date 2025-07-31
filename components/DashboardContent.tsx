@@ -278,14 +278,25 @@ export default function DashboardContent() {
     [filteredOrders],
   )
 
-  // Sort customers by total orders for top customers
-  const topCustomers = useMemo(
-    () =>
-      [...customers]
-        .sort((a, b) => (b.totalOrders || b.total_orders || 0) - (a.totalOrders || a.total_orders || 0))
-        .slice(0, 3),
-    [customers],
-  )
+  // Sort customers by total value of orders for top customers
+  const topCustomers = useMemo(() => {
+    const customerTotalValues: { [customerId: string]: number } = {}
+    allOrders.forEach((order) => {
+      const customerId = order.customer_id // Assuming orders have customer_id
+      const orderValue = order.totalValue || order.total_value || 0
+      if (customerId) {
+        customerTotalValues[customerId] = (customerTotalValues[customerId] || 0) + orderValue
+      }
+    })
+
+    return [...customers]
+      .map((customer) => ({
+        ...customer,
+        totalSpentValue: customerTotalValues[customer.id] || 0, // Add new property
+      }))
+      .sort((a, b) => b.totalSpentValue - a.totalSpentValue)
+      .slice(0, 3)
+  }, [customers, allOrders])
 
   // Combined order status data for visualization
   const orderStatusData = useMemo(

@@ -8,7 +8,7 @@ interface TopCustomersProps {
   topCustomers: Array<{
     id: string
     name: string
-    totalOrders: number
+    totalSpentValue: number // Changed from totalOrders
   }>
 }
 
@@ -18,10 +18,11 @@ export function TopCustomers({ isDarkMode, topCustomers }: TopCustomersProps) {
       <CardHeader>
         <CardTitle className={`${isDarkMode ? "text-white" : "text-gray-900"}`}>Top Customers</CardTitle>
         <CardDescription className={`${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
-          Customers with the highest order volume
+          Customers with the highest total order value
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* The data rendered here for topCustomers is real-time, fetched from Supabase. */}
         <div className="space-y-6">
           {topCustomers.map((customer, index) => (
             <div key={customer.id} className="flex items-center">
@@ -44,13 +45,19 @@ export function TopCustomers({ isDarkMode, topCustomers }: TopCustomersProps) {
                       <div
                         className="h-full bg-blue-500"
                         style={{
-                          width: `${(customer.totalOrders / topCustomers[0].totalOrders) * 100}%`,
+                          width: `${(customer.totalSpentValue / topCustomers[0].totalSpentValue) * 100}%`,
                         }}
                       ></div>
                     </div>
                   </div>
                   <span className={`text-sm ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>
-                    {customer.totalOrders} orders
+                    {new Intl.NumberFormat("en-ZA", {
+                      style: "currency",
+                      currency: "ZAR",
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                    }).format(customer.totalSpentValue)}{" "}
+                    spent
                   </span>
                 </div>
               </div>
