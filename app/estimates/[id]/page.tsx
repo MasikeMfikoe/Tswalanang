@@ -161,16 +161,18 @@ export default function EstimateDetailsPage() {
             <Download className="mr-2 h-4 w-4" />
             Download PDF
           </Button>
-          <Button variant="outline">
-            <Send className="mr-2 h-4 w-4" />
-            Send to Customer
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/estimates">
+          <Link href="/estimates">
+            <Button variant="outline">
+              <Send className="mr-2 h-4 w-4" />
+              Send to Customer
+            </Button>
+          </Link>
+          <Link href="/estimates">
+            <Button variant="outline">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Estimates
-            </Link>
-          </Button>
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -293,15 +295,17 @@ export default function EstimateDetailsPage() {
                 <CardTitle>Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button className="w-full bg-transparent" variant="outline">
-                  <Send className="mr-2 h-4 w-4" />
-                  Send to Customer
-                </Button>
+                <Link href={`/estimates/${estimate.id}/edit`}>
+                  <Button className="w-full bg-transparent" variant="outline">
+                    <Send className="mr-2 h-4 w-4" />
+                    Send to Customer
+                  </Button>
+                </Link>
                 <Button className="w-full bg-transparent" variant="outline" onClick={handleDownloadPdf}>
                   <Download className="mr-2 h-4 w-4" />
                   Download PDF
                 </Button>
-                <Link href={`/estimates/${estimate.id}/edit`} className="block">
+                <Link href={`/estimates/${estimate.id}/edit`}>
                   <Button className="w-full bg-transparent" variant="outline">
                     <Edit className="mr-2 h-4 w-4" />
                     Edit Estimate
