@@ -41,21 +41,21 @@ export function OrderStatusCharts({
             <BarChart data={orderStatusData} />
           </div>
           <div className="grid grid-cols-3 gap-2 mt-4">
-            <div className={`p-2 rounded-md ${isDarkMode ? "bg-blue-900/20" : "bg-blue-50"}`}>
+            <div className={`p-2 rounded-md ${isDarkMode ? "bg-blue-900/20" : ""}`}>
               <div className="flex items-center justify-between">
-                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>Active</span>
+                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}></span>
                 <span className="text-sm font-bold">{activeOrders.length}</span>
               </div>
             </div>
-            <div className={`p-2 rounded-md ${isDarkMode ? "bg-green-900/20" : "bg-green-50"}`}>
+            <div className={`p-2 rounded-md ${isDarkMode ? "bg-green-900/20" : ""}`}>
               <div className="flex items-center justify-between">
-                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>Completed</span>
+                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}></span>
                 <span className="text-sm font-bold">{completedOrders.length}</span>
               </div>
             </div>
-            <div className={`p-2 rounded-md ${isDarkMode ? "bg-yellow-900/20" : "bg-yellow-50"}`}>
+            <div className={`p-2 rounded-md ${isDarkMode ? "bg-yellow-900/20" : ""}`}>
               <div className="flex items-center justify-between">
-                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>Pending</span>
+                <span className={`text-sm font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}></span>
                 <span className="text-sm font-bold">{pendingOrders.length}</span>
               </div>
             </div>
