@@ -50,7 +50,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Don't show navigation on login page
+  // Don't show navigation on login page or home page
   if (pathname === "/login" || pathname === "/") {
     return <>{children}</>
   }
@@ -72,11 +72,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {/* Logo and Navigation */}
             <div className="flex items-center space-x-6">
               <Link href="/client-portal" className="flex items-center space-x-3">
-                <img
-                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Logo_Final_TswalanangLogistics-hxMkywQ9EbNzC0e28VrJzQXLgshfJq.png"
-                  alt="TSW SmartLog"
-                  className="h-8 w-8 object-contain"
-                />
+                <img src="/images/TG_Logo-04.png" alt="TSW SmartLog" className="h-8 w-8 object-contain" />
                 <span className="text-lg font-bold text-gray-900">TSW SmartLog</span>
               </Link>
 
@@ -307,11 +303,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             href="/dashboard"
             className={`flex items-center space-x-3 ${isSidebarCollapsed ? "justify-center" : ""}`}
           >
-            <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Logo_Final_TswalanangLogistics-hxMkywQ9EbNzC0e28VrJzQXLgshfJq.png"
-              alt="TSW SmartLog"
-              className="h-10 w-10 object-contain flex-shrink-0"
-            />
+            <img src="/images/TG_Logo-04.png" alt="TSW SmartLog" className="h-10 w-10 object-contain flex-shrink-0" />
             {!isSidebarCollapsed && (
               <div>
                 <span className="text-lg font-bold text-gray-900">TSW SmartLog</span>

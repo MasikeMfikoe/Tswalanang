@@ -9,34 +9,106 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { supabase } from "@/lib/supabaseClient"
-import { formatDate } from "@/lib/utils" // Import the new utility
+import { supabase } from "@/lib/supabase"
+import type { Order } from "@/types/models" // Import Order type
 
-// Mock data for demonstration
-const mockRecentOrders = [
+// Utility function to format dates
+const formatDate = (dateString: string | null | undefined): string => {
+  if (!dateString) return "Not available"
+
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return "Invalid date"
+
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+  } catch (error) {
+    return "Invalid date"
+  }
+}
+
+// Mock data for demonstration (used only as fallback)
+const mockRecentOrders: Order[] = [
   {
     id: "ORD-2024-001",
-    poNumber: "PO-ABC-001",
+    po_number: "PO-ABC-001",
     status: "In Progress",
-    cargoStatus: "in-transit",
-    freightType: "Sea Freight",
-    estimatedDelivery: "2024-02-15",
+    cargo_status: "in-transit",
+    freight_type: "Sea Freight",
+    estimated_delivery: "2024-02-15",
+    customer_name: "Mock Customer",
+    customer_id: "mock-id-1",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    supplier: "Mock Supplier",
+    importer: "Mock Importer",
+    total_cost: 1000,
+    currency: "USD",
+    actual_delivery: null,
+    tracking_number: "TRACK123",
+    shipping_line: "Line A",
+    origin_port: "Port X",
+    destination_port: "Port Y",
+    vessel_name: "Vessel Z",
+    container_number: "CONT123",
+    last_event_date: new Date().toISOString(),
+    last_event_description: "Departed origin",
+    documents: [],
   },
   {
     id: "ORD-2024-002",
-    poNumber: "PO-ABC-002",
+    po_number: "PO-ABC-002",
     status: "Completed",
-    cargoStatus: "delivered",
-    freightType: "Air Freight",
-    estimatedDelivery: "2024-01-25",
+    cargo_status: "delivered",
+    freight_type: "Air Freight",
+    estimated_delivery: "2024-01-25",
+    customer_name: "Mock Customer",
+    customer_id: "mock-id-1",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    supplier: "Mock Supplier",
+    importer: "Mock Importer",
+    total_cost: 2000,
+    currency: "USD",
+    actual_delivery: new Date().toISOString(),
+    tracking_number: "TRACK456",
+    shipping_line: "Line B",
+    origin_port: "Port A",
+    destination_port: "Port B",
+    vessel_name: "Vessel C",
+    container_number: "CONT456",
+    last_event_date: new Date().toISOString(),
+    last_event_description: "Delivered",
+    documents: [],
   },
   {
     id: "ORD-2024-003",
-    poNumber: "PO-ABC-003",
+    po_number: "PO-ABC-003",
     status: "Pending",
-    cargoStatus: "at-origin",
-    freightType: "Sea Freight",
-    estimatedDelivery: "2024-03-01",
+    cargo_status: "at-origin",
+    freight_type: "Sea Freight",
+    estimated_delivery: "2024-03-01",
+    customer_name: "Mock Customer",
+    customer_id: "mock-id-1",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    supplier: "Mock Supplier",
+    importer: "Mock Importer",
+    total_cost: 1500,
+    currency: "USD",
+    actual_delivery: null,
+    tracking_number: "TRACK789",
+    shipping_line: "Line C",
+    origin_port: "Port D",
+    destination_port: "Port E",
+    vessel_name: "Vessel F",
+    container_number: "CONT789",
+    last_event_date: new Date().toISOString(),
+    last_event_description: "Awaiting pickup",
+    documents: [],
   },
 ]
 
@@ -72,7 +144,7 @@ const getCargoStatusColor = (status: string) => {
 
 const formatCargoStatus = (status: string | null | undefined) => {
   if (!status) {
-    return "N/A" // Return a default string if status is null or undefined
+    return "N/A"
   }
   return status
     .split("-")
@@ -88,12 +160,15 @@ export default function ClientPortalPage() {
   const [activeOrders, setActiveOrders] = useState(0)
   const [completedOrders, setCompletedOrders] = useState(0)
   const [totalDocuments, setTotalDocuments] = useState(0)
-  const [recentOrders, setRecentOrders] = useState(mockRecentOrders)
+  const [recentOrders, setRecentOrders] = useState<Order[]>(mockRecentOrders)
   const [isLoadingData, setIsLoadingData] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchClientData = async () => {
+    setError(null) // Clear previous errors
     if (!user?.id) {
       // Fallback to mock data if user is not logged in or ID is not available
+      console.warn("User ID not available, using mock data for client portal.")
       setTotalOrders(mockRecentOrders.length)
       setActiveOrders(mockRecentOrders.filter((o) => o.status === "In Progress").length)
       setCompletedOrders(mockRecentOrders.filter((o) => o.status === "Completed").length)
@@ -106,28 +181,24 @@ export default function ClientPortalPage() {
     setIsLoadingData(true)
     try {
       // Fetch orders data
+      // Pass clientId to the API route. The API will handle filtering based on user role.
       const ordersResponse = await fetch(`/api/client-portal/orders?clientId=${user.id}`)
-      const ordersData = await ordersResponse.json()
+      const ordersResult = await ordersResponse.json()
 
-      if (ordersData.success && ordersData.data.orders) {
-        setTotalOrders(ordersData.data.orders.length)
-        setActiveOrders(ordersData.data.orders.filter((o: any) => o.status === "In Progress").length)
-        setCompletedOrders(ordersData.data.orders.filter((o: any) => o.status === "Completed").length)
+      if (ordersResponse.ok && ordersResult.data) {
+        const fetchedOrders: Order[] = ordersResult.data
+        setTotalOrders(fetchedOrders.length)
+        setActiveOrders(fetchedOrders.filter((o) => o.status === "In Progress").length)
+        setCompletedOrders(fetchedOrders.filter((o) => o.status === "Completed").length)
         // Sort recent orders by created_at descending
-        const sortedRecentOrders = ordersData.data.orders
-          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        const sortedRecentOrders = fetchedOrders
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           .slice(0, 5) // Get top 5 recent orders
-          .map((o: any) => ({
-            id: o.id,
-            poNumber: o.po_number,
-            status: o.status,
-            cargoStatus: o.cargo_status || "unknown", // Provide a default if null/undefined
-            freightType: o.freight_type,
-            estimatedDelivery: o.estimated_delivery ? String(o.estimated_delivery) : null, // Ensure string or null
-          }))
         setRecentOrders(sortedRecentOrders)
       } else {
-        console.warn("Failed to fetch orders, using mock data:", ordersData.error)
+        console.error("Failed to fetch orders:", ordersResult.error || ordersResult.message)
+        setError(ordersResult.error || ordersResult.message || "Failed to load orders.")
+        // Fallback to mock data on API error
         setTotalOrders(mockRecentOrders.length)
         setActiveOrders(mockRecentOrders.filter((o) => o.status === "In Progress").length)
         setCompletedOrders(mockRecentOrders.filter((o) => o.status === "Completed").length)
@@ -136,16 +207,20 @@ export default function ClientPortalPage() {
 
       // Fetch documents data
       const documentsResponse = await fetch(`/api/client-portal/documents?clientId=${user.id}`)
-      const documentsData = await documentsResponse.json()
+      const documentsResult = await documentsResponse.json()
 
-      if (documentsData.success && documentsData.data.documents) {
-        setTotalDocuments(documentsData.data.documents.length)
+      if (documentsResponse.ok && documentsResult.data) {
+        setTotalDocuments(documentsResult.data.length)
       } else {
-        console.warn("Failed to fetch documents, using mock data for count:", documentsData.error)
+        console.warn(
+          "Failed to fetch documents, using mock data for count:",
+          documentsResult.error || documentsResult.message,
+        )
         setTotalDocuments(5) // Fallback mock count
       }
-    } catch (error) {
-      console.error("Error fetching client portal data:", error)
+    } catch (err) {
+      console.error("Error fetching client portal data:", err)
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.")
       // Fallback to mock data on any error
       setTotalOrders(mockRecentOrders.length)
       setActiveOrders(mockRecentOrders.filter((o) => o.status === "In Progress").length)
@@ -256,6 +331,13 @@ export default function ClientPortalPage() {
           </p>
         </div>
 
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong className="font-bold">Error:</strong>
+            <span className="block sm:inline"> {error}</span>
+          </div>
+        )}
+
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
@@ -328,6 +410,7 @@ export default function ClientPortalPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>PO Number</TableHead>
+                        {isAdmin && <TableHead>Customer</TableHead>}
                         <TableHead>Status</TableHead>
                         <TableHead>Cargo Status</TableHead>
                         <TableHead>Freight Type</TableHead>
@@ -338,17 +421,18 @@ export default function ClientPortalPage() {
                     <TableBody>
                       {recentOrders.map((order) => (
                         <TableRow key={order.id}>
-                          <TableCell className="font-medium">{order.poNumber}</TableCell>
+                          <TableCell className="font-medium">{order.po_number}</TableCell>
+                          {isAdmin && <TableCell>{order.customer_name}</TableCell>}
                           <TableCell>
                             <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge className={getCargoStatusColor(order.cargoStatus)}>
-                              {formatCargoStatus(order.cargoStatus)}
+                            <Badge className={getCargoStatusColor(order.cargo_status || "")}>
+                              {formatCargoStatus(order.cargo_status)}
                             </Badge>
                           </TableCell>
-                          <TableCell>{order.freightType}</TableCell>
-                          <TableCell>{formatDate(order.estimatedDelivery)}</TableCell>
+                          <TableCell>{order.freight_type}</TableCell>
+                          <TableCell>{formatDate(order.estimated_delivery)}</TableCell>
                           <TableCell className="text-right">
                             <Button
                               variant="outline"

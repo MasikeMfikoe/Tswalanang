@@ -8,7 +8,7 @@ export type CargoStatus =
   | "in-transit"
   | "at-destination"
   | "delivered"
-export type FreightType = "Air Freight" | "Sea Freight" | "EXW" | "FOB"
+export type FreightTypeType = "Air Freight" | "Sea Freight" | "EXW" | "FOB"
 export type Priority = "High" | "Medium" | "Low"
 export type ServiceType = "Express" | "Standard" | "Economy" | "Next Day"
 export type EstimateStatus = "Draft" | "Sent" | "Accepted" | "Rejected"
@@ -16,20 +16,29 @@ export type EstimateStatus = "Draft" | "Sent" | "Accepted" | "Rejected"
 // Order model
 export interface Order {
   id: string
-  customer_id: string
-  customer_name: string
+  po_number: string
+  supplier: string
+  importer: string // This might be the customer's name
   status: string
   created_at: string
   updated_at: string
-  origin: string
-  destination: string
-  total_amount: number
+  customer_name: string // Redundant but used for filtering in client portal API
+  customer_id: string // Foreign key to customers table
+  total_cost: number
   currency: string
-  tracking_number?: string
-  freight_type?: string
-  expected_delivery_date?: string
-  actual_delivery_date?: string
-  notes?: string
+  estimated_delivery: string | null
+  actual_delivery: string | null
+  tracking_number: string | null
+  shipping_line: string | null
+  origin_port: string | null
+  destination_port: string | null
+  vessel_name: string | null
+  container_number: string | null
+  cargo_status: string | null
+  last_event_date: string | null
+  last_event_description: string | null
+  documents: Document[] // Changed to Document[]
+  freight_type: string | null // Added missing property
   // Financial columns
   base_freight_cost?: number
   fuel_surcharge?: number
@@ -45,7 +54,6 @@ export interface Order {
   invoice_date?: string
   payment_due_date?: string
   items?: OrderItem[]
-  documents?: Document[]
 }
 
 export interface OrderItem {
@@ -60,29 +68,35 @@ export interface OrderItem {
 export interface Customer {
   id: string
   name: string
-  contactPerson: string
-  email: string
+  primary_contact?: string
+  secondary_contact?: string
+  email: string | null // Used for domain matching
   phone?: string
   address?: string
-  totalOrders: number
-  totalSpent: number
-  vatNumber?: string
-  importersCode?: string
-  rate_card_id?: string
+  city?: string
+  state?: string
+  zip_code?: string
+  country?: string
+  total_orders?: number // This is the column you mentioned showing zero
   createdAt?: string
   updatedAt?: string
+  rate_card_id?: string
   rateCard?: RateCard
 }
 
 export interface RateCard {
   id: string
   customer_id: string
-  name: string
+  origin: string
+  destination: string
+  freight_type: string
+  rate_per_unit: number
+  currency: string
   valid_from: string
   valid_to: string
-  rates: Rate[]
   created_at: string
   updated_at: string
+  rates?: Rate[]
 }
 
 export interface Rate {
@@ -118,26 +132,18 @@ export interface Contact {
 // Estimate model
 export interface Estimate {
   id: string
-  displayId: string // Human-readable ID, e.g., "TSW-0001"
-  customerId: string
-  customerName: string
-  customerEmail: string
-  status: "Draft" | "Sent" | "Accepted" | "Rejected"
-  freightType: string
-  commercialValue: number | string
-  customsDuties: number | string
-  customsVAT: number | string
-  handlingFees: number | string
-  shippingCost: number | string
-  documentationFee: number | string
-  communicationFee: number | string
-  totalDisbursements: number | string
-  facilityFee: number | string
-  agencyFee: number | string
-  subtotal: number | string
-  vat: number | string
-  totalAmount: number
-  notes?: string
+  display_id: string // A human-readable ID for estimates
+  customer_id: string
+  customer_name: string
+  origin: string
+  destination: string
+  freight_type: string
+  weight_kg?: number
+  volume_cbm?: number
+  status: "pending" | "approved" | "rejected"
+  estimated_cost: number
+  currency: string
+  valid_until: string
   createdAt: string
   updatedAt?: string
 }
@@ -184,8 +190,8 @@ export interface CourierOrder {
   specialInstructions?: string
   accountDetails?: AccountDetails
   contactDetails?: {
-    sender: ContactDetails
-    receiver: ContactDetails
+    sender: any // ContactDetails
+    receiver: any // ContactDetails
   }
   insurance?: string
   totalWeight?: string
@@ -245,14 +251,6 @@ export interface AccountDetails {
   paymentTerms: string
 }
 
-export interface ContactDetails {
-  name: string
-  company: string
-  phone: string
-  email: string
-  address: string
-}
-
 export interface OrderCost {
   baseCharge: string
   fuelSurcharge: string
@@ -277,32 +275,32 @@ export interface CargoStatusHistoryEntry {
 export interface Shipment {
   id: string
   tracking_number: string
-  carrier: string
-  status: string
-  origin: string
-  destination: string
-  scheduled_delivery: string
-  actual_delivery?: string
-  last_updated: string
-  vessel_name?: string
-  voyage_number?: string
+  shipping_line: string
   container_number?: string
-  current_port?: string
-  next_port?: string
-  eta?: string
+  vessel_name?: string
+  origin_port?: string
+  destination_port?: string
+  estimated_departure?: string
+  estimated_arrival?: string
+  actual_departure?: string
+  actual_arrival?: string
+  status: string
+  last_updated: string
+  customer_id?: string // Link to customer if applicable
+  order_id?: string // Link to order if applicable
   cargo_status_history?: CargoStatusHistory[]
 }
 
 export interface CargoStatusHistory {
   id: string
   shipment_id: string
-  status: string
+  event_date: string
   location: string
-  timestamp: string
-  notes?: string
+  description: string
+  status_code?: string
+  created_at: string
 }
 
-// Notification
 export interface Notification {
   id: string
   user_id: string
@@ -349,8 +347,34 @@ export interface UserProfile {
   email: string
   full_name?: string
   avatar_url?: string
-  user_role?: "admin" | "staff" | "client"
   customer_id?: string // For client users
-  created_at?: string
-  updated_at?: string
+  role: string
+  department: string | null
+}
+
+// ApiKey model
+export interface ApiKey {
+  id: string
+  name: string
+  key: string
+  created_at: string
+  expires_at?: string
+  is_active: boolean
+}
+
+// FreightType model
+export interface FreightType {
+  id: string
+  name: string
+  description?: string
+  created_at: string
+  updated_at: string
+}
+
+// Declare ContactDetails interface
+export interface ContactDetails {
+  name: string
+  landline: string
+  cellphone: string
+  email: string
 }

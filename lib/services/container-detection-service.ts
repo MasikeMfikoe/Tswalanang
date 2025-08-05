@@ -276,7 +276,7 @@ export function detectShipmentTrackingInfo(trackingNumber: string): DetectedTrac
     const blPrefix = cleanNumber.substring(0, 4)
     carrierDetails = getCarrierByPrefix(blPrefix)
     if (carrierDetails && (carrierDetails.type === "ocean" || carrierDetails.type === "lcl")) {
-      // Could be BL or Booking reference if it starts with a known ocean carrier prefix
+      // Could be BL or Booking reference if it matches carrier prefix and has reasonable length
       // For simplicity, treat as 'bl' if it matches carrier prefix and has reasonable length
       if (cleanNumber.length >= 8 && cleanNumber.length <= 20) {
         // Arbitrary length for BL/Booking

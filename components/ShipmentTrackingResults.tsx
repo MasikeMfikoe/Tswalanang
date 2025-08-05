@@ -261,14 +261,10 @@ export default function ShipmentTrackingResults({
           {displayShipmentType === "air" && <PlaneTakeoff className="h-4 w-4" />}
           {displayShipmentType === "lcl" && <Package className="h-4 w-4" />}
           <span className="capitalize">{displayShipmentType} Freight</span>
-          {source && <span className="ml-2">| Source: {source}</span>}
           {isLiveData && (
             <span className="ml-2 text-green-600 flex items-center">
               <CheckCircle className="h-3 w-3 mr-1" /> Live Data
             </span>
-          )}
-          {scrapedAt && (
-            <span className="ml-2 text-gray-500 text-xs">(Scraped: {new Date(scrapedAt).toLocaleString()})</span>
           )}
         </div>
       </CardHeader>
@@ -276,11 +272,11 @@ export default function ShipmentTrackingResults({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
           <div className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-gray-500" />
-            <strong>Origin:</strong> {origin} {pol && pol !== "N/A" && `(${pol})`}
+            <strong>Origin:</strong> {origin}
           </div>
           <div className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-gray-500" />
-            <strong>Destination:</strong> {destination} {pod && pod !== "N/A" && `(${pod})`}
+            <strong>Destination:</strong> {destination}
           </div>
 
           {(estimatedDeparture || estimatedArrival) && (

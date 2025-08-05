@@ -31,7 +31,10 @@ export default function LoginPage() {
       if (
         user &&
         (user.role === "tracking" ||
-          (user.role === "guest" && user.pageAccess.length === 1 && user.pageAccess.includes("shipmentTracker")))
+          (user.role === "guest" &&
+            user.pageAccess &&
+            user.pageAccess.length === 1 &&
+            user.pageAccess.includes("shipmentTracker")))
       ) {
         router.push("/shipment-tracker")
       } else if (user && user.role === "client") {

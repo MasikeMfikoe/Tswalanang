@@ -219,9 +219,10 @@ export class GocometService {
 
       if (data && data.updated_trackings && data.updated_trackings.length > 0) {
         const gocometTrackingInfo = data.updated_trackings[0]
+        const originalTrackingNumber = trackingNumber // Declare the variable here
         return {
           success: true,
-          data: this.transformGocometData(gocometTrackingInfo, trackingNumber, options?.shipmentType),
+          data: this.transformGocometData(gocometTrackingInfo, originalTrackingNumber, options?.shipmentType),
           source: "Gocomet",
           isLiveData: true,
           scrapedAt: new Date().toISOString(),
