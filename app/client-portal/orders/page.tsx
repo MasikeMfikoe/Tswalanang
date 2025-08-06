@@ -8,11 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, CalendarDays, ArrowRight } from "lucide-react"
+import { Search, CalendarDays, ArrowRight, MapPin } from 'lucide-react' // Import MapPin
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useToast } from "@/components/ui/use-toast" // Import useToast
 
 export default function ClientPortalOrdersPage() {
   const { user } = useAuth()
@@ -21,6 +22,7 @@ export default function ClientPortalOrdersPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const router = useRouter()
+  const { toast } = useToast() // Initialize useToast
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -76,6 +78,18 @@ export default function ClientPortalOrdersPage() {
     } catch (e) {
       console.error("Error formatting date:", dateString, e)
       return "Invalid Date"
+    }
+  }
+
+  const handleTrackShipment = (trackingNumber?: string | null) => {
+    if (trackingNumber) {
+      router.push(`/shipment-tracker/results/${trackingNumber}`)
+    } else {
+      toast({
+        title: "No Tracking Number",
+        description: "This order does not have a tracking number available.",
+        variant: "default",
+      })
     }
   }
 
@@ -139,7 +153,7 @@ export default function ClientPortalOrdersPage() {
                     <TableHead>Tracking Number</TableHead>
                     <TableHead>Container Number</TableHead>
                     <TableHead>Est. Delivery</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -162,14 +176,25 @@ export default function ClientPortalOrdersPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => router.push(`/client-portal/orders/${order.id}`)}
-                        >
-                          View Details
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-2 justify-center">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push(`/client-portal/orders/${order.id}`)}
+                          >
+                            View Details
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleTrackShipment(order.tracking_number)}
+                            disabled={!order.tracking_number}
+                          >
+                            <MapPin className="h-4 w-4 mr-1" />
+                            Track
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

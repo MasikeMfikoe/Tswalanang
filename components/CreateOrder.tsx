@@ -36,6 +36,7 @@ export default function CreateOrder() {
     cargoStatusComment: "",
     origin: "", // Add origin field
     destination: "", // Add destination field
+    tracking_number: "", // Add tracking_number field
   })
 
   // State for order financials
@@ -298,6 +299,7 @@ export default function CreateOrder() {
         customer_name: order.importer,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        tracking_number: order.tracking_number || null, // Include tracking number
       }
 
       const { data, error } = await supabase.from("orders").insert([orderData]).select().single()
@@ -451,6 +453,15 @@ export default function CreateOrder() {
                           className={errors.destination ? "border-red-500" : ""}
                         />
                         {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="trackingNumber">Tracking Number</Label>
+                        <Input
+                          id="trackingNumber"
+                          value={order.tracking_number || ""}
+                          onChange={(e) => handleChange("tracking_number", e.target.value)}
+                          placeholder="Enter tracking number (optional)"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="freightType">Freight Type</Label>

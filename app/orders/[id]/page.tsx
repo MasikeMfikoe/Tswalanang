@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import DocumentManagement from "@/components/DocumentManagement"
 import PODManagement from "@/components/PODManagement"
 import ClientPackDocuments from "@/components/ClientPackDocuments"
-import { Download, Loader2 } from "lucide-react"
+import { Download, Loader2, Search } from 'lucide-react' // Added Search icon
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 
@@ -32,6 +32,7 @@ interface OrderData {
   destination?: string
   created_at: string
   updated_at?: string
+  tracking_number?: string | null
   // Financial fields (may not exist in all tables)
   commercial_value?: number
   customs_duties?: number
@@ -207,7 +208,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     }
   }, [isEditing, activeTab])
 
-  const handleChange = (field: string, value: string | number) => {
+  const handleChange = (field: string, value: string | number | null) => {
     if (tempOrder) {
       setTempOrder((prev) => ({ ...prev!, [field]: value }))
     }
@@ -234,6 +235,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         origin: tempOrder.origin || null,
         destination: tempOrder.destination || null,
         total_value: tempOrder.total_value || null,
+        tracking_number: tempOrder.tracking_number || null, // Include tracking number
         updated_at: new Date().toISOString(),
       }
 
@@ -427,6 +429,18 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     }
   }
 
+  const handleTrackShipment = () => {
+    if (order?.tracking_number) {
+      router.push(`/shipment-tracker/results/${order.tracking_number}`)
+    } else {
+      toast({
+        title: "No Tracking Number",
+        description: "This order does not have a tracking number to track.",
+        variant: "default",
+      })
+    }
+  }
+
   const statuses = ["Pending", "In Progress", "Completed", "Cancelled"]
 
   const exportToExcel = () => {
@@ -506,6 +520,15 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
               <Button variant="outline" onClick={handlePaymentReceived}>
                 Payment Received
               </Button>
+              <Button
+                variant="secondary"
+                onClick={handleTrackShipment}
+                disabled={!order.tracking_number}
+                className="flex items-center gap-2"
+              >
+                <Search className="h-4 w-4" />
+                Track Shipment
+              </Button>
               {!isEditing && (
                 <Button type="button" onClick={() => setIsEditing(true)}>
                   Edit Order
@@ -524,6 +547,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                   { label: "Customer", key: "customer_name", value: order.customer_name || "N/A" },
                   { label: "Origin", key: "origin", value: order.origin || "N/A" },
                   { label: "Destination", key: "destination", value: order.destination || "N/A" },
+                  { label: "Tracking Number", key: "tracking_number", value: order.tracking_number || "N/A" },
                   { label: "Order Status", key: "status", value: order.status || "N/A" },
                   { label: "Cargo Status", key: "cargo_status", value: order.cargo_status || "N/A" },
                   { label: "Freight Type", key: "freight_type", value: order.freight_type || "N/A" },

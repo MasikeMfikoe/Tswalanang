@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Package, FileText, Calendar, Truck, Users, ClipboardList, BarChart } from "lucide-react"
+import { ArrowRight, Package, FileText, Calendar, Truck, Users, ClipboardList, BarChart, MapPin } from 'lucide-react' // Import MapPin
 
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { supabase } from "@/lib/supabase"
 import type { Order } from "@/types/models" // Import Order type
+import { useToast } from "@/components/ui/use-toast" // Import useToast
 
 // Utility function to format dates
 const formatDate = (dateString: string | null | undefined): string => {
@@ -48,7 +49,7 @@ const mockRecentOrders: Order[] = [
     total_cost: 1000,
     currency: "USD",
     actual_delivery: null,
-    tracking_number: "TRACK123",
+    tracking_number: "TRACK123", // Added tracking number
     shipping_line: "Line A",
     origin_port: "Port X",
     destination_port: "Port Y",
@@ -74,7 +75,7 @@ const mockRecentOrders: Order[] = [
     total_cost: 2000,
     currency: "USD",
     actual_delivery: new Date().toISOString(),
-    tracking_number: "TRACK456",
+    tracking_number: "TRACK456", // Added tracking number
     shipping_line: "Line B",
     origin_port: "Port A",
     destination_port: "Port B",
@@ -100,7 +101,7 @@ const mockRecentOrders: Order[] = [
     total_cost: 1500,
     currency: "USD",
     actual_delivery: null,
-    tracking_number: "TRACK789",
+    tracking_number: null, // No tracking number for this one
     shipping_line: "Line C",
     origin_port: "Port D",
     destination_port: "Port E",
@@ -155,6 +156,7 @@ const formatCargoStatus = (status: string | null | undefined) => {
 export default function ClientPortalPage() {
   const { user, isLoading: isUserLoading } = useAuth()
   const router = useRouter()
+  const { toast } = useToast() // Initialize useToast
 
   const [totalOrders, setTotalOrders] = useState(0)
   const [activeOrders, setActiveOrders] = useState(0)
@@ -257,6 +259,18 @@ export default function ClientPortalPage() {
       supabase.removeChannel(documentsChannel)
     }
   }, [user?.id]) // Re-run effect if user ID changes
+
+  const handleTrackShipment = (trackingNumber?: string | null) => {
+    if (trackingNumber) {
+      router.push(`/shipment-tracker/results/${trackingNumber}`)
+    } else {
+      toast({
+        title: "No Tracking Number",
+        description: "This order does not have a tracking number available.",
+        variant: "default",
+      })
+    }
+  }
 
   if (isUserLoading || isLoadingData) {
     return (
@@ -415,7 +429,7 @@ export default function ClientPortalPage() {
                         <TableHead>Cargo Status</TableHead>
                         <TableHead>Freight Type</TableHead>
                         <TableHead>Est. Delivery</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -434,13 +448,24 @@ export default function ClientPortalPage() {
                           <TableCell>{order.freight_type}</TableCell>
                           <TableCell>{formatDate(order.estimated_delivery)}</TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => router.push(`/client-portal/orders/${order.id}`)}
-                            >
-                              View Details
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => router.push(`/client-portal/orders/${order.id}`)}
+                              >
+                                View Details
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleTrackShipment(order.tracking_number)}
+                                disabled={!order.tracking_number}
+                              >
+                                <MapPin className="h-4 w-4 mr-1" />
+                                Track
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
