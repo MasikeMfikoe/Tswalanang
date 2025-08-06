@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import DocumentManagement from "@/components/DocumentManagement"
 import PODManagement from "@/components/PODManagement"
 import ClientPackDocuments from "@/components/ClientPackDocuments"
-import { Download, Loader2, Search } from 'lucide-react' // Added Search icon
+import { Download, Loader2, Search } from 'lucide-react'
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 
@@ -93,12 +93,12 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
 
       if (!error) {
         setHasFinancialColumns(true)
-        console.log("Financial columns exist in orders table")
+        console.log("Financial columns exist in orders table.")
       } else {
         setHasFinancialColumns(false)
-        console.log("Financial columns do not exist in orders table")
+        console.warn("Financial columns do NOT exist in orders table or query failed:", error.message)
       }
-
+      console.log("Final hasFinancialColumns state:", !error);
       // Check for calculated financial columns
       const { data: calculatedData, error: calculatedError } = await supabase
         .from("orders")
@@ -107,15 +107,16 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
 
       if (!calculatedError) {
         setHasCalculatedFinancialColumns(true)
-        console.log("Calculated financial columns exist in orders table")
+        console.log("Calculated financial columns exist in orders table.")
       } else {
         setHasCalculatedFinancialColumns(false)
-        console.log("Calculated financial columns do not exist in orders table")
+        console.warn("Calculated financial columns do NOT exist in orders table or query failed:", calculatedError.message)
       }
     } catch (error) {
       setHasFinancialColumns(false)
       setHasCalculatedFinancialColumns(false)
-      console.log("Financial columns check failed, assuming they don't exist")
+      console.error("Error during financial columns check:", error)
+      console.log("Financial columns check failed, assuming they don't exist.")
     }
   }
 
@@ -221,33 +222,38 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     try {
       setIsSaving(true)
 
-      // Prepare the update data with only basic fields that definitely exist
-      const updateData: any = {
-        order_number: tempOrder.order_number || null,
-        po_number: tempOrder.po_number || null,
-        supplier: tempOrder.supplier || null,
-        importer: tempOrder.importer || null,
-        status: tempOrder.status || null,
-        cargo_status: tempOrder.cargo_status || null,
-        freight_type: tempOrder.freight_type || null,
-        cargo_status_comment: tempOrder.cargo_status_comment || null,
-        customer_name: tempOrder.customer_name || null,
-        origin: tempOrder.origin || null,
-        destination: tempOrder.destination || null,
-        total_value: tempOrder.total_value || null,
-        tracking_number: tempOrder.tracking_number || null, // Include tracking number
-        updated_at: new Date().toISOString(),
+      // First, verify the order exists
+      const { data: existingOrder, error: checkError } = await supabase
+        .from("orders")
+        .select("id")
+        .eq("id", params.id)
+        .maybeSingle()
+
+      if (checkError) {
+        console.error("Error checking if order exists:", checkError)
+        throw new Error("Failed to verify order exists")
       }
 
+      if (!existingOrder) {
+        throw new Error("Order not found. It may have been deleted.")
+      }
+
+      // Start with a copy of tempOrder to include all fields by default
+      const updateData: Partial<OrderData> = { ...tempOrder };
+
+      // Remove properties that should not be updated or are handled separately
+      delete updateData.id; // ID is used in the .eq() clause, not for update
+      delete updateData.created_at; // Creation timestamp should not be updated by client
+
+      // Ensure updated_at is always set to now
+      updateData.updated_at = new Date().toISOString();
+
       // Only add financial fields if they exist in the table
+      // This block remains the same as it correctly handles conditional inclusion
+      // and calculation of derived financial fields.
       if (hasFinancialColumns) {
-        updateData.commercial_value = tempOrder.commercial_value || null
-        updateData.customs_duties = tempOrder.customs_duties || null
-        updateData.handling_fees = tempOrder.handling_fees || null
-        updateData.shipping_cost = tempOrder.shipping_cost || null
-        updateData.documentation_fee = tempOrder.documentation_fee || null
-        updateData.communication_fee = tempOrder.communication_fee || null
-        updateData.financial_notes = tempOrder.financial_notes || null
+        // Explicitly ensure financial_notes is included if hasFinancialColumns is true
+        updateData.financial_notes = tempOrder.financial_notes || null;
 
         // Calculate derived financial fields and add them if columns exist
         if (hasCalculatedFinancialColumns) {
@@ -275,24 +281,62 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
           updateData.vat_amount = vat
           updateData.total_amount = total
         }
+      } else {
+        // If financial columns don't exist, ensure these are not sent
+        delete updateData.commercial_value;
+        delete updateData.customs_duties;
+        delete updateData.handling_fees;
+        delete updateData.shipping_cost;
+        delete updateData.documentation_fee;
+        delete updateData.communication_fee;
+        delete updateData.financial_notes;
+        delete updateData.customs_vat;
+        delete updateData.total_disbursements;
+        delete updateData.facility_fee;
+        delete updateData.agency_fee;
+        delete updateData.subtotal_amount;
+        delete updateData.vat_amount;
+        delete updateData.total_amount;
       }
 
-      console.log("Updating order with data:", updateData)
 
-      // Update order in Supabase
-      const { data, error: updateError } = await supabase
+      console.log("Attempting to update order with data:", updateData)
+      console.log("hasFinancialColumns:", hasFinancialColumns)
+      console.log("hasCalculatedFinancialColumns:", hasCalculatedFinancialColumns)
+      console.log("Update payload for financial_notes:", updateData.financial_notes);
+
+      // Update order in Supabase - Improved error handling
+      const { error: updateError, count } = await supabase
         .from("orders")
         .update(updateData)
         .eq("id", params.id)
-        .select()
-        .single()
+        .select("*", { count: "exact" })
 
       if (updateError) {
-        console.error("Supabase update error:", updateError)
+        console.error("Supabase update error details:", updateError); // Log the full error object
         throw updateError
       }
 
-      console.log("Order updated successfully:", data)
+      if (count === 0) {
+        throw new Error("No order was updated. This may be due to permissions or the order may have been deleted.")
+      }
+
+      // Fetch the updated order separately to ensure we have the latest data
+      const { data: updatedOrder, error: fetchError } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", params.id)
+        .single()
+
+      if (fetchError || !updatedOrder) {
+        console.error("Error fetching updated order:", fetchError)
+        // Don't throw error here, just log it and continue with existing data
+        console.log("Continuing with existing order data")
+      }
+
+      const finalOrderData = updatedOrder || tempOrder
+
+      console.log("Order updated successfully. Rows affected:", count)
 
       // Update cargo status history if status changed
       if (order.cargo_status !== tempOrder.cargo_status) {
@@ -330,8 +374,8 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
       }
 
       // Update local state with the returned data
-      setOrder(data)
-      setTempOrder(data)
+      setOrder(finalOrderData)
+      setTempOrder(finalOrderData)
       setIsEditing(false)
 
       toast({
@@ -364,29 +408,58 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     try {
       console.log("Marking order as completed:", order.id)
 
-      // Update the order status to Completed in Supabase
-      const { data, error: updateError } = await supabase
+      // First verify the order exists
+      const { data: existingOrder, error: checkError } = await supabase
+        .from("orders")
+        .select("id")
+        .eq("id", params.id)
+        .maybeSingle()
+
+      if (checkError) {
+        console.error("Error checking if order exists:", checkError)
+        throw new Error("Failed to verify order exists")
+      }
+
+      if (!existingOrder) {
+        throw new Error("Order not found. It may have been deleted.")
+      }
+
+      // Update the order status to Completed in Supabase - Improved error handling
+      const { error: updateError, count } = await supabase
         .from("orders")
         .update({
           status: "Completed",
           updated_at: new Date().toISOString(),
         })
         .eq("id", params.id)
-        .select()
-        .single()
+        .select("*", { count: "exact" })
 
       if (updateError) {
         console.error("Error updating payment status:", updateError)
         throw updateError
       }
 
-      console.log("Payment status updated successfully:", data)
+      if (count === 0) {
+        throw new Error("No order was updated. This may be due to permissions or the order may have been deleted.")
+      }
 
-      // Update local state
-      setOrder(data)
-      setTempOrder(data)
+      // Fetch the updated order separately
+      const { data: updatedOrder, error: fetchError } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", params.id)
+        .single()
 
-      // Add to cargo status history
+      if (fetchError || !updatedOrder) {
+        console.error("Error fetching updated order:", fetchError)
+        throw new Error("Failed to fetch updated order data")
+      }
+
+      const finalOrderData = updatedOrder
+
+      console.log("Payment status updated successfully. Rows affected:", count)
+
+      // Update cargo status history
       const historyEntry = {
         order_id: params.id,
         status: "delivered",
@@ -423,7 +496,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
       console.error("Error updating payment status:", error)
       toast({
         title: "Error",
-        description: "Failed to update payment status",
+        description: error.message || "Failed to update payment status",
         variant: "destructive",
       })
     }
@@ -689,14 +762,6 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="documents">
-              <DocumentManagement orderId={order.id} isEditing={false} />
-            </TabsContent>
-            {isEditing && (
-              <TabsContent value="upload">
-                <DocumentManagement orderId={order.id} isEditing={true} />
-              </TabsContent>
-            )}
             <TabsContent value="financials">
               <Card>
                 <CardHeader>
@@ -883,6 +948,14 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                 </CardContent>
               </Card>
             </TabsContent>
+            <TabsContent value="documents">
+              <DocumentManagement orderId={order.id} isEditing={false} />
+            </TabsContent>
+            {isEditing && (
+              <TabsContent value="upload">
+                <DocumentManagement orderId={order.id} isEditing={true} />
+              </TabsContent>
+            )}
             <TabsContent value="pod">
               <PODManagement orderId={params.id} />
             </TabsContent>
@@ -942,27 +1015,27 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                                 </div>
                               </td>
                               <td className="p-4 text-muted-foreground">{history.comment || "No comment"}</td>
-                              <td className="p-4 text-muted-foreground">
-                                {history.user.name} {history.user.surname}
-                              </td>
-                              <td className="p-4 text-muted-foreground">
-                                {new Date(history.timestamp).toLocaleString()}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="client-pack">
-              <ClientPackDocuments orderId={params.id} freightType={order.freight_type || ""} />
-            </TabsContent>
-          </Tabs>
-        </div>
-      </div>
-    </div>
-  )
+                             <td className="p-4 text-muted-foreground">
+                               {history.user.name} {history.user.surname}
+                             </td>
+                             <td className="p-4 text-muted-foreground">
+                               {new Date(history.timestamp).toLocaleString()}
+                             </td>
+                           </tr>
+                         ))
+                       )}
+                     </tbody>
+                   </table>
+                 </div>
+               </CardContent>
+             </Card>
+           </TabsContent>
+           <TabsContent value="client-pack">
+             <ClientPackDocuments orderId={params.id} freightType={order.freight_type || ""} />
+           </TabsContent>
+         </Tabs>
+       </div>
+     </div>
+   </div>
+ )
 }
