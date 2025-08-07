@@ -1,14 +1,13 @@
 {
-  "buildCommand": "pnpm run build",
+  "buildCommand": "NODE_OPTIONS='--max-old-space-size=4096' pnpm run build",
   "framework": "nextjs",
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 30
     }
   },
-  "build": {
-    "env": {
-      "NODE_OPTIONS": "--max-old-space-size=4096"
-    }
+  "regions": ["iad1"],
+  "env": {
+    "NODE_OPTIONS": "--max-old-space-size=4096"
   }
 }
