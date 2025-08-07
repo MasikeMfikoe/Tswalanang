@@ -26,24 +26,24 @@ export class MultiProviderTrackingService {
    // Initialize and register tracking providers with priorities
    // Lower priority number means higher preference
    this.registerProvider({
-     name: "SeaRates",
-     priority: 2, // Changed to lower priority
-     service: new SeaRatesService(),
-     track: (trackingNumber, options) =>
-       new SeaRatesService().trackShipment(trackingNumber, {
-         sealine: options?.carrierHint,
-         type: this.mapShipmentTypeToSeaRatesType(options?.shipmentType),
-       }),
-   })
-
-   this.registerProvider({
      name: "Gocomet",
-     priority: 1, // Changed to highest priority
+     priority: 1, // Highest priority (changed from 2)
      service: new GocometService(),
      track: (trackingNumber, options) =>
        new GocometService().trackShipment(trackingNumber, {
          shipmentType: options?.shipmentType,
          carrierHint: options?.carrierHint,
+       }),
+   })
+
+   this.registerProvider({
+     name: "SeaRates",
+     priority: 2, // Lower priority (changed from 1)
+     service: new SeaRatesService(),
+     track: (trackingNumber, options) =>
+       new SeaRatesService().trackShipment(trackingNumber, {
+         sealine: options?.carrierHint,
+         type: this.mapShipmentTypeToSeaRatesType(options?.shipmentType),
        }),
    })
 
