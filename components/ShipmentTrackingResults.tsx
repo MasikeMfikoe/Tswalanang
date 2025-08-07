@@ -3,31 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import {
-  PlaneTakeoff,
-  Ship,
-  Package,
-  MapPin,
-  Calendar,
-  Clock,
-  Info,
-  FileText,
-  ArrowRight,
-  Loader2,
-  XCircle,
-  CheckCircle,
-  Truck,
-  Warehouse,
-  Container,
-  Sailboat,
-  Anchor,
-  ClipboardList,
-  CircleDot,
-  PlaneTakeoffIcon as PlaneDeparture,
-  PlaneLandingIcon as PlaneArrival,
-  BadgeCheck,
-  Hourglass,
-} from "lucide-react"
+import { PlaneTakeoff, Ship, Package, MapPin, Calendar, Clock, Info, FileText, ArrowRight, Loader2, XCircle, CheckCircle, Truck, Warehouse, Container, Sailboat, Anchor, ClipboardList, CircleDot, PlaneTakeoffIcon as PlaneDeparture, PlaneLandingIcon as PlaneArrival, BadgeCheck, Hourglass } from 'lucide-react'
 import type { TrackingData, TrackingEvent, ShipmentType } from "@/types/tracking"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { cn } from "@/lib/utils"
@@ -93,27 +69,44 @@ const formatDate = (dateValue: string | undefined | null): string => {
   }
 
   try {
+    // First, try to parse as ISO string or standard date format
     let date = new Date(dateValue)
 
+    // If that fails, try various common formats
     if (isNaN(date.getTime())) {
-      const formats = [
-        dateValue.replace(/\//g, "-"),
-        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$1-$2"),
-        dateValue.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$2-$1"),
-        dateValue.replace(/(\d{4})-(\d{2})-(\d{2}).*/, "$1-$2-$3"),
-      ]
-
-      for (const format of formats) {
-        date = new Date(format)
-        if (!isNaN(date.getTime())) {
-          break
-        }
+      // Handle DD/MM/YYYY format
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue)) {
+        const [day, month, year] = dateValue.split('/')
+        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      }
+      // Handle MM/DD/YYYY format
+      else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue)) {
+        const [month, day, year] = dateValue.split('/')
+        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      }
+      // Handle YYYY-MM-DD format
+      else if (/^\d{4}-\d{1,2}-\d{1,2}/.test(dateValue)) {
+        date = new Date(dateValue.split('T')[0] + 'T00:00:00.000Z')
+      }
+      // Handle DD-MM-YYYY format
+      else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateValue)) {
+        const [day, month, year] = dateValue.split('-')
+        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      }
+      // Handle "DD MMM YYYY" format (e.g., "15 Jan 2024")
+      else if (/^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}$/.test(dateValue)) {
+        date = new Date(dateValue)
+      }
+      // Handle "MMM DD, YYYY" format (e.g., "Jan 15, 2024")
+      else if (/^[A-Za-z]{3}\s+\d{1,2},\s+\d{4}$/.test(dateValue)) {
+        date = new Date(dateValue)
       }
     }
 
+    // Final check if date is valid
     if (isNaN(date.getTime())) {
       console.warn("Could not parse date for display:", dateValue)
-      return "Not Available"
+      return "Invalid Date"
     }
 
     return date.toLocaleDateString("en-US", {
@@ -123,7 +116,81 @@ const formatDate = (dateValue: string | undefined | null): string => {
     })
   } catch (error) {
     console.warn("Error formatting date for display:", dateValue, error)
-    return "Not Available"
+    return "Invalid Date"
+  }
+}
+
+const formatDateTime = (dateValue: string | undefined | null, timeValue?: string | undefined | null): { date: string; time: string } => {
+  if (
+    !dateValue ||
+    dateValue === "N/A" ||
+    dateValue === "Unknown" ||
+    dateValue === "" ||
+    dateValue === "null" ||
+    dateValue === "undefined"
+  ) {
+    return { date: "Not Available", time: "Not Available" }
+  }
+
+  try {
+    let date: Date
+
+    // If we have both date and time, try to combine them
+    if (timeValue && timeValue !== "N/A" && timeValue !== "Unknown") {
+      // Try to parse combined date and time
+      const combinedDateTime = `${dateValue} ${timeValue}`
+      date = new Date(combinedDateTime)
+      
+      if (isNaN(date.getTime())) {
+        // If combined parsing fails, parse date separately
+        date = new Date(dateValue)
+      }
+    } else {
+      // Parse just the date
+      date = new Date(dateValue)
+    }
+
+    // If standard parsing fails, try custom formats
+    if (isNaN(date.getTime())) {
+      // Handle DD/MM/YYYY format
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue)) {
+        const [day, month, year] = dateValue.split('/')
+        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      }
+      // Handle YYYY-MM-DD format
+      else if (/^\d{4}-\d{1,2}-\d{1,2}/.test(dateValue)) {
+        const datePart = dateValue.split('T')[0]
+        const [year, month, day] = datePart.split('-')
+        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      }
+      // Handle DD-MM-YYYY format
+      else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateValue)) {
+        const [day, month, year] = dateValue.split('-')
+        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      }
+    }
+
+    if (isNaN(date.getTime())) {
+      console.warn("Could not parse date/time for display:", dateValue, timeValue)
+      return { date: "Invalid Date", time: "Invalid Time" }
+    }
+
+    const formattedDate = date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+
+    const formattedTime = date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    })
+
+    return { date: formattedDate, time: formattedTime }
+  } catch (error) {
+    console.warn("Error formatting date/time for display:", dateValue, timeValue, error)
+    return { date: "Invalid Date", time: "Invalid Time" }
   }
 }
 
@@ -349,26 +416,28 @@ export default function ShipmentTrackingResults({
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="pl-8 border-l-2 border-gray-200 ml-3">
-                  {locationEntry.events.map((event, eventIndex) => (
-                    <div key={eventIndex} className="relative pb-8 last:pb-0">
-                      <div className="absolute -left-4 top-0 h-full w-px bg-gray-300" />
-                      <div className="absolute -left-5 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-white z-10">
-                        {getIconForEventType(event.type)}
-                      </div>
-                      <div className="ml-4">
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Calendar className="h-4 w-4" /> {event.date}
-                          <Clock className="h-4 w-4 ml-2" /> {event.time}
+                  {locationEntry.events.map((event, eventIndex) => {
+                    const { date: formattedDate, time: formattedTime } = formatDateTime(event.date, event.time)
+                    
+                    return (
+                      <div key={eventIndex} className="relative pb-8 last:pb-0">
+                        <div className="absolute -left-4 top-0 h-full w-px bg-gray-300" />
+                        <div className="absolute -left-5 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-white z-10">
+                          {getIconForEventType(event.type)}
                         </div>
-                        <h4 className="font-semibold text-gray-800 mt-1">{event.status}</h4>
-                        {event.description && <p className="text-gray-600 text-sm mt-1">{event.description}</p>}
-                        {event.vessel && <p className="text-gray-600 text-xs mt-1">Vessel: {event.vessel}</p>}
-                        {event.flightNumber && (
-                          <p className="text-gray-600 text-xs mt-1">Flight: {event.flightNumber}</p>
-                        )}
+                        <div className="ml-4">
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <Calendar className="h-4 w-4" /> {formattedDate}
+                            <Clock className="h-4 w-4 ml-2" /> {formattedTime}
+                          </div>
+                          <h4 className="font-semibold text-gray-800 mt-1">{event.status}</h4>
+                          {event.description && <p className="text-gray-600 text-sm mt-1">{event.description}</p>}
+                          {event.vessel && <p className="text-gray-600 text-xs mt-1">Vessel: {event.vessel}</p>}
+                          {event.voyage && <p className="text-gray-600 text-xs mt-1">Voyage: {event.voyage}</p>}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </AccordionContent>
               </AccordionItem>
             ))}

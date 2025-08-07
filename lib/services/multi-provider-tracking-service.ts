@@ -1,117 +1,115 @@
-import type { TrackingResult, ShipmentType } from "@/types/tracking"
+import type { TrackingResult, ShipmentType, DetectedShipmentInfo } from "@/types/tracking"
 import { SeaRatesService } from "./searates-service"
 import { GocometService } from "./gocomet-service"
 
-export interface TrackingProvider {
- name: string
- priority: number
- service: SeaRatesService | GocometService // Union type for all services
- track: (
-   trackingNumber: string,
-   options?: { shipmentType?: ShipmentType; carrierHint?: string },
- ) => Promise<TrackingResult>
+interface TrackingProvider {
+  name: string
+  priority: number
+  service: any
+  track: (trackingNumber: string, options?: TrackingOptions) => Promise<TrackingResult>
 }
 
 interface TrackingOptions {
- preferredProvider?: "SeaRates" | "Gocomet" // Add other providers as needed
- carrierHint?: string
- shipmentType?: ShipmentType
- preferScraping?: boolean // Not used in this simplified version, but kept for interface consistency
+  shipmentType?: ShipmentType
+  carrierHint?: string
+  preferScraping?: boolean
 }
 
 export class MultiProviderTrackingService {
- private providers: TrackingProvider[] = []
+  private providers: TrackingProvider[] = []
 
- constructor() {
-   // Initialize and register tracking providers with priorities
-   // Lower priority number means higher preference
-   this.registerProvider({
-     name: "Gocomet",
-     priority: 1, // Highest priority (changed from 2)
-     service: new GocometService(),
-     track: (trackingNumber, options) =>
-       new GocometService().trackShipment(trackingNumber, {
-         shipmentType: options?.shipmentType,
-         carrierHint: options?.carrierHint,
-       }),
-   })
+  constructor() {
+    this.initializeProviders()
+  }
 
-   this.registerProvider({
-     name: "SeaRates",
-     priority: 2, // Lower priority (changed from 1)
-     service: new SeaRatesService(),
-     track: (trackingNumber, options) =>
-       new SeaRatesService().trackShipment(trackingNumber, {
-         sealine: options?.carrierHint,
-         type: this.mapShipmentTypeToSeaRatesType(options?.shipmentType),
-       }),
-   })
+  private initializeProviders() {
+    // Register Gocomet with highest priority
+    this.registerProvider({
+      name: "Gocomet",
+      priority: 1, // Highest priority
+      service: new GocometService(),
+      track: (trackingNumber, options) =>
+        new GocometService().trackShipment(trackingNumber, {
+          shipmentType: options?.shipmentType,
+          carrierHint: options?.carrierHint,
+        }),
+    })
 
-   // Sort providers by priority
-   this.providers.sort((a, b) => a.priority - b.priority)
- }
+    // Register SeaRates with lower priority
+    this.registerProvider({
+      name: "SeaRates",
+      priority: 2, // Lower priority
+      service: new SeaRatesService(),
+      track: (trackingNumber, options) =>
+        new SeaRatesService().trackShipment(trackingNumber, {
+          sealine: options?.carrierHint,
+          type: this.mapShipmentTypeToSeaRatesType(options?.shipmentType),
+        }),
+    })
+  }
 
- private registerProvider(provider: TrackingProvider) {
-   this.providers.push(provider)
- }
+  private registerProvider(provider: TrackingProvider) {
+    this.providers.push(provider)
+    // Sort providers by priority (lower number = higher priority)
+    this.providers.sort((a, b) => a.priority - b.priority)
+  }
 
- private mapShipmentTypeToSeaRatesType(shipmentType?: ShipmentType): "CT" | "BL" | "BK" | undefined {
-   switch (shipmentType) {
-     case "ocean":
-     case "lcl":
-       return "CT" // SeaRates often uses CT for container, or BL for Bill of Lading
-     case "air":
-       return "BK" // SeaRates might treat AWB as a booking number
-     default:
-       return undefined
-   }
- }
+  private mapShipmentTypeToSeaRatesType(shipmentType?: ShipmentType): string {
+    switch (shipmentType) {
+      case "ocean":
+        return "ocean"
+      case "air":
+        return "air"
+      case "lcl":
+        return "lcl"
+      default:
+        return "ocean" // Default to ocean freight
+    }
+  }
 
- async trackShipment(trackingNumber: string, options?: TrackingOptions): Promise<TrackingResult> {
-   let lastError: string | undefined
+  async trackShipment(
+    trackingNumber: string,
+    options?: TrackingOptions
+  ): Promise<TrackingResult> {
+    console.log(`Starting multi-provider tracking for: ${trackingNumber}`)
+    console.log(`Available providers (in priority order):`, this.providers.map(p => `${p.name} (priority: ${p.priority})`))
 
-   // If a preferred provider is specified, try it first
-   if (options?.preferredProvider) {
-     const preferred = this.providers.find((p) => p.name === options.preferredProvider)
-     if (preferred) {
-       console.log(`Attempting to track with preferred provider: ${preferred.name}`)
-       const result = await preferred.track(trackingNumber, {
-         shipmentType: options.shipmentType,
-         carrierHint: options.carrierHint,
-       })
-       if (result.success) {
-         return result
-       } else {
-         console.warn(`Preferred provider ${preferred.name} failed: ${result.error}`)
-         lastError = result.error
-       }
-     }
-   }
+    const errors: string[] = []
 
-   // Iterate through other providers by priority
-   for (const provider of this.providers) {
-     // Skip if it was the preferred provider and it already failed
-     if (options?.preferredProvider && provider.name === options.preferredProvider) {
-       continue
-     }
+    for (const provider of this.providers) {
+      try {
+        console.log(`Attempting tracking with ${provider.name}...`)
+        const result = await provider.track(trackingNumber, options)
+        
+        if (result.success) {
+          console.log(`✅ Successfully tracked with ${provider.name}`)
+          return result
+        } else {
+          console.log(`❌ ${provider.name} failed:`, result.error)
+          errors.push(`${provider.name}: ${result.error}`)
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        console.log(`❌ ${provider.name} threw error:`, errorMessage)
+        errors.push(`${provider.name}: ${errorMessage}`)
+      }
+    }
 
-     console.log(`Attempting to track with: ${provider.name}`)
-     const result = await provider.track(trackingNumber, {
-       shipmentType: options?.shipmentType,
-       carrierHint: options?.carrierHint,
-     })
-     if (result.success) {
-       return result
-     } else {
-       console.warn(`Provider ${provider.name} failed: ${result.error}`)
-       lastError = result.error
-     }
-   }
+    // If all providers failed, return a consolidated error
+    return {
+      success: false,
+      error: `All tracking providers failed. Errors: ${errors.join("; ")}`,
+      source: "MultiProviderTrackingService",
+      fallbackOptions: this.providers.map(p => p.name),
+    }
+  }
 
-   return {
-     success: false,
-     error: lastError || "No tracking information found from any available provider.",
-     source: "MultiProvider",
-   }
- }
+  getAvailableProviders(): string[] {
+    return this.providers.map(p => p.name)
+  }
+
+  getProviderPriority(providerName: string): number | null {
+    const provider = this.providers.find(p => p.name === providerName)
+    return provider ? provider.priority : null
+  }
 }
