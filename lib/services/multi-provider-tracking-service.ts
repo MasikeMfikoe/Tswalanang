@@ -27,7 +27,7 @@ export class MultiProviderTrackingService {
     // Lower priority number means higher preference
     this.registerProvider({
       name: "SeaRates",
-      priority: 1, // Highest priority
+      priority: 2, // Changed to lower priority
       service: new SeaRatesService(),
       track: (trackingNumber, options) =>
         new SeaRatesService().trackShipment(trackingNumber, {
@@ -38,7 +38,7 @@ export class MultiProviderTrackingService {
 
     this.registerProvider({
       name: "Gocomet",
-      priority: 2, // Second highest priority
+      priority: 1, // Changed to highest priority
       service: new GocometService(),
       track: (trackingNumber, options) =>
         new GocometService().trackShipment(trackingNumber, {
