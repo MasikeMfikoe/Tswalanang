@@ -2,15 +2,11 @@ import type { TrackingResult, ShipmentType } from "@/types/tracking"
 import { SeaRatesService } from "./searates-service"
 import { GocometService } from "./gocomet-service"
 
-// Define an internal interface for how providers are stored and called
+// Define an internal interface for how providers are stored
 interface InternalTrackingProvider {
   name: string;
   priority: number;
-  // The 'track' function here will wrap the specific service's method (e.g., trackShipment)
-  track: (
-    trackingNumber: string,
-    options?: { shipmentType?: ShipmentType; carrierHint?: string },
-  ) => Promise<TrackingResult>;
+  serviceInstance: SeaRatesService | GocometService; // Holds the actual service instance
 }
 
 interface TrackingOptions {
@@ -31,22 +27,14 @@ export class MultiProviderTrackingService {
     this.providers.push({
       name: "Gocomet",
       priority: 1,
-      track: (trackingNumber, options) =>
-        new GocometService().trackShipment(trackingNumber, {
-          shipmentType: options?.shipmentType,
-          carrierHint: options?.carrierHint,
-        }),
+      serviceInstance: new GocometService(),
     });
 
     // SeaRates Service - Assigned lower priority
     this.providers.push({
       name: "SeaRates",
       priority: 2,
-      track: (trackingNumber, options) =>
-        new SeaRatesService().trackShipment(trackingNumber, {
-          sealine: options?.carrierHint,
-          type: this.mapShipmentTypeToSeaRatesType(options?.shipmentType),
-        }),
+      serviceInstance: new SeaRatesService(),
     });
 
     // Sort providers by priority to ensure correct order of attempts
@@ -68,20 +56,42 @@ export class MultiProviderTrackingService {
   async trackShipment(trackingNumber: string, options?: TrackingOptions): Promise<TrackingResult> {
     let lastError: string | undefined
 
+    // Helper function to attempt tracking with a specific provider
+    const attemptTrack = async (provider: InternalTrackingProvider): Promise<TrackingResult | null> => {
+      console.log(`Attempting to track with: ${provider.name}`);
+      try {
+        if (provider.name === "Gocomet") {
+          // GocometService expects { shipmentType, carrierHint }
+          const gocometService = provider.serviceInstance as GocometService;
+          return await gocometService.trackShipment(trackingNumber, {
+            shipmentType: options?.shipmentType,
+            carrierHint: options?.carrierHint,
+          });
+        } else if (provider.name === "SeaRates") {
+          // SeaRatesService expects { sealine, type }
+          const seaRatesService = provider.serviceInstance as SeaRatesService;
+          return await seaRatesService.trackShipment(trackingNumber, {
+            sealine: options?.carrierHint, // SeaRates uses 'sealine' for carrier hint
+            type: this.mapShipmentTypeToSeaRatesType(options?.shipmentType),
+          });
+        }
+        // Fallback for any other unhandled service types, though currently only Gocomet and SeaRates
+        return { success: false, error: `Unsupported tracking provider: ${provider.name}`, source: provider.name };
+      } catch (error: any) {
+        console.warn(`Provider ${provider.name} failed: ${error.message}`);
+        return { success: false, error: error.message, source: provider.name };
+      }
+    };
+
     // If a preferred provider is specified, try it first
     if (options?.preferredProvider) {
       const preferred = this.providers.find((p) => p.name === options.preferredProvider)
       if (preferred) {
-        console.log(`Attempting to track with preferred provider: ${preferred.name}`)
-        const result = await preferred.track(trackingNumber, {
-          shipmentType: options.shipmentType,
-          carrierHint: options.carrierHint,
-        })
-        if (result.success) {
-          return result
-        } else {
-          console.warn(`Preferred provider ${preferred.name} failed: ${result.error}`)
-          lastError = result.error
+        const result = await attemptTrack(preferred);
+        if (result && result.success) {
+          return result;
+        } else if (result) {
+          lastError = result.error;
         }
       }
     }
@@ -93,16 +103,11 @@ export class MultiProviderTrackingService {
         continue
       }
 
-      console.log(`Attempting to track with: ${provider.name}`)
-      const result = await provider.track(trackingNumber, {
-        shipmentType: options?.shipmentType,
-        carrierHint: options?.carrierHint,
-      })
-      if (result.success) {
-        return result
-      } else {
-        console.warn(`Provider ${provider.name} failed: ${result.error}`)
-        lastError = result.error
+      const result = await attemptTrack(provider);
+      if (result && result.success) {
+        return result;
+      } else if (result) {
+        lastError = result.error;
       }
     }
 
