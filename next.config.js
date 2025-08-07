@@ -30,8 +30,8 @@ const nextConfig = {
     return config
   },
   images: {
-    unoptimized: true
-  }
+    domains: ['placeholder.svg'],
+  },
 }
 
 module.exports = nextConfig
