@@ -7,11 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Loader2, Search } from 'lucide-react'
 
 interface TrackShipmentEmbedProps {
-  submittedContainer: string
+  initialTrackingNumber?: string
 }
 
-export default function TrackShipmentEmbed({ submittedContainer }: TrackShipmentEmbedProps) {
-  const [trackingNumber, setTrackingNumber] = useState(submittedContainer)
+export default function TrackShipmentEmbed({ initialTrackingNumber = '' }: TrackShipmentEmbedProps) {
+  const [trackingNumber, setTrackingNumber] = useState(initialTrackingNumber)
   const [widgetUrl, setWidgetUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,11 +45,10 @@ export default function TrackShipmentEmbed({ submittedContainer }: TrackShipment
   }
 
   useEffect(() => {
-    if (submittedContainer) {
-      setTrackingNumber(submittedContainer); // Ensure the input field reflects the prop
-      fetchWidgetUrl(submittedContainer)
+    if (initialTrackingNumber) {
+      fetchWidgetUrl(initialTrackingNumber)
     }
-  }, [submittedContainer])
+  }, [initialTrackingNumber])
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -96,7 +95,7 @@ export default function TrackShipmentEmbed({ submittedContainer }: TrackShipment
 
         {!widgetUrl && !loading && !error && (
           <div className="text-center py-8 text-gray-500">
-            {submittedContainer ? 'Loading tracking information...' : 'Enter a tracking number to view shipment details'}
+            Enter a tracking number to view shipment details
           </div>
         )}
       </CardContent>

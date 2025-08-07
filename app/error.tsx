@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
 
 export default function Error({
   error,
@@ -18,29 +18,23 @@ export default function Error({
   }, [error])
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
             <AlertTriangle className="h-6 w-6 text-red-600" />
           </div>
-          <CardTitle className="text-xl font-semibold text-gray-900">Something went wrong!</CardTitle>
-          <CardDescription className="text-gray-600">
+          <CardTitle className="text-xl font-semibold">Something went wrong!</CardTitle>
+          <CardDescription>
             An unexpected error occurred. Please try again or contact support if the problem persists.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {process.env.NODE_ENV === 'development' && error.message && (
-            <div className="rounded-md bg-gray-50 p-3 border">
-              <p className="text-sm font-medium text-gray-900">Error Details:</p>
-              <p className="mt-1 text-sm text-gray-600 font-mono break-words">
-                {error.message}
+          {error.digest && (
+            <div className="rounded-md bg-gray-50 p-3">
+              <p className="text-sm text-gray-600">
+                Error ID: <code className="font-mono text-xs">{error.digest}</code>
               </p>
-              {error.digest && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Error ID: {error.digest}
-                </p>
-              )}
             </div>
           )}
           <div className="flex flex-col gap-2">
@@ -48,12 +42,7 @@ export default function Error({
               <RefreshCw className="mr-2 h-4 w-4" />
               Try again
             </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => window.location.href = '/'} 
-              className="w-full"
-            >
-              <Home className="mr-2 h-4 w-4" />
+            <Button variant="outline" onClick={() => window.location.href = '/'} className="w-full">
               Go to homepage
             </Button>
           </div>

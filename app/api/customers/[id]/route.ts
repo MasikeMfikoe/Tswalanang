@@ -3,9 +3,9 @@ import { cookies } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
 
 // GET: Fetch a single customer by ID
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id: customerId } = await params
+    const customerId = params.id
     const supabase = createRouteHandlerClient({ cookies })
 
     const { data: customer, error } = await supabase.from("customers").select("*").eq("id", customerId).single()
@@ -33,9 +33,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // PUT: Update a customer
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id: customerId } = await params
+    const customerId = params.id
     const customerData = await request.json()
     const supabase = createRouteHandlerClient({ cookies })
 
@@ -78,9 +78,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // DELETE: Delete a customer
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id: customerId } = await params
+    const customerId = params.id
     const supabase = createRouteHandlerClient({ cookies })
 
     // Check if customer exists
