@@ -1,7 +1,7 @@
 {
   "buildCommand": "NODE_OPTIONS='--max-old-space-size=4096' pnpm run build",
   "functions": {
-    "app/**/*.js": {
+    "app/**/*.{js,ts,jsx,tsx}": {
       "maxDuration": 30
     }
   },

@@ -29,9 +29,6 @@ const nextConfig = {
     
     return config
   },
-  images: {
-    domains: ['placeholder.svg'],
-  },
 }
 
 module.exports = nextConfig

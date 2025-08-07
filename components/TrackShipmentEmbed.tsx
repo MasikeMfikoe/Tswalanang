@@ -1,93 +1,108 @@
-"use client"
+'use client'
 
-import type React from "react"
-import { useEffect, useRef, useState } from "react"
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Loader2, Search } from 'lucide-react'
 
 interface TrackShipmentEmbedProps {
-  submittedContainer: string
+  initialTrackingNumber?: string
 }
 
-const TrackShipmentEmbed: React.FC<TrackShipmentEmbedProps> = ({ submittedContainer }) => {
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const [widgetUrl, setWidgetUrl] = useState<string>('')
+export default function TrackShipmentEmbed({ initialTrackingNumber = '' }: TrackShipmentEmbedProps) {
+  const [trackingNumber, setTrackingNumber] = useState(initialTrackingNumber)
+  const [widgetUrl, setWidgetUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string>('')
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (submittedContainer) {
-      setLoading(true)
-      setError('')
-      
-      // Fetch the widget URL from our secure API route
-      fetch(`/api/searates-widget?container=${encodeURIComponent(submittedContainer)}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.error) {
-            setError(data.error)
-          } else {
-            setWidgetUrl(data.widgetUrl)
-          }
-        })
-        .catch(err => {
-          console.error('Error fetching widget URL:', err)
-          setError('Failed to load tracking widget')
-        })
-        .finally(() => {
-          setLoading(false)
-        })
-    } else {
-      setWidgetUrl('')
-      setError('')
+  const handleTrack = async () => {
+    if (!trackingNumber.trim()) {
+      setError('Please enter a tracking number')
+      return
     }
-  }, [submittedContainer])
 
-  useEffect(() => {
-    if (iframeRef.current && widgetUrl) {
-      iframeRef.current.src = widgetUrl
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/searates-widget?trackingNumber=${encodeURIComponent(trackingNumber)}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load tracking widget')
+      }
+
+      setWidgetUrl(data.widgetUrl)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+      setWidgetUrl(null)
+    } finally {
+      setLoading(false)
     }
-  }, [widgetUrl])
-
-  if (loading) {
-    return (
-      <div className="w-full h-[500px] overflow-hidden rounded-lg border border-gray-200 shadow-sm flex items-center justify-center">
-        <div className="text-center text-gray-500">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
-          Loading tracking information...
-        </div>
-      </div>
-    )
   }
 
-  if (error) {
-    return (
-      <div className="w-full h-[500px] overflow-hidden rounded-lg border border-red-200 shadow-sm flex items-center justify-center">
-        <div className="text-center text-red-500">
-          <p className="mb-2">Error loading tracking widget</p>
-          <p className="text-sm">{error}</p>
-        </div>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (initialTrackingNumber) {
+      handleTrack()
+    }
+  }, [initialTrackingNumber])
 
   return (
-    <div className="w-full overflow-hidden rounded-lg border border-gray-200 shadow-sm">
-      {widgetUrl ? (
-        <iframe
-          ref={iframeRef}
-          title="SeaRates Container Tracking"
-          width="100%"
-          height="500px"
-          frameBorder="0"
-          allowFullScreen
-          className="block"
-        />
-      ) : (
-        <div className="p-4 text-center text-gray-500 h-[500px] flex items-center justify-center">
-          Enter a container number to see the SeaRates tracking embed.
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Search className="h-5 w-5" />
+          Track Your Shipment
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <Label htmlFor="tracking-number">Tracking Number</Label>
+            <Input
+              id="tracking-number"
+              type="text"
+              placeholder="Enter tracking number..."
+              value={trackingNumber}
+              onChange={(e) => setTrackingNumber(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleTrack()}
+            />
+          </div>
+          <div className="flex items-end">
+            <Button onClick={handleTrack} disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Tracking...
+                </>
+              ) : (
+                'Track'
+              )}
+            </Button>
+          </div>
         </div>
-      )}
-    </div>
+
+        {error && (
+          <div className="p-4 text-red-600 bg-red-50 border border-red-200 rounded-md">
+            {error}
+          </div>
+        )}
+
+        {widgetUrl && (
+          <div className="border rounded-lg overflow-hidden">
+            <iframe
+              src={widgetUrl}
+              width="100%"
+              height="600"
+              frameBorder="0"
+              title="SeaRates Tracking Widget"
+              className="w-full"
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
-
-export default TrackShipmentEmbed
