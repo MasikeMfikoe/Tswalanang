@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { PlaneTakeoff, Ship, Package, MapPin, Calendar, Clock, Info, FileText, ArrowRight, Loader2, XCircle, CheckCircle, Truck, Warehouse, Container, Sailboat, Anchor, ClipboardList, CircleDot, PlaneTakeoffIcon as PlaneDeparture, PlaneLandingIcon as PlaneArrival, BadgeCheck, Hourglass } from 'lucide-react'
 import type { TrackingData, TrackingEvent, ShipmentType } from "@/types/tracking"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { cn } from "@/lib/utils"
 
 interface ShipmentTrackingResultsProps {
@@ -13,30 +12,6 @@ interface ShipmentTrackingResultsProps {
   bookingType?: ShipmentType
   carrierHint?: string
   preferScraping?: boolean
-}
-
-const getIconForEventType = (type: TrackingEvent["type"]) => {
-  switch (type) {
-    case "vessel-departure":
-      return <Sailboat className="h-5 w-5 text-blue-600" />
-    case "vessel-arrival":
-      return <Anchor className="h-5 w-5 text-blue-600" />
-    case "plane-takeoff":
-      return <PlaneDeparture className="h-5 w-5 text-green-600" />
-    case "plane-landing":
-      return <PlaneArrival className="h-5 w-5 text-green-600" />
-    case "gate":
-      return <Truck className="h-5 w-5 text-gray-600" />
-    case "load":
-      return <Container className="h-5 w-5 text-yellow-600" />
-    case "cargo-received":
-      return <Warehouse className="h-5 w-5 text-purple-600" />
-    case "customs-cleared":
-      return <BadgeCheck className="h-5 w-5 text-teal-600" />
-    case "event":
-    default:
-      return <CircleDot className="h-5 w-5 text-gray-500" />
-  }
 }
 
 const getStatusColorClass = (status: string) => {
@@ -65,23 +40,17 @@ const formatDate = (dateValue: string | undefined | null): string => {
     dateValue === "null" ||
     dateValue === "undefined"
   ) {
-    return "Not Available"
+    return "--"
   }
 
   try {
-    // First, try to parse as ISO string or standard date format
     let date = new Date(dateValue)
 
-    // If that fails, try various common formats
+    // If standard parsing fails, try custom formats
     if (isNaN(date.getTime())) {
       // Handle DD/MM/YYYY format
       if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue)) {
         const [day, month, year] = dateValue.split('/')
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-      }
-      // Handle MM/DD/YYYY format
-      else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue)) {
-        const [month, day, year] = dateValue.split('/')
         date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
       }
       // Handle YYYY-MM-DD format
@@ -103,95 +72,45 @@ const formatDate = (dateValue: string | undefined | null): string => {
       }
     }
 
-    // Final check if date is valid
     if (isNaN(date.getTime())) {
       console.warn("Could not parse date for display:", dateValue)
-      return "Invalid Date"
+      return "Invalid Date" // Return "Invalid Date" if parsing truly failed
     }
 
     return date.toLocaleDateString("en-US", {
-      year: "numeric",
+      day: "2-digit",
       month: "short",
-      day: "numeric",
+      year: "numeric",
     })
   } catch (error) {
     console.warn("Error formatting date for display:", dateValue, error)
-    return "Invalid Date"
+    return "Invalid Date" // Return "Invalid Date" on error
   }
 }
 
-const formatDateTime = (dateValue: string | undefined | null, timeValue?: string | undefined | null): { date: string; time: string } => {
-  if (
-    !dateValue ||
-    dateValue === "N/A" ||
-    dateValue === "Unknown" ||
-    dateValue === "" ||
-    dateValue === "null" ||
-    dateValue === "undefined"
-  ) {
-    return { date: "Not Available", time: "Not Available" }
+// Function to determine if an event is delayed
+const isEventDelayed = (event: TrackingEvent): boolean => {
+  if (!event.plannedDate || !event.actualDate || event.plannedDate === "--" || event.actualDate === "--" || event.plannedDate === "Invalid Date" || event.actualDate === "Invalid Date") {
+    return false
   }
-
+  
   try {
-    let date: Date
-
-    // If we have both date and time, try to combine them
-    if (timeValue && timeValue !== "N/A" && timeValue !== "Unknown") {
-      // Try to parse combined date and time
-      const combinedDateTime = `${dateValue} ${timeValue}`
-      date = new Date(combinedDateTime)
-      
-      if (isNaN(date.getTime())) {
-        // If combined parsing fails, parse date separately
-        date = new Date(dateValue)
-      }
-    } else {
-      // Parse just the date
-      date = new Date(dateValue)
+    const plannedDate = new Date(event.plannedDate)
+    const actualDate = new Date(event.actualDate)
+    
+    if (isNaN(plannedDate.getTime()) || isNaN(actualDate.getTime())) {
+      return false
     }
-
-    // If standard parsing fails, try custom formats
-    if (isNaN(date.getTime())) {
-      // Handle DD/MM/YYYY format
-      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue)) {
-        const [day, month, year] = dateValue.split('/')
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-      }
-      // Handle YYYY-MM-DD format
-      else if (/^\d{4}-\d{1,2}-\d{1,2}/.test(dateValue)) {
-        const datePart = dateValue.split('T')[0]
-        const [year, month, day] = datePart.split('-')
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-      }
-      // Handle DD-MM-YYYY format
-      else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateValue)) {
-        const [day, month, year] = dateValue.split('-')
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-      }
-    }
-
-    if (isNaN(date.getTime())) {
-      console.warn("Could not parse date/time for display:", dateValue, timeValue)
-      return { date: "Invalid Date", time: "Invalid Time" }
-    }
-
-    const formattedDate = date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-
-    const formattedTime = date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    })
-
-    return { date: formattedDate, time: formattedTime }
+    
+    return actualDate > plannedDate
   } catch (error) {
-    console.warn("Error formatting date/time for display:", dateValue, timeValue, error)
-    return { date: "Invalid Date", time: "Invalid Time" }
+    return false
   }
+}
+
+// Function to determine if an event is completed (has actual date)
+const isEventCompleted = (event: TrackingEvent): boolean => {
+  return event.actualDate !== undefined && event.actualDate !== "--" && event.actualDate !== "N/A" && event.actualDate !== "Invalid Date"
 }
 
 export default function ShipmentTrackingResults({
@@ -316,6 +235,24 @@ export default function ShipmentTrackingResults({
   const formattedEstimatedDeparture = formatDate(estimatedDeparture)
   const formattedEstimatedArrival = formatDate(estimatedArrival)
 
+  // Flatten all events from all locations for the vertical timeline
+  const allEvents: (TrackingEvent & { locationName: string })[] = []
+  timeline.forEach(locationEntry => {
+    locationEntry.events.forEach(event => {
+      allEvents.push({
+        ...event,
+        locationName: locationEntry.location
+      })
+    })
+  })
+
+  // Sort events chronologically in DESCENDING order (latest event first)
+  allEvents.sort((a, b) => {
+    const dateA = new Date(a.timestamp).getTime()
+    const dateB = new Date(b.timestamp).getTime()
+    return dateB - dateA // This will put the latest event at the top
+  })
+
   return (
     <Card className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm shadow-lg">
       <CardHeader className="pb-4">
@@ -352,7 +289,7 @@ export default function ShipmentTrackingResults({
                 <div className="flex items-center gap-2">
                   <Calendar className="h-5 w-5 text-gray-500" />
                   <strong>Est. Departure:</strong>
-                  <span className={formattedEstimatedDeparture === "Not Available" ? "text-gray-400 italic" : ""}>
+                  <span className={formattedEstimatedDeparture === "--" ? "text-gray-400 italic" : ""}>
                     {formattedEstimatedDeparture}
                   </span>
                 </div>
@@ -361,7 +298,7 @@ export default function ShipmentTrackingResults({
                 <div className="flex items-center gap-2">
                   <Calendar className="h-5 w-5 text-gray-500" />
                   <strong>Est. Arrival:</strong>
-                  <span className={formattedEstimatedArrival === "Not Available" ? "text-gray-400 italic" : ""}>
+                  <span className={formattedEstimatedArrival === "--" ? "text-gray-400 italic" : ""}>
                     {formattedEstimatedArrival}
                   </span>
                 </div>
@@ -381,7 +318,6 @@ export default function ShipmentTrackingResults({
               <strong>Container No:</strong> {containerNumber}
             </div>
           )}
-          {/* Display Demurrage & Detention Days */}
           {demurrageDetentionDays !== undefined && demurrageDetentionDays !== null && (
             <div className="flex items-center gap-2">
               <Hourglass className="h-5 w-5 text-orange-500" />
@@ -402,46 +338,66 @@ export default function ShipmentTrackingResults({
         <Separator className="my-6" />
 
         <h3 className="text-xl font-semibold text-gray-800 mb-4">Shipment Timeline</h3>
-        {timeline.length > 0 ? (
-          <Accordion type="multiple" className="w-full">
-            {timeline.map((locationEntry, locIndex) => (
-              <AccordionItem key={locIndex} value={`item-${locIndex}`}>
-                <AccordionTrigger className="text-lg font-medium text-gray-700 hover:no-underline">
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-5 w-5 text-gray-600" />
-                    {locationEntry.location}
-                    {locationEntry.terminal && (
-                      <span className="text-sm text-gray-500">({locationEntry.terminal})</span>
-                    )}
+        {allEvents.length > 0 ? (
+          <div className="relative">
+            {allEvents.map((event, index) => {
+              const isCompleted = isEventCompleted(event)
+              const isDelayed = isEventDelayed(event)
+              const isLast = index === allEvents.length - 1
+              
+              // Determine the color of the vertical line
+              const lineColor = isCompleted ? (isDelayed ? "bg-red-500" : "bg-green-500") : "bg-gray-300"
+              
+              // Determine the icon for the status circle
+              const StatusIcon = isCompleted ? CheckCircle : CircleDot // Use CircleDot for incomplete events
+
+              return (
+                <div key={index} className="relative flex items-start mb-6">
+                  {/* Vertical line */}
+                  {!isLast && (
+                    <div className={cn("absolute left-3 top-8 w-0.5 h-[calc(100%+1.5rem)]", lineColor)}></div>
+                  )}
+                  
+                  {/* Status circle with checkmark */}
+                  <div className="relative z-10 flex-shrink-0">
+                    <div className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center border-2",
+                      isCompleted 
+                        ? (isDelayed ? "bg-red-500 border-red-500" : "bg-green-500 border-green-500")
+                        : "bg-white border-gray-300"
+                    )}>
+                      <StatusIcon className={cn(
+                        "w-4 h-4",
+                        isCompleted 
+                          ? "text-white" 
+                          : "text-gray-500"
+                      )} />
+                    </div>
                   </div>
-                </AccordionTrigger>
-                <AccordionContent className="pl-8 border-l-2 border-gray-200 ml-3">
-                  {locationEntry.events.map((event, eventIndex) => {
-                    const { date: formattedDate, time: formattedTime } = formatDateTime(event.date, event.time)
-                    
-                    return (
-                      <div key={eventIndex} className="relative pb-8 last:pb-0">
-                        <div className="absolute -left-4 top-0 h-full w-px bg-gray-300" />
-                        <div className="absolute -left-5 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-white z-10">
-                          {getIconForEventType(event.type)}
-                        </div>
-                        <div className="ml-4">
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <Calendar className="h-4 w-4" /> {formattedDate}
-                            <Clock className="h-4 w-4 ml-2" /> {formattedTime}
-                          </div>
-                          <h4 className="font-semibold text-gray-800 mt-1">{event.status}</h4>
-                          {event.description && <p className="text-gray-600 text-sm mt-1">{event.description}</p>}
-                          {event.vessel && <p className="text-gray-600 text-xs mt-1">Vessel: {event.vessel}</p>}
-                          {event.voyage && <p className="text-gray-600 text-xs mt-1">Voyage: {event.voyage}</p>}
-                        </div>
+                  
+                  {/* Event content */}
+                  <div className="ml-4 flex-1">
+                    <div className="font-semibold text-gray-800 text-base">
+                      {event.status}
+                    </div>
+                    <div className="text-sm text-blue-600 font-medium mb-2">
+                      {event.locationName}
+                    </div>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div>
+                        <span className="font-medium">Planned:</span> {formatDate(event.plannedDate)}
+                        {event.actualDate && event.actualDate !== "--" && event.actualDate !== "Invalid Date" && (
+                          <>
+                            <span className="ml-4 font-medium">Actual:</span> {formatDate(event.actualDate)}
+                          </>
+                        )}
                       </div>
-                    )
-                  })}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         ) : (
           <p className="text-gray-600">No detailed timeline available.</p>
         )}

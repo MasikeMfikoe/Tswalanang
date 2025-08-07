@@ -2,15 +2,17 @@ export type TrackingEvent = {
   type: "event" | "vessel-arrival" | "vessel-departure" | "gate" | "load" | "cargo-received" | "customs-cleared"
   status: string
   location: string
-  timestamp: string // ISO 8601 string
-  date: string // Formatted date
-  time: string // Formatted time
+  timestamp: string // ISO 8601 string, used for internal sorting (actual date preferred, then planned)
+  date: string // Formatted actual date
+  time: string // Formatted actual time
   description?: string
   vessel?: string
   voyage?: string
   pieces?: number
   volume?: number
   weight?: number
+  plannedDate?: string // Added: Formatted planned date for the event
+  actualDate?: string // Added: Formatted actual date for the event
 }
 
 export type TrackingData = {
