@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Loader2, Search } from 'lucide-react'
 
 interface TrackShipmentEmbedProps {
@@ -17,17 +16,14 @@ export default function TrackShipmentEmbed({ initialTrackingNumber = '' }: Track
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleTrack = async () => {
-    if (!trackingNumber.trim()) {
-      setError('Please enter a tracking number')
-      return
-    }
+  const fetchWidgetUrl = async (number: string) => {
+    if (!number.trim()) return
 
     setLoading(true)
     setError(null)
 
     try {
-      const response = await fetch(`/api/searates-widget?trackingNumber=${encodeURIComponent(trackingNumber)}`)
+      const response = await fetch(`/api/searates-widget?trackingNumber=${encodeURIComponent(number)}`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -36,62 +32,56 @@ export default function TrackShipmentEmbed({ initialTrackingNumber = '' }: Track
 
       setWidgetUrl(data.widgetUrl)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : 'Failed to load tracking widget')
       setWidgetUrl(null)
     } finally {
       setLoading(false)
     }
   }
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    fetchWidgetUrl(trackingNumber)
+  }
+
   useEffect(() => {
     if (initialTrackingNumber) {
-      handleTrack()
+      fetchWidgetUrl(initialTrackingNumber)
     }
   }, [initialTrackingNumber])
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Search className="h-5 w-5" />
-          Track Your Shipment
-        </CardTitle>
+        <CardTitle>Track Your Shipment</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <Label htmlFor="tracking-number">Tracking Number</Label>
-            <Input
-              id="tracking-number"
-              type="text"
-              placeholder="Enter tracking number..."
-              value={trackingNumber}
-              onChange={(e) => setTrackingNumber(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleTrack()}
-            />
-          </div>
-          <div className="flex items-end">
-            <Button onClick={handleTrack} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Tracking...
-                </>
-              ) : (
-                'Track'
-              )}
-            </Button>
-          </div>
-        </div>
+        <form onSubmit={handleSubmit} className="flex gap-2">
+          <Input
+            type="text"
+            placeholder="Enter container or tracking number"
+            value={trackingNumber}
+            onChange={(e) => setTrackingNumber(e.target.value)}
+            className="flex-1"
+          />
+          <Button type="submit" disabled={loading || !trackingNumber.trim()}>
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
+            Track
+          </Button>
+        </form>
 
         {error && (
-          <div className="p-4 text-red-600 bg-red-50 border border-red-200 rounded-md">
-            {error}
+          <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-700">{error}</p>
           </div>
         )}
 
         {widgetUrl && (
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-md overflow-hidden">
             <iframe
               src={widgetUrl}
               width="100%"
@@ -100,6 +90,12 @@ export default function TrackShipmentEmbed({ initialTrackingNumber = '' }: Track
               title="SeaRates Tracking Widget"
               className="w-full"
             />
+          </div>
+        )}
+
+        {!widgetUrl && !loading && !error && (
+          <div className="text-center py-8 text-gray-500">
+            Enter a tracking number to view shipment details
           </div>
         )}
       </CardContent>

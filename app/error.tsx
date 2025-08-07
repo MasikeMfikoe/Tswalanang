@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 
-interface ErrorProps {
+export default function Error({
+  error,
+  reset,
+}: {
   error: Error & { digest?: string }
   reset: () => void
-}
-
-export default function Error({ error, reset }: ErrorProps) {
+}) {
   useEffect(() => {
     // Log the error to an error reporting service
     console.error('Application error:', error)
@@ -29,27 +30,22 @@ export default function Error({ error, reset }: ErrorProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {process.env.NODE_ENV === 'development' && (
+          {error.digest && (
             <div className="rounded-md bg-gray-50 p-3">
-              <p className="text-sm font-medium text-gray-900">Error Details:</p>
-              <p className="mt-1 text-sm text-gray-600 font-mono">
-                {error.message}
+              <p className="text-sm text-gray-600">
+                Error ID: <code className="font-mono text-xs">{error.digest}</code>
               </p>
-              {error.digest && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Error ID: {error.digest}
-                </p>
-              )}
             </div>
           )}
-          <Button 
-            onClick={reset} 
-            className="w-full"
-            variant="default"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Try again
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button onClick={reset} className="w-full">
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Try again
+            </Button>
+            <Button variant="outline" onClick={() => window.location.href = '/'} className="w-full">
+              Go to homepage
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
