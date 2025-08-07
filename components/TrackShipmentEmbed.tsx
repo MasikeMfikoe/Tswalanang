@@ -46,6 +46,7 @@ export default function TrackShipmentEmbed({ submittedContainer }: TrackShipment
 
   useEffect(() => {
     if (submittedContainer) {
+      setTrackingNumber(submittedContainer); // Ensure the input field reflects the prop
       fetchWidgetUrl(submittedContainer)
     }
   }, [submittedContainer])
