@@ -1,8 +1,7 @@
 {
   "buildCommand": "NODE_OPTIONS='--max-old-space-size=4096' pnpm run build",
-  "framework": "nextjs",
   "functions": {
-    "app/api/**/*.ts": {
+    "app/**/*.{js,ts,jsx,tsx}": {
       "maxDuration": 30
     }
   },
