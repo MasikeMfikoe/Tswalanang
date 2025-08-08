@@ -4,75 +4,47 @@ import { createServerClient } from '@/lib/supabaseClient'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { 
-      trackingNumber, 
-      status, 
-      location, 
-      timestamp, 
-      carrier,
-      description 
-    } = body
-
+    const supabase = createServerClient()
+    
+    // Process webhook data based on the provider
+    const { provider, trackingNumber, status, location, timestamp } = body
+    
     if (!trackingNumber || !status) {
       return NextResponse.json(
-        { error: 'Tracking number and status are required' },
+        { success: false, error: 'Invalid webhook data' },
         { status: 400 }
       )
     }
-
-    const supabase = createServerClient()
     
-    // Find the order associated with this tracking number
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('id')
-      .eq('tracking_number', trackingNumber)
-      .single()
-
-    // Create shipping update record
-    const { data: update, error: updateError } = await supabase
-      .from('shipping_updates')
+    const { data: update, error } = await supabase
+      .from('shipment_updates')
       .insert({
         tracking_number: trackingNumber,
         status,
         location,
         timestamp: timestamp || new Date().toISOString(),
-        carrier,
-        description,
-        order_id: order?.id,
-        source: 'webhook',
-        created_at: new Date().toISOString()
+        source: provider || 'webhook'
       })
       .select()
       .single()
 
-    if (updateError) {
+    if (error) {
+      console.error('Error processing webhook:', error)
       return NextResponse.json(
-        { error: 'Failed to create shipping update' },
-        { status: 500 }
+        { success: false, error: error.message },
+        { status: 400 }
       )
     }
 
-    // Update order status if order was found
-    if (order) {
-      await supabase
-        .from('orders')
-        .update({ 
-          status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', order.id)
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      updateId: update.id,
-      orderUpdated: !!order
+    return NextResponse.json({
+      success: true,
+      data: update
     })
+
   } catch (error) {
     console.error('Error processing shipping webhook:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }

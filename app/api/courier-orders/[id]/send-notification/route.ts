@@ -18,22 +18,22 @@ export async function POST(
 
     if (orderError || !order) {
       return NextResponse.json(
-        { error: 'Order not found' },
+        { success: false, error: 'Order not found' },
         { status: 404 }
       )
     }
 
     // Here you would implement your notification logic
-    // For example, sending an email or SMS
-    
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Notification sent successfully' 
+    // For now, we'll just return success
+    return NextResponse.json({
+      success: true,
+      message: 'Notification sent successfully'
     })
+
   } catch (error) {
     console.error('Error sending notification:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }

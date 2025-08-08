@@ -3,36 +3,39 @@ import { createServerClient } from '@/lib/supabaseClient'
 
 export async function GET(request: NextRequest) {
   try {
+    const supabase = createServerClient()
     const { searchParams } = new URL(request.url)
-    const customerId = searchParams.get('customerId')
+    const customerId = searchParams.get('customer_id')
     
     if (!customerId) {
       return NextResponse.json(
-        { error: 'Customer ID is required' },
+        { success: false, error: 'Customer ID is required' },
+        { status: 400 }
+      )
+    }
+    
+    const { data: rateCard, error } = await supabase
+      .from('customer_rate_cards')
+      .select('*')
+      .eq('customer_id', customerId)
+      .single()
+
+    if (error && error.code !== 'PGRST116') {
+      return NextResponse.json(
+        { success: false, error: error.message },
         { status: 400 }
       )
     }
 
-    const supabase = createServerClient()
-    
-    const { data: rates, error } = await supabase
-      .from('customer_rate_cards')
-      .select('*')
-      .eq('customer_id', customerId)
-      .order('created_at', { ascending: false })
+    return NextResponse.json({
+      success: true,
+      data: rateCard || null
+    })
 
-    if (error) {
-      return NextResponse.json(
-        { error: 'Failed to fetch rate card' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json(rates || [])
   } catch (error) {
     console.error('Error fetching rate card:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }
@@ -41,47 +44,30 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { customerId, rates } = body
+    const supabase = createServerClient()
+    
+    const { data: rateCard, error } = await supabase
+      .from('customer_rate_cards')
+      .insert(body)
+      .select()
+      .single()
 
-    if (!customerId || !Array.isArray(rates)) {
+    if (error) {
       return NextResponse.json(
-        { error: 'Invalid request data' },
+        { success: false, error: error.message },
         { status: 400 }
       )
     }
 
-    const supabase = createServerClient()
-    
-    // Delete existing rates for this customer
-    await supabase
-      .from('customer_rate_cards')
-      .delete()
-      .eq('customer_id', customerId)
+    return NextResponse.json({
+      success: true,
+      data: rateCard
+    })
 
-    // Insert new rates
-    const ratesWithCustomerId = rates.map(rate => ({
-      ...rate,
-      customer_id: customerId,
-      created_at: new Date().toISOString()
-    }))
-
-    const { data: newRates, error } = await supabase
-      .from('customer_rate_cards')
-      .insert(ratesWithCustomerId)
-      .select()
-
-    if (error) {
-      return NextResponse.json(
-        { error: 'Failed to save rate card' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json(newRates)
   } catch (error) {
-    console.error('Error saving rate card:', error)
+    console.error('Error creating rate card:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }

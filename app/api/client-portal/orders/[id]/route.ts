@@ -15,18 +15,22 @@ export async function GET(
       .eq('id', id)
       .single()
 
-    if (error) {
+    if (error || !order) {
       return NextResponse.json(
-        { error: 'Order not found' },
+        { success: false, error: 'Order not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(order)
+    return NextResponse.json({
+      success: true,
+      data: order
+    })
+
   } catch (error) {
     console.error('Error fetching order:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }
@@ -50,16 +54,20 @@ export async function PUT(
 
     if (error) {
       return NextResponse.json(
-        { error: 'Failed to update order' },
+        { success: false, error: error.message },
         { status: 400 }
       )
     }
 
-    return NextResponse.json(order)
+    return NextResponse.json({
+      success: true,
+      data: order
+    })
+
   } catch (error) {
     console.error('Error updating order:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }

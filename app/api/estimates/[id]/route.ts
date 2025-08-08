@@ -15,18 +15,22 @@ export async function GET(
       .eq('id', id)
       .single()
 
-    if (error) {
+    if (error || !estimate) {
       return NextResponse.json(
-        { error: 'Estimate not found' },
+        { success: false, error: 'Estimate not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(estimate)
+    return NextResponse.json({
+      success: true,
+      data: estimate
+    })
+
   } catch (error) {
     console.error('Error fetching estimate:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }
@@ -50,16 +54,20 @@ export async function PUT(
 
     if (error) {
       return NextResponse.json(
-        { error: 'Failed to update estimate' },
+        { success: false, error: error.message },
         { status: 400 }
       )
     }
 
-    return NextResponse.json(estimate)
+    return NextResponse.json({
+      success: true,
+      data: estimate
+    })
+
   } catch (error) {
     console.error('Error updating estimate:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }
@@ -80,16 +88,20 @@ export async function DELETE(
 
     if (error) {
       return NextResponse.json(
-        { error: 'Failed to delete estimate' },
+        { success: false, error: error.message },
         { status: 400 }
       )
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      message: 'Estimate deleted successfully'
+    })
+
   } catch (error) {
     console.error('Error deleting estimate:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }

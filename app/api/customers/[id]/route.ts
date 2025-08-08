@@ -15,18 +15,22 @@ export async function GET(
       .eq('id', id)
       .single()
 
-    if (error) {
+    if (error || !customer) {
       return NextResponse.json(
-        { error: 'Customer not found' },
+        { success: false, error: 'Customer not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(customer)
+    return NextResponse.json({
+      success: true,
+      data: customer
+    })
+
   } catch (error) {
     console.error('Error fetching customer:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }
@@ -50,16 +54,20 @@ export async function PUT(
 
     if (error) {
       return NextResponse.json(
-        { error: 'Failed to update customer' },
+        { success: false, error: error.message },
         { status: 400 }
       )
     }
 
-    return NextResponse.json(customer)
+    return NextResponse.json({
+      success: true,
+      data: customer
+    })
+
   } catch (error) {
     console.error('Error updating customer:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }
@@ -80,16 +88,20 @@ export async function DELETE(
 
     if (error) {
       return NextResponse.json(
-        { error: 'Failed to delete customer' },
+        { success: false, error: error.message },
         { status: 400 }
       )
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      message: 'Customer deleted successfully'
+    })
+
   } catch (error) {
     console.error('Error deleting customer:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }

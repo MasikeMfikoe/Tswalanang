@@ -4,63 +4,46 @@ import { createServerClient } from '@/lib/supabaseClient'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { 
-      trackingNumber, 
-      status, 
-      location, 
-      timestamp, 
-      description,
-      orderId 
-    } = body
-
+    const supabase = createServerClient()
+    
+    const { trackingNumber, status, location, timestamp, notes } = body
+    
     if (!trackingNumber || !status) {
       return NextResponse.json(
-        { error: 'Tracking number and status are required' },
+        { success: false, error: 'Tracking number and status are required' },
         { status: 400 }
       )
     }
-
-    const supabase = createServerClient()
     
-    // Create shipping update record
-    const { data: update, error: updateError } = await supabase
-      .from('shipping_updates')
+    const { data: update, error } = await supabase
+      .from('shipment_updates')
       .insert({
         tracking_number: trackingNumber,
         status,
         location,
         timestamp: timestamp || new Date().toISOString(),
-        description,
-        order_id: orderId,
-        source: 'manual',
-        created_at: new Date().toISOString()
+        notes,
+        source: 'manual'
       })
       .select()
       .single()
 
-    if (updateError) {
+    if (error) {
       return NextResponse.json(
-        { error: 'Failed to create shipping update' },
-        { status: 500 }
+        { success: false, error: error.message },
+        { status: 400 }
       )
     }
 
-    // Update order status if orderId is provided
-    if (orderId) {
-      await supabase
-        .from('orders')
-        .update({ 
-          status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', orderId)
-    }
+    return NextResponse.json({
+      success: true,
+      data: update
+    })
 
-    return NextResponse.json(update)
   } catch (error) {
-    console.error('Error creating manual shipping update:', error)
+    console.error('Error creating manual update:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }
