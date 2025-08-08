@@ -8,3 +8,4 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export { createClient } from "@supabase/supabase-js" // Re-export createClient
