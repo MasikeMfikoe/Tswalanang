@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Ship, Plane } from 'lucide-react'
+import { Search, Ship, Plane } from "lucide-react"
 import {
   detectShipmentInfo,
   getCarrierSuggestions,
@@ -125,6 +125,18 @@ export default function ShipmentTrackerPage() {
       style={{ backgroundImage: "url('/images/world-map.jpg')" }}
     >
       <div className="absolute inset-0 bg-black/50" />
+
+      {/* header buttons */}
+      {false && (
+        <div className="absolute top-4 right-4 z-20 flex gap-2">
+          <Button variant="ghost" className="text-white hover:bg-white/20">
+            {/* Bell icon and text */}
+          </Button>
+          <Button variant="ghost" className="text-white hover:bg-white/20">
+            {/* CalendarDays icon and text */}
+          </Button>
+        </div>
+      )}
 
       {/* search box */}
       <form onSubmit={submitSearch} className="relative z-20 w-full max-w-2xl flex flex-col items-center space-y-3">
