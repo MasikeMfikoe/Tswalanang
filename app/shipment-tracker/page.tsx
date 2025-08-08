@@ -5,12 +5,114 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Search, Ship, Package, MapPin, Clock } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { ArrowLeft, Search, Ship, Package, MapPin, Clock, Truck, Plane } from 'lucide-react'
+
+interface TrackingEvent {
+  date: string
+  time: string
+  location: string
+  status: string
+  description: string
+  type: 'departure' | 'arrival' | 'transit' | 'customs' | 'delivery'
+}
+
+interface TrackingResult {
+  trackingNumber: string
+  status: string
+  carrier: string
+  service: string
+  origin: string
+  destination: string
+  estimatedDelivery: string
+  events: TrackingEvent[]
+}
+
+const mockTrackingData: TrackingResult = {
+  trackingNumber: 'TSW123456789',
+  status: 'In Transit',
+  carrier: 'TSW Logistics',
+  service: 'Ocean Freight',
+  origin: 'Shanghai, China',
+  destination: 'Cape Town, South Africa',
+  estimatedDelivery: '2024-02-15',
+  events: [
+    {
+      date: '2024-01-20',
+      time: '14:30',
+      location: 'Shanghai Port, China',
+      status: 'Departed',
+      description: 'Container departed from origin port',
+      type: 'departure'
+    },
+    {
+      date: '2024-01-25',
+      time: '09:15',
+      location: 'Singapore Port',
+      status: 'In Transit',
+      description: 'Container in transit through Singapore',
+      type: 'transit'
+    },
+    {
+      date: '2024-02-02',
+      time: '16:45',
+      location: 'Durban Port, South Africa',
+      status: 'Arrived',
+      description: 'Container arrived at destination country',
+      type: 'arrival'
+    },
+    {
+      date: '2024-02-05',
+      time: '11:20',
+      location: 'Cape Town Customs',
+      status: 'Customs Clearance',
+      description: 'Container undergoing customs clearance',
+      type: 'customs'
+    }
+  ]
+}
+
+const getStatusIcon = (type: string) => {
+  switch (type) {
+    case 'departure':
+      return <Ship className="h-4 w-4" />
+    case 'arrival':
+      return <MapPin className="h-4 w-4" />
+    case 'transit':
+      return <Truck className="h-4 w-4" />
+    case 'customs':
+      return <Package className="h-4 w-4" />
+    case 'delivery':
+      return <Plane className="h-4 w-4" />
+    default:
+      return <Clock className="h-4 w-4" />
+  }
+}
+
+const getStatusColor = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'delivered':
+      return 'bg-green-100 text-green-800'
+    case 'in transit':
+      return 'bg-blue-100 text-blue-800'
+    case 'departed':
+      return 'bg-yellow-100 text-yellow-800'
+    case 'arrived':
+      return 'bg-purple-100 text-purple-800'
+    case 'customs clearance':
+      return 'bg-orange-100 text-orange-800'
+    default:
+      return 'bg-gray-100 text-gray-800'
+  }
+}
 
 export default function ShipmentTrackerPage() {
-  const [trackingNumber, setTrackingNumber] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const [trackingNumber, setTrackingNumber] = useState('')
+  const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -21,14 +123,22 @@ export default function ShipmentTrackerPage() {
   }
 
   const handleTrack = async () => {
-    if (!trackingNumber.trim()) return
+    if (!trackingNumber.trim()) {
+      setError('Please enter a tracking number')
+      return
+    }
 
     setIsLoading(true)
+    setError('')
+    
     try {
-      // Navigate to results page with tracking number
-      router.push(`/shipment-tracker/results/${encodeURIComponent(trackingNumber)}`)
-    } catch (error) {
-      console.error('Error tracking shipment:', error)
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
+      // For demo purposes, return mock data
+      setTrackingResult(mockTrackingData)
+    } catch (err) {
+      setError('Failed to track shipment. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -41,146 +151,171 @@ export default function ShipmentTrackerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header with Back Button */}
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <Button
-              variant="ghost"
-              onClick={handleBack}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <h1 className="text-xl font-semibold text-gray-900">Shipment Tracker</h1>
-            <div className="w-20" /> {/* Spacer for centering */}
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBack}
+                className="flex items-center space-x-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back</span>
+              </Button>
+              <div className="flex items-center space-x-2">
+                <Ship className="h-6 w-6 text-blue-600" />
+                <h1 className="text-xl font-semibold text-gray-900">Shipment Tracker</h1>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-6">
-            <div className="bg-blue-100 p-4 rounded-full">
-              <Ship className="h-12 w-12 text-blue-600" />
-            </div>
-          </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Track Your Shipment
-          </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Enter your tracking number below to get real-time updates on your shipment's location and status.
-          </p>
-        </div>
-
-        {/* Tracking Input */}
-        <Card className="mb-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Search Section */}
+        <Card className="mb-8">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Enter Tracking Information
-            </CardTitle>
+            <CardTitle>Track Your Shipment</CardTitle>
             <CardDescription>
-              Enter your container number, bill of lading, or booking reference
+              Enter your tracking number to get real-time updates on your shipment status
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4">
-              <Input
-                type="text"
-                placeholder="e.g., MSKU1234567, BL123456789, or BOOK789"
-                value={trackingNumber}
-                onChange={(e) => setTrackingNumber(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className="flex-1 text-lg py-6"
-              />
-              <Button
-                onClick={handleTrack}
-                disabled={!trackingNumber.trim() || isLoading}
-                className="px-8 py-6 text-lg"
-              >
+            <div className="flex space-x-4">
+              <div className="flex-1">
+                <Input
+                  placeholder="Enter tracking number (e.g., TSW123456789)"
+                  value={trackingNumber}
+                  onChange={(e) => setTrackingNumber(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="w-full"
+                />
+              </div>
+              <Button onClick={handleTrack} disabled={isLoading} className="px-6">
                 {isLoading ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center space-x-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Tracking...
+                    <span>Tracking...</span>
                   </div>
                 ) : (
-                  <>
-                    <Search className="h-5 w-5 mr-2" />
-                    Track
-                  </>
+                  <div className="flex items-center space-x-2">
+                    <Search className="h-4 w-4" />
+                    <span>Track</span>
+                  </div>
                 )}
               </Button>
             </div>
+            {error && (
+              <p className="text-red-600 text-sm mt-2">{error}</p>
+            )}
           </CardContent>
         </Card>
 
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8 mb-12">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="bg-green-100 p-2 rounded-lg">
-                  <MapPin className="h-6 w-6 text-green-600" />
+        {/* Results Section */}
+        {trackingResult && (
+          <div className="space-y-6">
+            {/* Shipment Overview */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Shipment Details</CardTitle>
+                  <Badge className={getStatusColor(trackingResult.status)}>
+                    {trackingResult.status}
+                  </Badge>
                 </div>
-                <h3 className="font-semibold text-lg">Real-time Location</h3>
-              </div>
-              <p className="text-gray-600">
-                Get precise location updates of your shipment as it moves through the supply chain.
-              </p>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Tracking Number</p>
+                    <p className="text-sm text-gray-900">{trackingResult.trackingNumber}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Carrier</p>
+                    <p className="text-sm text-gray-900">{trackingResult.carrier}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Service</p>
+                    <p className="text-sm text-gray-900">{trackingResult.service}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Est. Delivery</p>
+                    <p className="text-sm text-gray-900">{trackingResult.estimatedDelivery}</p>
+                  </div>
+                </div>
+                <Separator className="my-4" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Origin</p>
+                    <p className="text-sm text-gray-900">{trackingResult.origin}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Destination</p>
+                    <p className="text-sm text-gray-900">{trackingResult.destination}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <Package className="h-6 w-6 text-blue-600" />
+            {/* Tracking Timeline */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Tracking Timeline</CardTitle>
+                <CardDescription>
+                  Follow your shipment's journey from origin to destination
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {trackingResult.events.map((event, index) => (
+                    <div key={index} className="flex items-start space-x-4">
+                      <div className="flex-shrink-0">
+                        <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                          {getStatusIcon(event.type)}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-gray-900">{event.status}</p>
+                          <div className="text-sm text-gray-500">
+                            {event.date} at {event.time}
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600">{event.location}</p>
+                        <p className="text-sm text-gray-500 mt-1">{event.description}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <h3 className="font-semibold text-lg">Status Updates</h3>
-              </div>
-              <p className="text-gray-600">
-                Receive detailed status information including customs clearance and delivery updates.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="bg-purple-100 p-2 rounded-lg">
-                  <Clock className="h-6 w-6 text-purple-600" />
-                </div>
-                <h3 className="font-semibold text-lg">Estimated Delivery</h3>
-              </div>
-              <p className="text-gray-600">
-                Get accurate estimated arrival times and delivery schedules for your shipments.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Help Section */}
-        <Card className="bg-gray-50">
-          <CardContent className="pt-6">
-            <h3 className="font-semibold text-lg mb-4">Need Help?</h3>
-            <div className="grid md:grid-cols-2 gap-6">
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="text-lg">Need Help?</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 className="font-medium mb-2">Tracking Number Formats</h4>
+                <h4 className="font-medium text-gray-900 mb-2">Tracking Tips</h4>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Container: MSKU1234567 (4 letters + 7 digits)</li>
-                  <li>• Bill of Lading: BL123456789</li>
-                  <li>• Booking Reference: BOOK789123</li>
+                  <li>• Tracking numbers are usually 10-15 characters long</li>
+                  <li>• Updates may take 24-48 hours to appear</li>
+                  <li>• Check for any typos in your tracking number</li>
                 </ul>
               </div>
               <div>
-                <h4 className="font-medium mb-2">Having Issues?</h4>
+                <h4 className="font-medium text-gray-900 mb-2">Contact Support</h4>
                 <p className="text-sm text-gray-600 mb-2">
-                  If you're having trouble tracking your shipment, please contact our support team.
+                  Can't find your shipment? Our support team is here to help.
                 </p>
                 <Button variant="outline" size="sm">
                   Contact Support

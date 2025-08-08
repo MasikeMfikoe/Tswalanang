@@ -1,16 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-// Initialize Supabase client with service role key
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing Supabase environment variables")
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey)
-
 // Mock data for fallback when estimate not found in Supabase or for preview IDs
 const generateMockEstimate = (id: string) => {
   const numericPart = id.match(/\d+$/)?.[0] || Math.floor(Math.random() * 10000).toString()
@@ -50,6 +40,18 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (!id) {
       return NextResponse.json({ error: "Estimate ID is required", success: false }, { status: 400 })
     }
+
+    // Validate environment variables
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("Missing Supabase environment variables")
+      return NextResponse.json({ error: "Server configuration error", success: false }, { status: 500 })
+    }
+
+    // Initialize Supabase client with service role key
+    const supabase = createClient(supabaseUrl, supabaseKey)
 
     // First try to fetch from Supabase
     const { data, error } = await supabase.from("estimates").select("*").eq("id", id).single()
@@ -115,6 +117,18 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         { status: 400 },
       )
     }
+
+    // Validate environment variables
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("Missing Supabase environment variables")
+      return NextResponse.json({ error: "Server configuration error", success: false }, { status: 500 })
+    }
+
+    // Initialize Supabase client with service role key
+    const supabase = createClient(supabaseUrl, supabaseKey)
 
     // Prepare data for Supabase update
     // Remove display_id from updateData if present, as it's auto-generated
@@ -190,6 +204,18 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
         { status: 400 },
       )
     }
+
+    // Validate environment variables
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("Missing Supabase environment variables")
+      return NextResponse.json({ error: "Server configuration error", success: false }, { status: 500 })
+    }
+
+    // Initialize Supabase client with service role key
+    const supabase = createClient(supabaseUrl, supabaseKey)
 
     // Delete from Supabase
     const { error } = await supabase.from("estimates").delete().eq("id", id)
