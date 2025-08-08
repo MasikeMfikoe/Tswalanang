@@ -1,31 +1,32 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
+// Create a Supabase client with service role key for admin operations
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, // This key has admin privileges
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  },
+)
+
 export async function POST(request: NextRequest) {
   try {
     console.log("🚀 Starting user creation process...")
 
-    // Validate environment variables first
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl) {
+    // Validate environment variables
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
       console.error("❌ Missing NEXT_PUBLIC_SUPABASE_URL")
       return NextResponse.json({ error: "Server configuration error: Missing Supabase URL" }, { status: 500 })
     }
 
-    if (!supabaseServiceKey) {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error("❌ Missing SUPABASE_SERVICE_ROLE_KEY")
       return NextResponse.json({ error: "Server configuration error: Missing service role key" }, { status: 500 })
     }
-
-    // Create Supabase client with service role key for admin operations
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
 
     // Parse request body
     let requestData
@@ -261,21 +262,23 @@ export async function POST(request: NextRequest) {
       // Send welcome email if requested
       try {
         console.log("📧 Sending welcome email...")
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-        const welcomeEmailResponse = await fetch(`${appUrl}/api/send-welcome-email`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+        const welcomeEmailResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/send-welcome-email`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userEmail: email,
+              userName: userData.name,
+              userSurname: userData.surname,
+              temporaryPassword: password,
+              companyName: userData.role === "client" ? userData.department : "TSW Smartlog",
+              isClientUser: userData.role === "client",
+            }),
           },
-          body: JSON.stringify({
-            userEmail: email,
-            userName: userData.name,
-            userSurname: userData.surname,
-            temporaryPassword: password,
-            companyName: userData.role === "client" ? userData.department : "TSW Smartlog",
-            isClientUser: userData.role === "client",
-          }),
-        })
+        )
 
         if (welcomeEmailResponse.ok) {
           console.log("✅ Welcome email sent successfully")

@@ -1,6 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
+// Create Supabase client with service role key for admin operations
+const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+})
+
 export async function DELETE(request: NextRequest) {
   try {
     const { documentId, orderId, filePath } = await request.json()
@@ -10,26 +18,6 @@ export async function DELETE(request: NextRequest) {
     if (!documentId) {
       return NextResponse.json({ error: "Document ID is required" }, { status: 400 })
     }
-
-    // Validate environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("❌ API: Missing required environment variables")
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      )
-    }
-
-    // Create Supabase client with service role key for admin operations
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
 
     // First, verify the document exists and belongs to the order
     const { data: existingDoc, error: checkError } = await supabaseAdmin
