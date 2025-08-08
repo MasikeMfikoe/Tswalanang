@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Ship, Plane } from 'lucide-react' // Removed Bell and CalendarDays as they are no longer used
+import { Search, Bell, CalendarDays, Ship, Plane } from "lucide-react"
 import {
   detectShipmentInfo,
   getCarrierSuggestions,
@@ -128,7 +128,12 @@ export default function ShipmentTrackerPage() {
 
       {/* header buttons */}
       <div className="absolute top-4 right-4 z-20 flex gap-2">
-        {/* No buttons here now */}
+        <Button variant="ghost" className="text-white hover:bg-white/20">
+          <Bell className="h-5 w-5 mr-1" /> Notifications
+        </Button>
+        <Button variant="ghost" className="text-white hover:bg-white/20">
+          <CalendarDays className="h-5 w-5 mr-1" /> Calendar
+        </Button>
       </div>
 
       {/* search box */}
