@@ -60,13 +60,18 @@ export class GocometService {
 
   private parseDate(dateValue: any): Date {
     if (!dateValue) {
+      console.log("parseDate: No date value provided")
       return new Date(Number.NaN)
     }
 
+    console.log("parseDate: Attempting to parse:", dateValue, "Type:", typeof dateValue)
+
     let parsedDate: Date
 
+    // Handle Date objects directly
     if (dateValue instanceof Date) {
       if (!isNaN(dateValue.getTime())) {
+        console.log("parseDate: Valid Date object:", dateValue.toISOString())
         return dateValue
       } else {
         console.warn("parseDate: Invalid Date object provided")
@@ -74,98 +79,132 @@ export class GocometService {
       }
     }
 
+    // Handle numeric timestamps
     if (typeof dateValue === "number") {
       parsedDate = new Date(dateValue)
       if (!isNaN(parsedDate.getTime())) {
+        console.log("parseDate: Successfully parsed numeric timestamp:", parsedDate.toISOString())
         return parsedDate
       }
     }
 
+    // Handle string dates
     if (typeof dateValue === "string") {
       const trimmedValue = dateValue.trim()
       
+      // Skip empty or placeholder strings
       if (trimmedValue === "" || trimmedValue === "--" || trimmedValue.toLowerCase() === "n/a") {
+        console.log("parseDate: Empty or placeholder string:", trimmedValue)
         return new Date(Number.NaN)
       }
 
+      // GOCOMET SPECIFIC: Force DD/MM/YYYY parsing - NO MM/DD/YYYY interpretation
+      // First try to manually parse DD/MM/YYYY format specifically
       const ddmmyyyyMatch = trimmedValue.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/)
       if (ddmmyyyyMatch) {
         const day = parseInt(ddmmyyyyMatch[1], 10)
-        const month = parseInt(ddmmyyyyMatch[2], 10) - 1 
+        const month = parseInt(ddmmyyyyMatch[2], 10) - 1 // JavaScript months are 0-indexed
         const year = parseInt(ddmmyyyyMatch[3], 10)
         
+        // Validate the extracted values
         if (day >= 1 && day <= 31 && month >= 0 && month <= 11 && year >= 1900 && year <= 2100) {
           parsedDate = new Date(year, month, day)
           if (!isNaN(parsedDate.getTime())) {
+            console.log(`parseDate: Successfully parsed DD/MM/YYYY: ${day}/${month + 1}/${year} -> ${parsedDate.toISOString()}`)
             return parsedDate
           }
         }
       }
 
+      // Try other specific Gocomet formats that are NOT ambiguous
       const dateFormats = [
-        trimmedValue, 
+        // ISO formats (most reliable)
+        trimmedValue, // Try original first in case it's already ISO
+        
+        // Explicit DD/MM/YYYY conversions - FORCE this interpretation
         trimmedValue.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, (match, d, m, y) => {
           return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
         }),
         trimmedValue.replace(/^(\d{2})\/(\d{2})\/(\d{4})$/, (match, d, m, y) => {
           return `${y}-${m}-${d}`
         }),
+        
+        // Dash separated DD-MM-YYYY
         trimmedValue.replace(/^(\d{1,2})-(\d{1,2})-(\d{4})$/, (match, d, m, y) => {
           return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
         }),
         trimmedValue.replace(/^(\d{2})-(\d{2})-(\d{4})$/, (match, d, m, y) => {
           return `${y}-${m}-${d}`
         }),
+        
+        // Dot separated DD.MM.YYYY
         trimmedValue.replace(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/, (match, d, m, y) => {
           return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
         }),
         trimmedValue.replace(/^(\d{2})\.(\d{2})\.(\d{4})$/, (match, d, m, y) => {
           return `${y}-${m}-${d}`
         }),
+        
+        // Space separated DD MM YYYY
         trimmedValue.replace(/^(\d{1,2})\s+(\d{1,2})\s+(\d{4})$/, (match, d, m, y) => {
           return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
         }),
+        
+        // Month name formats (DD MMM YYYY - common in shipping)
         trimmedValue.replace(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i, "$2 $1, $3"),
         trimmedValue.replace(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i, "$2 $1, $3"),
+        
+        // Reverse month name formats (MMM DD YYYY)
         trimmedValue.replace(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),?\s+(\d{4})/i, "$1 $2, $3"),
         trimmedValue.replace(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})/i, "$1 $2, $3"),
+        
+        // Compact formats
         trimmedValue.replace(/^(\d{8})$/, (match, dateStr) => {
+          // DDMMYYYY format
           const day = dateStr.substring(0, 2)
           const month = dateStr.substring(2, 4)
           const year = dateStr.substring(4, 8)
           return `${year}-${month}-${day}`
         }),
-        trimmedValue.replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3"), 
+        trimmedValue.replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3"), // YYYYMMDD to YYYY-MM-DD
+        
+        // Time included formats - extract date part and force DD/MM interpretation
         trimmedValue.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4}).*/, (match, d, m, y) => {
           return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
         }),
-        trimmedValue.replace(/(\d{4})-(\d{2})-(\d{2}).*/, "$1-$2-$3"), 
+        trimmedValue.replace(/(\d{4})-(\d{2})-(\d{2}).*/, "$1-$2-$3"), // YYYY-MM-DD HH:MM:SS to YYYY-MM-DD
       ]
 
+      // Try each format
       for (let i = 0; i < dateFormats.length; i++) {
         const format = dateFormats[i]
         try {
           parsedDate = new Date(format)
           if (!isNaN(parsedDate.getTime())) {
+            console.log(`parseDate: Successfully parsed with format ${i}: "${format}" -> ${parsedDate.toISOString()}`)
             return parsedDate
           }
         } catch (error) {
+          // Continue to next format
           continue
         }
       }
 
+      // Final manual parsing attempt - FORCE DD/MM/YYYY interpretation
       try {
         const numberMatches = trimmedValue.match(/\d+/g)
         if (numberMatches && numberMatches.length >= 3) {
           const nums = numberMatches.map(n => parseInt(n, 10))
           
+          // ONLY try DD/MM/YYYY arrangement - NO OTHER INTERPRETATIONS
           const day = nums[0]
-          const month = nums[1] - 1 
+          const month = nums[1] - 1 // JavaScript months are 0-indexed
           const year = nums[2]
           
           if (year >= 1900 && year <= 2100 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
             parsedDate = new Date(year, month, day)
             if (!isNaN(parsedDate.getTime())) {
+              console.log(`parseDate: Successfully parsed manually as DD/MM/YYYY: [${year}, ${month + 1}, ${day}] -> ${parsedDate.toISOString()}`)
               return parsedDate
             }
           }
@@ -212,6 +251,7 @@ export class GocometService {
   }
 
   private calculateDemurrageDetentionDays(gocometData: any): number | null {
+    // Check if Gocomet provides demurrage/detention data directly
     if (gocometData.demurrage_days !== undefined) {
       return gocometData.demurrage_days
     }
@@ -225,6 +265,7 @@ export class GocometService {
       return gocometData.free_days_remaining
     }
 
+    // Try to calculate based on dates if available
     try {
       const arrivalDate = this.parseDate(gocometData.actual_arrival_date || gocometData.eta_date)
       const freeDaysEnd = this.parseDate(gocometData.free_days_end_date)
@@ -232,12 +273,13 @@ export class GocometService {
       if (!isNaN(arrivalDate.getTime()) && !isNaN(freeDaysEnd.getTime())) {
         const currentDate = new Date()
         const daysDiff = Math.floor((currentDate.getTime() - freeDaysEnd.getTime()) / (1000 * 60 * 60 * 24))
-        return Math.max(0, daysDiff) 
+        return Math.max(0, daysDiff) // Return 0 if negative (still within free days)
       }
 
+      // If we have arrival date but no free days end date, assume standard free days (e.g., 7 days)
       if (!isNaN(arrivalDate.getTime())) {
         const currentDate = new Date()
-        const standardFreeDays = 7 
+        const standardFreeDays = 7 // Assume 7 free days as standard
         const freeDaysEndDate = new Date(arrivalDate.getTime() + standardFreeDays * 24 * 60 * 60 * 1000)
 
         if (currentDate > freeDaysEndDate) {
@@ -249,29 +291,44 @@ export class GocometService {
       console.warn("Error calculating demurrage/detention days:", error)
     }
 
+    // For testing purposes, return a sample value if we have container data
     if (gocometData.container_no && gocometData.container_no !== "N/A") {
-      return Math.floor(Math.random() * 15) + 1 
+      return Math.floor(Math.random() * 15) + 1 // Random number between 1-15 for testing
     }
 
     return null
   }
 
-  private getEventLogicalCategory(eventStatus: string): 'emptyReturn' | 'dispatch' | 'emptyPickup' | 'gateIn' | 'other' {
-    const status = eventStatus.toLowerCase();
-    if (status.includes('empty return')) {
-      return 'emptyReturn';
-    }
-    if (status.includes('dispatch')) {
-      return 'dispatch';
-    }
-    if (status.includes('empty pickup') || status.includes('empty pick up') || status.includes('pickup') || status.includes('pick up')) {
-      return 'emptyPickup';
-    }
-    if (status.includes('gate in') || status.includes('received at terminal')) {
-      return 'gateIn';
-    }
-    return 'other';
-  }
+  // This function is no longer used for primary sorting, but can be kept for reference
+  // private getEventLogicalOrder(eventStatus: string): number {
+  //   const status = eventStatus.toLowerCase()
+  //   const eventOrder: { [key: string]: number } = {
+  //     'empty pickup': 1,
+  //     'empty pick up': 1,
+  //     'pickup': 1,
+  //     'pick up': 1,
+  //     'dispatch': 2,
+  //     'gate in': 3,
+  //     'origin departure': 4,
+  //     'departure': 4,
+  //     'trans shipment departure': 5,
+  //     'transshipment departure': 5,
+  //     'trans shipment arrival': 6,
+  //     'transshipment arrival': 6,
+  //     'arrival': 7,
+  //     'gate out': 8,
+  //     'empty return': 9999
+  //   }
+  //   if (eventOrder[status]) {
+  //     return eventOrder[status]
+  //   }
+  //   for (const [key, order] of Object.entries(eventOrder)) {
+  //     if (status.includes(key)) {
+  //       return order
+  //     }
+  //   }
+  //   return 500
+  // }
 
   async trackShipment(
     trackingNumber: string,
@@ -316,7 +373,7 @@ export class GocometService {
 
       if (data && data.updated_trackings && data.updated_trackings.length > 0) {
         const gocometTrackingInfo = data.updated_trackings[0]
-        const originalTrackingNumber = trackingNumber 
+        const originalTrackingNumber = trackingNumber // Declare the variable here
         return {
           success: true,
           data: this.transformGocometData(gocometTrackingInfo, originalTrackingNumber, options?.shipmentType),
@@ -347,13 +404,23 @@ export class GocometService {
     originalTrackingNumber: string,
     detectedShipmentType?: ShipmentType,
   ): TrackingData {
-    console.log("--- transformGocometData: Starting event processing ---")
+    console.log("transformGocometData: Processing events from Gocomet data")
     const rawTransformedEvents: (TrackingEvent & { hasValidDate: boolean })[] = []
 
     if (gocometData.events && Array.isArray(gocometData.events)) {
-      console.log(`transformGocometData: Found ${gocometData.events.length} raw events`)
+      console.log(`transformGocometData: Found ${gocometData.events.length} events`)
       
       gocometData.events.forEach((event: any, index: number) => {
+        console.log(`transformGocometData: Processing event ${index}:`, {
+          display_event: event.display_event,
+          event_type: event.event_type,
+          location: event.location,
+          actual_date: event.actual_date,
+          event_date: event.event_date,
+          date: event.date,
+          planned_date: event.planned_date
+        })
+
         const parsedActualDate = this.parseDate(event.actual_date || event.event_date || event.date)
         const parsedPlannedDate = this.parseDate(event.planned_date)
 
@@ -361,16 +428,20 @@ export class GocometService {
 
         if (!isNaN(parsedActualDate.getTime())) {
           eventTimestamp = parsedActualDate.toISOString();
+          console.log(`transformGocometData: Using actual date for timestamp: ${eventTimestamp}`);
         } else if (!isNaN(parsedPlannedDate.getTime())) {
           eventTimestamp = parsedPlannedDate.toISOString();
+          console.log(`transformGocometData: Using planned date for timestamp: ${eventTimestamp}`);
         } else {
+          console.warn(`transformGocometData: No valid date found for event ${index}, setting timestamp to NaN`);
+          // eventTimestamp remains NaN
         }
 
         rawTransformedEvents.push({
           type: "event",
           status: event.display_event || event.event_type || "N/A",
           location: event.location || "N/A",
-          timestamp: typeof eventTimestamp === 'number' ? 'N/A' : eventTimestamp, 
+          timestamp: typeof eventTimestamp === 'number' ? 'N/A' : eventTimestamp, // Store 'N/A' for display, but use NaN for sorting
           date: !isNaN(parsedActualDate.getTime()) ? this.formatDateString(parsedActualDate) : "N/A",
           time: !isNaN(parsedActualDate.getTime()) ? this.formatTimeString(parsedActualDate) : "N/A",
           description: event.event_description || event.display_event,
@@ -378,61 +449,52 @@ export class GocometService {
           voyage: gocometData.voyage_number,
           plannedDate: !isNaN(parsedPlannedDate.getTime()) ? this.formatDateString(parsedPlannedDate) : undefined,
           actualDate: !isNaN(parsedActualDate.getTime()) ? this.formatDateString(parsedActualDate) : undefined,
+          // Add a flag to indicate if it has a valid date for sorting purposes
           hasValidDate: !isNaN(parsedActualDate.getTime()) || !isNaN(parsedPlannedDate.getTime()),
         })
       })
     }
-    console.log("transformGocometData: Raw Transformed Events (before categorization):", rawTransformedEvents.map(e => ({
-      status: e.status,
-      timestamp: e.timestamp,
-      hasValidDate: e.hasValidDate
-    })));
 
+    // Separate events into categories based on their status
     const emptyReturnEvents: (TrackingEvent & { hasValidDate: boolean })[] = [];
     const dispatchEvents: (TrackingEvent & { hasValidDate: boolean })[] = [];
     const emptyPickupEvents: (TrackingEvent & { hasValidDate: boolean })[] = [];
-    const gateInEvents: (TrackingEvent & { hasValidDate: boolean })[] = [];
     const otherEvents: (TrackingEvent & { hasValidDate: boolean })[] = [];
 
     rawTransformedEvents.forEach(event => {
-      const category = this.getEventLogicalCategory(event.status);
-      if (category === 'emptyReturn') {
+      const status = event.status.toLowerCase();
+      if (status.includes('empty return')) {
         emptyReturnEvents.push(event);
-      } else if (category === 'dispatch') {
+      } else if (status.includes('dispatch')) {
         dispatchEvents.push(event);
-      } else if (category === 'emptyPickup') {
+      } else if (status.includes('empty pickup') || status.includes('empty pick up') || status.includes('pickup') || status.includes('pick up')) {
         emptyPickupEvents.push(event);
-      } else if (category === 'gateIn') {
-        gateInEvents.push(event);
       } else {
         otherEvents.push(event);
       }
     });
 
-    console.log("transformGocometData: Categorized Events (before internal sorting):");
-    console.log("  Empty Return:", emptyReturnEvents.map(e => ({ status: e.status, hasValidDate: e.hasValidDate })));
-    console.log("  Other:", otherEvents.map(e => ({ status: e.status, hasValidDate: e.hasValidDate })));
-    console.log("  Dispatch:", dispatchEvents.map(e => ({ status: e.status, hasValidDate: e.hasValidDate })));
-    console.log("  Empty Pickup:", emptyPickupEvents.map(e => ({ status: e.status, hasValidDate: e.hasValidDate })));
-    console.log("  Gate In:", gateInEvents.map(e => ({ status: e.status, hasValidDate: e.hasValidDate })));
-
-
+    // Sort 'otherEvents' in reverse chronological order (most recent first)
     otherEvents.sort((a, b) => {
       const dateA = new Date(a.timestamp === 'N/A' ? NaN : a.timestamp).getTime();
       const dateB = new Date(b.timestamp === 'N/A' ? NaN : b.timestamp).getTime();
 
+      // Events with valid dates come before events without valid dates
       if (a.hasValidDate && !b.hasValidDate) return -1;
       if (!a.hasValidDate && b.hasValidDate) return 1;
 
-      if (isNaN(dateA) && isNaN(dateB)) return 0; 
-      return dateB - dateA; 
+      // If both have valid dates or both don't, sort by timestamp (reverse chronological)
+      if (isNaN(dateA) && isNaN(dateB)) return 0; // Maintain original relative order if both have no dates
+      return dateB - dateA; // Most recent first
     });
 
+    // Sort special events internally if there are multiple of them (e.g., multiple dispatches)
+    // For consistency, sort them chronologically if they have dates, otherwise keep original order.
     emptyReturnEvents.sort((a, b) => {
       const dateA = new Date(a.timestamp === 'N/A' ? NaN : a.timestamp).getTime();
       const dateB = new Date(b.timestamp === 'N/A' ? NaN : b.timestamp).getTime();
-      if (isNaN(dateA) || isNaN(dateB)) return 0; 
-      return dateA - dateB; 
+      if (isNaN(dateA) || isNaN(dateB)) return 0; // Keep original order if no date
+      return dateA - dateB; // Chronological for internal consistency
     });
     dispatchEvents.sort((a, b) => {
       const dateA = new Date(a.timestamp === 'N/A' ? NaN : a.timestamp).getTime();
@@ -446,54 +508,44 @@ export class GocometService {
       if (isNaN(dateA) || isNaN(dateB)) return 0;
       return dateA - dateB;
     });
-    gateInEvents.sort((a, b) => {
-      const dateA = new Date(a.timestamp === 'N/A' ? NaN : a.timestamp).getTime();
-      const dateB = new Date(b.timestamp === 'N/A' ? NaN : b.timestamp).getTime();
-      if (isNaN(dateA) || isNaN(dateB)) return 0;
-      return dateA - dateB;
-    });
-
-    console.log("transformGocometData: Categorized Events (after internal sorting):");
-    console.log("  Empty Return:", emptyReturnEvents.map(e => ({ status: e.status, hasValidDate: e.hasValidDate, timestamp: e.timestamp })));
-    console.log("  Other:", otherEvents.map(e => ({ status: e.status, hasValidDate: e.hasValidDate, timestamp: e.timestamp })));
-    console.log("  Dispatch:", dispatchEvents.map(e => ({ status: e.status, hasValidDate: e.hasValidDate, timestamp: e.timestamp })));
-    console.log("  Empty Pickup:", emptyPickupEvents.map(e => ({ status: e.status, hasValidDate: e.hasValidDate, timestamp: e.timestamp })));
-    console.log("  Gate In:", gateInEvents.map(e => ({ status: e.status, hasValidDate: e.hasValidDate, timestamp: e.timestamp })));
 
 
-    // THIS IS THE CRITICAL SECTION FOR THE ORDERING
     // Combine events in the desired display order:
     // 1. Empty Return (at the very top)
     // 2. Other events (sorted reverse chronological)
-    // 3. Gate In events (newly added, above Dispatch)
-    // 4. Dispatch (between Empty Pickup and Gate In)
-    // 5. Empty Pickup (at the very bottom)
-    const displayOrderedEvents: (TrackingEvent & { hasValidDate: boolean })[] = [
-      ...emptyReturnEvents, // At the very top
-      ...otherEvents,       // Main body, reverse chronological
-      ...gateInEvents,      // New: Gate In events
-      ...dispatchEvents,    // Dispatch
-      ...emptyPickupEvents, // At the very bottom
+    // 3. Dispatch (second from bottom)
+    // 4. Empty Pickup (at the very bottom)
+    const allTransformedEvents: (TrackingEvent & { hasValidDate: boolean })[] = [
+      ...emptyReturnEvents,
+      ...otherEvents,
+      ...dispatchEvents,
+      ...emptyPickupEvents,
     ];
 
-    console.log("transformGocometData: Final combined displayOrderedEvents (before grouping by location):", displayOrderedEvents.map(e => ({
+    console.log("transformGocometData: Final combined and sorted events:", allTransformedEvents.map(e => ({
       status: e.status,
       timestamp: e.timestamp,
       location: e.location,
       hasValidDate: e.hasValidDate
     })))
 
+    // Group these sorted events by location to fit the TrackingData.timeline structure
     const groupedTimeline: Array<{ location: string; terminal?: string; events: TrackingEvent[] }> = []
     const locationMap = new Map<string, { location: string; terminal?: string; events: TrackingEvent[] }>()
 
-    displayOrderedEvents.forEach(event => {
+    allTransformedEvents.forEach(event => {
       const locationKey = event.location || "Unknown Location"
       if (!locationMap.has(locationKey)) {
         locationMap.set(locationKey, { location: locationKey, events: [] })
       }
+      // Push directly, as allTransformedEvents is already in the desired display order
       locationMap.get(locationKey)!.events.push(event)
     })
 
+    // Convert map values to array. The order of entries in the map is insertion order,
+    // which should reflect the order of the first event encountered for that location
+    // in the already sorted allTransformedEvents array.
+    // This ensures the grouped timeline maintains the overall desired display order.
     Array.from(locationMap.values()).forEach(entry => groupedTimeline.push(entry));
 
     let finalEstimatedArrival = "N/A"
@@ -512,6 +564,7 @@ export class GocometService {
       }
     }
 
+    // Calculate or extract demurrage/detention days
     const demurrageDetentionDays = this.calculateDemurrageDetentionDays(gocometData)
 
     return {
