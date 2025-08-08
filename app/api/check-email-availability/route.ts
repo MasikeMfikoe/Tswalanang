@@ -1,14 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-// Create a Supabase client with service role key for admin operations
-const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-})
-
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json()
@@ -16,6 +8,29 @@ export async function POST(request: NextRequest) {
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
+
+    // Ensure environment variables are available
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Missing Supabase environment variables")
+      return NextResponse.json(
+        {
+          isAvailable: false,
+          error: "Server configuration error",
+        },
+        { status: 500 },
+      )
+    }
+
+    // Create a Supabase client with service role key for admin operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
 
     // Check in Supabase auth users
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserByEmail(email)
