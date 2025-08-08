@@ -1,108 +1,116 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseClient'
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+import { type NextRequest, NextResponse } from "next/server"
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// GET: Fetch a single customer by ID
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params
-    const supabase = createServerClient()
-    
-    const { data: customer, error } = await supabase
-      .from('customers')
-      .select('*')
-      .eq('id', id)
-      .single()
+    const customerId = params.id
+    const supabase = createRouteHandlerClient({ cookies })
 
-    if (error || !customer) {
-      return NextResponse.json(
-        { success: false, error: 'Customer not found' },
-        { status: 404 }
-      )
+    const { data: customer, error } = await supabase.from("customers").select("*").eq("id", customerId).single()
+
+    if (error) {
+      console.error("Error fetching customer:", error)
+      return NextResponse.json({ error: "Failed to fetch customer", details: error.message }, { status: 500 })
+    }
+
+    if (!customer) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
     }
 
     return NextResponse.json({
+      data: customer,
       success: true,
-      data: customer
     })
-
   } catch (error) {
-    console.error('Error fetching customer:', error)
+    console.error("Unexpected error in customer GET route:", error)
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
+      { error: "An unexpected error occurred", details: (error as Error).message },
+      { status: 500 },
     )
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// PUT: Update a customer
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params
-    const body = await request.json()
-    const supabase = createServerClient()
-    
-    const { data: customer, error } = await supabase
-      .from('customers')
-      .update(body)
-      .eq('id', id)
+    const customerId = params.id
+    const customerData = await request.json()
+    const supabase = createRouteHandlerClient({ cookies })
+
+    // Check if customer exists
+    const { data: existingCustomer, error: checkError } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("id", customerId)
+      .single()
+
+    if (checkError || !existingCustomer) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+    }
+
+    // Update the customer
+    const { data: updatedCustomer, error } = await supabase
+      .from("customers")
+      .update(customerData)
+      .eq("id", customerId)
       .select()
       .single()
 
     if (error) {
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 400 }
-      )
+      console.error("Error updating customer:", error)
+      return NextResponse.json({ error: "Failed to update customer", details: error.message }, { status: 500 })
     }
 
     return NextResponse.json({
+      data: updatedCustomer,
       success: true,
-      data: customer
+      message: "Customer updated successfully",
     })
-
   } catch (error) {
-    console.error('Error updating customer:', error)
+    console.error("Unexpected error in customer PUT route:", error)
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
+      { error: "An unexpected error occurred", details: (error as Error).message },
+      { status: 500 },
     )
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// DELETE: Delete a customer
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params
-    const supabase = createServerClient()
-    
-    const { error } = await supabase
-      .from('customers')
-      .delete()
-      .eq('id', id)
+    const customerId = params.id
+    const supabase = createRouteHandlerClient({ cookies })
+
+    // Check if customer exists
+    const { data: existingCustomer, error: checkError } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("id", customerId)
+      .single()
+
+    if (checkError || !existingCustomer) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+    }
+
+    // Delete the customer
+    const { error } = await supabase.from("customers").delete().eq("id", customerId)
 
     if (error) {
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 400 }
-      )
+      console.error("Error deleting customer:", error)
+      return NextResponse.json({ error: "Failed to delete customer", details: error.message }, { status: 500 })
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Customer deleted successfully'
+      message: "Customer deleted successfully",
     })
-
   } catch (error) {
-    console.error('Error deleting customer:', error)
+    console.error("Unexpected error in customer DELETE route:", error)
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
+      { error: "An unexpected error occurred", details: (error as Error).message },
+      { status: 500 },
     )
   }
 }

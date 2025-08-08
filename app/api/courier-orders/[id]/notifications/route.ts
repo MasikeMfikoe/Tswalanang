@@ -1,22 +1,9 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { emailService } from "@/lib/email-service"
-import { generateSecureToken } from "@/lib/qr-code-utils"
+import { NextResponse } from "next/server"
 import { courierOrdersApi } from "@/lib/api/courierOrdersApi"
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    const { id: orderId } = await params
-    const body = await request.json()
-    const { recipientEmail, recipientName, senderEmail, senderName, notificationType } = body
-
-    // Validate input based on notification type
-    if (notificationType === "recipient" && (!recipientEmail || !recipientName)) {
-      return NextResponse.json({ success: false, message: "Recipient email and name are required" }, { status: 400 })
-    }
-
-    if (notificationType === "sender" && (!senderEmail || !senderName)) {
-      return NextResponse.json({ success: false, message: "Sender email and name are required" }, { status: 400 })
-    }
+    const orderId = params.id
 
     // Get order details
     const orderResponse = await courierOrdersApi.getCourierOrder(orderId)
@@ -25,86 +12,57 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const order = orderResponse.data
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://logistics.example.com"
-    const trackingUrl = `${baseUrl}/courier-orders/details/${orderId}`
 
-    // Handle different notification types
-    let emailSent = false
-    let updateData = {}
+    // In a real implementation, this would fetch from a notifications table
+    // For now, we'll construct a response based on the order data
+    const notifications = []
 
-    if (notificationType === "recipient") {
-      // Generate secure token for recipient
-      const token = generateSecureToken(orderId)
-
-      // Send delivery link email to recipient
-      emailSent = await emailService.sendDeliveryLinkEmail({
-        orderId,
-        recipientName,
-        recipientEmail,
-        senderName: order.sender,
-        companyName: "TSW Smartlog",
-        estimatedDelivery: order.estimatedDelivery,
-        token,
+    if (order.notify_recipient && order.recipient_email) {
+      notifications.push({
+        id: 1,
+        type: "recipient",
+        email: order.recipient_email,
+        status: "sent",
+        sentAt: order.notification_sent_at || new Date().toISOString(),
       })
-
-      updateData = {
-        notify_recipient: true,
-        recipient_email: recipientEmail,
-        notification_sent_at: new Date().toISOString(),
-      }
-    } else if (notificationType === "sender_created") {
-      // Send order created notification to sender
-      emailSent = await emailService.sendSenderOrderCreatedEmail({
-        orderId,
-        waybillNo: order.waybillNo,
-        senderName,
-        senderEmail,
-        recipientName: order.contactDetails?.receiver?.name || order.receiver,
-        recipientCompany: order.contactDetails?.receiver?.company || order.receiver,
-        estimatedDelivery: order.estimatedDelivery,
-        trackingUrl,
-        companyName: "TSW Smartlog",
-      })
-
-      updateData = {
-        notify_sender_on_create: true,
-        sender_email: senderEmail,
-        sender_notification_sent_at: new Date().toISOString(),
-      }
-    } else if (notificationType === "sender_confirmed") {
-      // Send delivery confirmation to sender
-      emailSent = await emailService.sendSenderDeliveryConfirmedEmail({
-        orderId,
-        waybillNo: order.waybillNo,
-        senderName,
-        senderEmail,
-        recipientName: order.contactDetails?.receiver?.name || order.receiver,
-        recipientDesignation: "Manager", // This would come from the delivery confirmation form
-        deliveryTimestamp: new Date().toISOString(),
-        signatureImageUrl: `${baseUrl}/images/signature-placeholder.png`, // This would be the actual signature
-        deliveryProofUrl: `${baseUrl}/courier-orders/details/${orderId}/proof`,
-        companyName: "TSW Smartlog",
-      })
-
-      updateData = {
-        notify_sender_on_confirm: true,
-        sender_confirmation_sent_at: new Date().toISOString(),
-      }
     }
 
-    if (!emailSent) {
-      return NextResponse.json({ success: false, message: "Failed to send email" }, { status: 500 })
+    if (order.notify_sender_on_create && order.sender_email) {
+      notifications.push({
+        id: 2,
+        type: "sender_created",
+        email: order.sender_email,
+        status: "sent",
+        sentAt: order.sender_notification_sent_at || new Date().toISOString(),
+      })
     }
 
-    // Update order with notification details
-    await courierOrdersApi.updateCourierOrder(orderId, updateData)
+    if (order.notify_sender_on_confirm && order.sender_email) {
+      notifications.push({
+        id: 3,
+        type: "sender_confirmed",
+        email: order.sender_email,
+        status: "sent",
+        sentAt: order.sender_confirmation_sent_at || new Date().toISOString(),
+      })
+    }
+
+    if (order.send_confirmation_to_admin) {
+      notifications.push({
+        id: 4,
+        type: "admin",
+        email: "admin@example.com", // This would come from system settings
+        status: "sent",
+        sentAt: order.admin_notification_sent_at || new Date().toISOString(),
+      })
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Notification sent successfully`,
+      data: notifications,
     })
   } catch (error) {
-    console.error("Error sending notification:", error)
+    console.error("Error fetching notifications:", error)
     return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 })
   }
 }

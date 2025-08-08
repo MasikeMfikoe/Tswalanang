@@ -1,151 +1,106 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { RefreshCw, Database, AlertCircle, CheckCircle } from 'lucide-react'
-
-interface EstimateDebugInfo {
-  tableExists: boolean
-  recordCount: number
-  sampleRecords: any[]
-  permissions: {
-    canSelect: boolean
-    canInsert: boolean
-    canUpdate: boolean
-    canDelete: boolean
-  }
-  error?: string
-}
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { supabase } from "@/lib/supabaseClient"
 
 export default function DebugEstimatesPage() {
-  const [debugInfo, setDebugInfo] = useState<EstimateDebugInfo | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [results, setResults] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
 
-  const fetchDebugInfo = async () => {
+  const testDirectSupabase = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/test-estimates-connection')
-      const data = await response.json()
-      setDebugInfo(data)
-    } catch (error) {
-      console.error('Error fetching debug info:', error)
-      setDebugInfo({
-        tableExists: false,
-        recordCount: 0,
-        sampleRecords: [],
-        permissions: {
-          canSelect: false,
-          canInsert: false,
-          canUpdate: false,
-          canDelete: false
-        },
-        error: 'Failed to fetch debug information'
+      console.log("Testing direct Supabase connection...")
+
+      // Test 1: Raw query to see table structure
+      const { data: rawData, error: rawError } = await supabase.from("estimates").select("*").limit(5)
+
+      console.log("Raw Supabase data:", rawData)
+      console.log("Raw Supabase error:", rawError)
+
+      // Test 2: Count total records
+      const { count, error: countError } = await supabase.from("estimates").select("*", { count: "exact", head: true })
+
+      console.log("Total count:", count)
+      console.log("Count error:", countError)
+
+      // Test 3: Test the API endpoint
+      const apiResponse = await fetch("/api/estimates")
+      const apiData = await apiResponse.json()
+
+      console.log("API Response:", apiData)
+
+      setResults({
+        rawData,
+        rawError,
+        count,
+        countError,
+        apiData,
+        apiStatus: apiResponse.status,
+        timestamp: new Date().toISOString(),
       })
+    } catch (error) {
+      console.error("Debug error:", error)
+      setResults({ error: error.message, timestamp: new Date().toISOString() })
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => {
-    fetchDebugInfo()
-  }, [])
+  const testEstimatesApi = async () => {
+    setLoading(true)
+    try {
+      // Test the estimates API function
+      const { getEstimates } = await import("@/lib/api/estimatesApi")
+      const result = await getEstimates({ page: 1, pageSize: 10 })
 
-  if (loading) {
-    return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <RefreshCw className="h-8 w-8 animate-spin" />
-        </div>
-      </div>
-    )
+      console.log("EstimatesApi result:", result)
+      setResults({ estimatesApiResult: result, timestamp: new Date().toISOString() })
+    } catch (error) {
+      console.error("EstimatesApi error:", error)
+      setResults({ estimatesApiError: error.message, timestamp: new Date().toISOString() })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Estimates Debug Information</h1>
-        <Button onClick={fetchDebugInfo} disabled={loading}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
+    <div className="container mx-auto py-6 space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Debug Estimates Data</h1>
+        <p className="text-muted-foreground">Debug estimates table and API connections</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              Table Status
-            </CardTitle>
+            <CardTitle>Debug Tests</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span>Table Exists</span>
-              <Badge variant={debugInfo?.tableExists ? 'default' : 'destructive'}>
-                {debugInfo?.tableExists ? (
-                  <CheckCircle className="mr-1 h-3 w-3" />
-                ) : (
-                  <AlertCircle className="mr-1 h-3 w-3" />
-                )}
-                {debugInfo?.tableExists ? 'Yes' : 'No'}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Record Count</span>
-              <Badge variant="outline">
-                {debugInfo?.recordCount || 0}
-              </Badge>
-            </div>
+            <Button onClick={testDirectSupabase} disabled={loading}>
+              Test Direct Supabase + API
+            </Button>
+            <Button onClick={testEstimatesApi} disabled={loading}>
+              Test Estimates API Function
+            </Button>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Permissions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {debugInfo?.permissions && Object.entries(debugInfo.permissions).map(([key, value]) => (
-              <div key={key} className="flex items-center justify-between">
-                <span className="capitalize">{key.replace('can', '')}</span>
-                <Badge variant={value ? 'default' : 'destructive'}>
-                  {value ? (
-                    <CheckCircle className="mr-1 h-3 w-3" />
-                  ) : (
-                    <AlertCircle className="mr-1 h-3 w-3" />
-                  )}
-                  {value ? 'Allowed' : 'Denied'}
-                </Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        {results && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Debug Results</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto max-h-96">
+                {JSON.stringify(results, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
       </div>
-
-      {debugInfo?.error && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="text-red-600">Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-red-600">{debugInfo.error}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {debugInfo?.sampleRecords && debugInfo.sampleRecords.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Sample Records</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="bg-gray-100 p-4 rounded-md overflow-auto text-sm">
-              {JSON.stringify(debugInfo.sampleRecords, null, 2)}
-            </pre>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

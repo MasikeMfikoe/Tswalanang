@@ -1,108 +1,53 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseClient'
+import { type NextRequest, NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params
-    const supabase = createServerClient()
-    
-    const { data: order, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', id)
-      .single()
+    const { data, error } = await supabase.from("orders").select("*").eq("id", params.id).single()
 
-    if (error || !order) {
-      return NextResponse.json(
-        { success: false, error: 'Order not found' },
-        { status: 404 }
-      )
+    if (error) {
+      console.error("Error fetching order:", error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({
-      success: true,
-      data: order
-    })
+    if (!data) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 })
+    }
 
-  } catch (error) {
-    console.error('Error fetching order:', error)
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ data })
+  } catch (error: any) {
+    console.error("Error in GET /api/orders/[id]:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params
     const body = await request.json()
-    const supabase = createServerClient()
-    
-    const { data: order, error } = await supabase
-      .from('orders')
-      .update(body)
-      .eq('id', id)
+
+    console.log("Updating order:", params.id, "with data:", body)
+
+    // Update the order
+    const { data, error } = await supabase
+      .from("orders")
+      .update({
+        ...body,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", params.id)
       .select()
       .single()
 
     if (error) {
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 400 }
-      )
+      console.error("Error updating order:", error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({
-      success: true,
-      data: order
-    })
+    console.log("Order updated successfully:", data)
 
-  } catch (error) {
-    console.error('Error updating order:', error)
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-    const supabase = createServerClient()
-    
-    const { error } = await supabase
-      .from('orders')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 400 }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Order deleted successfully'
-    })
-
-  } catch (error) {
-    console.error('Error deleting order:', error)
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ data })
+  } catch (error: any) {
+    console.error("Error in PUT /api/orders/[id]:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

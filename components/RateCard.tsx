@@ -1,139 +1,402 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
-import { Trash2, Plus, Save } from 'lucide-react'
-import { useToast } from '@/hooks/use-toast'
-
-interface RateCardItem {
-  id?: string
-  service_type: string
-  origin: string
-  destination: string
-  rate: number
-  currency: string
-  valid_from: string
-  valid_to: string
-  is_active: boolean
-}
+import { useState, useCallback, useMemo, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
+import { Spinner } from "@/components/ui/spinner"
+import { supabase } from "@/lib/supabaseClient"
 
 interface RateCardProps {
   customerId?: string
-  readonly?: boolean
+  isNewCustomer?: boolean
+  isEditable?: boolean
+  onChange?: (data: any) => void
+  initialData?: {
+    seaFreight?: {
+      communicationFee: number
+      documentationFee: number
+      agencyFee: number
+      facilityFee: number
+    }
+    airFreight?: {
+      communicationFee: number
+      documentationFee: number
+      agencyFee: number
+      facilityFee: number
+    }
+  }
 }
 
-export default function RateCard({ customerId, readonly = false }: RateCardProps) {
-  const [rates, setRates] = useState<RateCardItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+interface RateCardData {
+  id?: string
+  customer_id: string
+  sea_freight_communication_fee: number
+  sea_freight_documentation_fee: number
+  sea_freight_agency_fee: number
+  sea_freight_facility_fee: number
+  air_freight_communication_fee: number
+  air_freight_documentation_fee: number
+  air_freight_agency_fee: number
+  air_freight_facility_fee: number
+  created_at?: string
+  updated_at?: string
+}
+
+export function RateCard({
+  customerId,
+  isNewCustomer = false,
+  isEditable = true,
+  onChange,
+  initialData,
+}: RateCardProps) {
   const { toast } = useToast()
 
-  const defaultRate: RateCardItem = {
-    service_type: 'FCL',
-    origin: '',
-    destination: '',
-    rate: 0,
-    currency: 'USD',
-    valid_from: new Date().toISOString().split('T')[0],
-    valid_to: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    is_active: true
-  }
+  // Default values for sea and air freight
+  const defaultSeaFreight = useMemo(
+    () => ({
+      communicationFee: 350,
+      documentationFee: 350,
+      agencyFee: 3.5,
+      facilityFee: 2.5,
+    }),
+    [],
+  )
 
-  useEffect(() => {
-    if (customerId) {
-      fetchRates()
-    } else {
-      setLoading(false)
-    }
-  }, [customerId])
+  const defaultAirFreight = useMemo(
+    () => ({
+      communicationFee: 150,
+      documentationFee: 250,
+      agencyFee: 3.5,
+      facilityFee: 2.5,
+    }),
+    [],
+  )
 
-  const fetchRates = async () => {
+  // State management
+  const [seaFreight, setSeaFreight] = useState(initialData?.seaFreight || defaultSeaFreight)
+  const [airFreight, setAirFreight] = useState(initialData?.airFreight || defaultAirFreight)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [activeFreightTab, setActiveFreightTab] = useState("seaFreight")
+  const [rateCardId, setRateCardId] = useState<string | null>(null)
+  const [tableExists, setTableExists] = useState(true)
+
+  // Check if customer_rate_cards table exists
+  const checkTableExists = useCallback(async () => {
     try {
-      const response = await fetch(`/api/customers/rate-card?customerId=${customerId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setRates(data)
+      const { error } = await supabase.from("customer_rate_cards").select("id").limit(1)
+
+      if (error && error.code === "42P01") {
+        // Table doesn't exist
+        setTableExists(false)
+        return false
       }
+
+      setTableExists(true)
+      return true
     } catch (error) {
-      console.error('Error fetching rates:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load rate card',
-        variant: 'destructive'
-      })
+      console.error("Error checking table existence:", error)
+      setTableExists(false)
+      return false
+    }
+  }, [])
+
+  // Fetch existing rate card data
+  const fetchRateCard = useCallback(async () => {
+    if (!customerId || isNewCustomer) return
+
+    try {
+      setLoading(true)
+
+      // First check if table exists
+      const exists = await checkTableExists()
+      if (!exists) {
+        console.log("customer_rate_cards table does not exist, using default values")
+        return
+      }
+
+      const { data, error } = await supabase
+        .from("customer_rate_cards")
+        .select("*")
+        .eq("customer_id", customerId)
+        .single()
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 = no rows returned
+        throw error
+      }
+
+      if (data) {
+        setRateCardId(data.id)
+        setSeaFreight({
+          communicationFee: data.sea_freight_communication_fee,
+          documentationFee: data.sea_freight_documentation_fee,
+          agencyFee: data.sea_freight_agency_fee,
+          facilityFee: data.sea_freight_facility_fee,
+        })
+        setAirFreight({
+          communicationFee: data.air_freight_communication_fee,
+          documentationFee: data.air_freight_documentation_fee,
+          agencyFee: data.air_freight_agency_fee,
+          facilityFee: data.air_freight_facility_fee,
+        })
+      }
+    } catch (error: any) {
+      console.error("Error fetching rate card:", error)
+      if (error.code === "42P01") {
+        setTableExists(false)
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch rate card data",
+          variant: "destructive",
+        })
+      }
     } finally {
       setLoading(false)
     }
-  }
+  }, [customerId, isNewCustomer, toast, checkTableExists])
 
-  const addRate = () => {
-    setRates([...rates, { ...defaultRate }])
-  }
+  // Load rate card data on mount
+  useEffect(() => {
+    fetchRateCard()
+  }, [fetchRateCard])
 
-  const updateRate = (index: number, field: keyof RateCardItem, value: any) => {
-    const updatedRates = [...rates]
-    updatedRates[index] = { ...updatedRates[index], [field]: value }
-    setRates(updatedRates)
-  }
+  // Memoized handlers to prevent unnecessary re-renders
+  const handleSeaFreightChange = useCallback(
+    (field: string, value: string) => {
+      if (!isEditable) return
 
-  const removeRate = (index: number) => {
-    setRates(rates.filter((_, i) => i !== index))
-  }
+      setSeaFreight((prev) => ({
+        ...prev,
+        [field]:
+          field.includes("Fee") && !field.includes("documentation") && !field.includes("communication")
+            ? Number.parseFloat(value) || 0
+            : Number.parseInt(value, 10) || 0,
+      }))
+    },
+    [isEditable],
+  )
 
-  const saveRates = async () => {
-    if (!customerId) return
+  const handleAirFreightChange = useCallback(
+    (field: string, value: string) => {
+      if (!isEditable) return
+
+      setAirFreight((prev) => ({
+        ...prev,
+        [field]:
+          field.includes("Fee") && !field.includes("documentation") && !field.includes("communication")
+            ? Number.parseFloat(value) || 0
+            : Number.parseInt(value, 10) || 0,
+      }))
+    },
+    [isEditable],
+  )
+
+  const handleSave = useCallback(async () => {
+    if (!customerId) {
+      toast({
+        title: "Error",
+        description: "Customer ID is required to save rate card",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!tableExists) {
+      toast({
+        title: "Error",
+        description: "Rate card table not available. Please run the database migration first.",
+        variant: "destructive",
+      })
+      return
+    }
 
     setSaving(true)
     try {
-      const response = await fetch('/api/customers/rate-card', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          customerId,
-          rates
-        })
-      })
-
-      if (response.ok) {
-        toast({
-          title: 'Success',
-          description: 'Rate card saved successfully'
-        })
-        fetchRates()
-      } else {
-        throw new Error('Failed to save rate card')
+      const rateCardData: Partial<RateCardData> = {
+        customer_id: customerId,
+        sea_freight_communication_fee: seaFreight.communicationFee,
+        sea_freight_documentation_fee: seaFreight.documentationFee,
+        sea_freight_agency_fee: seaFreight.agencyFee,
+        sea_freight_facility_fee: seaFreight.facilityFee,
+        air_freight_communication_fee: airFreight.communicationFee,
+        air_freight_documentation_fee: airFreight.documentationFee,
+        air_freight_agency_fee: airFreight.agencyFee,
+        air_freight_facility_fee: airFreight.facilityFee,
+        updated_at: new Date().toISOString(),
       }
-    } catch (error) {
-      console.error('Error saving rates:', error)
+
+      let result
+      if (rateCardId) {
+        // Update existing rate card
+        result = await supabase.from("customer_rate_cards").update(rateCardData).eq("id", rateCardId).select().single()
+      } else {
+        // Create new rate card
+        rateCardData.created_at = new Date().toISOString()
+        result = await supabase.from("customer_rate_cards").insert(rateCardData).select().single()
+      }
+
+      if (result.error) {
+        throw result.error
+      }
+
+      if (result.data && !rateCardId) {
+        setRateCardId(result.data.id)
+      }
+
       toast({
-        title: 'Error',
-        description: 'Failed to save rate card',
-        variant: 'destructive'
+        title: "Success",
+        description: "Rate card saved successfully",
+      })
+    } catch (error: any) {
+      console.error("Error saving rate card:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save rate card",
+        variant: "destructive",
       })
     } finally {
       setSaving(false)
     }
-  }
+  }, [customerId, seaFreight, airFreight, rateCardId, tableExists, toast])
+
+  // Memoized form components to prevent unnecessary re-renders
+  const SeaFreightForm = useMemo(
+    () => (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="seaCommunicationFee">Communication Fee (R)</Label>
+            <Input
+              id="seaCommunicationFee"
+              type="number"
+              value={seaFreight.communicationFee}
+              onChange={(e) => handleSeaFreightChange("communicationFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="seaDocumentationFee">Documentation Fee (R)</Label>
+            <Input
+              id="seaDocumentationFee"
+              type="number"
+              value={seaFreight.documentationFee}
+              onChange={(e) => handleSeaFreightChange("documentationFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="seaAgencyFee">Agency Fee (%)</Label>
+            <Input
+              id="seaAgencyFee"
+              type="number"
+              step="0.1"
+              value={seaFreight.agencyFee}
+              onChange={(e) => handleSeaFreightChange("agencyFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="seaFacilityFee">Facility Fee (%)</Label>
+            <Input
+              id="seaFacilityFee"
+              type="number"
+              step="0.1"
+              value={seaFreight.facilityFee}
+              onChange={(e) => handleSeaFreightChange("facilityFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
+            />
+          </div>
+        </div>
+      </div>
+    ),
+    [seaFreight, handleSeaFreightChange, isEditable],
+  )
+
+  const AirFreightForm = useMemo(
+    () => (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="airCommunicationFee">Communication Fee (R)</Label>
+            <Input
+              id="airCommunicationFee"
+              type="number"
+              value={airFreight.communicationFee}
+              onChange={(e) => handleAirFreightChange("communicationFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="airDocumentationFee">Documentation Fee (R)</Label>
+            <Input
+              id="airDocumentationFee"
+              type="number"
+              value={airFreight.documentationFee}
+              onChange={(e) => handleAirFreightChange("documentationFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="airAgencyFee">Agency Fee (%)</Label>
+            <Input
+              id="airAgencyFee"
+              type="number"
+              step="0.1"
+              value={airFreight.agencyFee}
+              onChange={(e) => handleAirFreightChange("agencyFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="airFacilityFee">Facility Fee (%)</Label>
+            <Input
+              id="airFacilityFee"
+              type="number"
+              step="0.1"
+              value={airFreight.facilityFee}
+              onChange={(e) => handleAirFreightChange("facilityFee", e.target.value)}
+              disabled={!isEditable}
+              className={!isEditable ? "bg-gray-50" : ""}
+            />
+          </div>
+        </div>
+      </div>
+    ),
+    [airFreight, handleAirFreightChange, isEditable],
+  )
+
+  useEffect(() => {
+    if (onChange && isNewCustomer) {
+      onChange({
+        seaFreight,
+        airFreight,
+      })
+    }
+  }, [seaFreight, airFreight, onChange, isNewCustomer])
 
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Rate Card</CardTitle>
+          <CardTitle>Customer Rate Card</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          <div className="flex items-center justify-center py-8">
+            <Spinner />
+            <span className="ml-2">Loading rate card...</span>
           </div>
         </CardContent>
       </Card>
@@ -143,164 +406,42 @@ export default function RateCard({ customerId, readonly = false }: RateCardProps
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Rate Card</CardTitle>
-          {!readonly && (
-            <div className="flex gap-2">
-              <Button onClick={addRate} size="sm">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Rate
-              </Button>
-              <Button onClick={saveRates} disabled={saving} size="sm">
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? 'Saving...' : 'Save'}
-              </Button>
-            </div>
-          )}
-        </div>
+        <CardTitle>Customer Rate Card</CardTitle>
+        {!tableExists && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mt-2">
+            <p className="text-sm text-yellow-800">
+              Rate card database table not found. Using default values. Run the database migration to enable rate card
+              storage.
+            </p>
+          </div>
+        )}
+        {!isEditable && (
+          <p className="text-sm text-gray-500">Rate card is read-only. Click "Edit Details" to make changes.</p>
+        )}
       </CardHeader>
       <CardContent>
-        {rates.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-muted-foreground mb-4">No rates configured</p>
-            {!readonly && (
-              <Button onClick={addRate}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add First Rate
-              </Button>
-            )}
+        <Tabs value={activeFreightTab} onValueChange={setActiveFreightTab}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="seaFreight">Sea Freight</TabsTrigger>
+            <TabsTrigger value="airFreight">Air Freight</TabsTrigger>
+          </TabsList>
+          <TabsContent value="seaFreight" className="mt-4">
+            {SeaFreightForm}
+          </TabsContent>
+          <TabsContent value="airFreight" className="mt-4">
+            {AirFreightForm}
+          </TabsContent>
+        </Tabs>
+        {isEditable && tableExists && (
+          <div className="mt-6 flex justify-end">
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save Rate Card"}
+            </Button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {rates.map((rate, index) => (
-              <Card key={index} className="p-4">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <div>
-                    <Label htmlFor={`service-${index}`}>Service Type</Label>
-                    <Select
-                      value={rate.service_type}
-                      onValueChange={(value) => updateRate(index, 'service_type', value)}
-                      disabled={readonly}
-                    >
-                      <SelectTrigger id={`service-${index}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="FCL">FCL</SelectItem>
-                        <SelectItem value="LCL">LCL</SelectItem>
-                        <SelectItem value="Air">Air Freight</SelectItem>
-                        <SelectItem value="Road">Road Transport</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor={`origin-${index}`}>Origin</Label>
-                    <Input
-                      id={`origin-${index}`}
-                      value={rate.origin}
-                      onChange={(e) => updateRate(index, 'origin', e.target.value)}
-                      placeholder="Origin port/city"
-                      disabled={readonly}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor={`destination-${index}`}>Destination</Label>
-                    <Input
-                      id={`destination-${index}`}
-                      value={rate.destination}
-                      onChange={(e) => updateRate(index, 'destination', e.target.value)}
-                      placeholder="Destination port/city"
-                      disabled={readonly}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor={`rate-${index}`}>Rate</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id={`rate-${index}`}
-                        type="number"
-                        value={rate.rate}
-                        onChange={(e) => updateRate(index, 'rate', parseFloat(e.target.value) || 0)}
-                        placeholder="0.00"
-                        disabled={readonly}
-                      />
-                      <Select
-                        value={rate.currency}
-                        onValueChange={(value) => updateRate(index, 'currency', value)}
-                        disabled={readonly}
-                      >
-                        <SelectTrigger className="w-20">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="USD">USD</SelectItem>
-                          <SelectItem value="EUR">EUR</SelectItem>
-                          <SelectItem value="GBP">GBP</SelectItem>
-                          <SelectItem value="ZAR">ZAR</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor={`valid-from-${index}`}>Valid From</Label>
-                    <Input
-                      id={`valid-from-${index}`}
-                      type="date"
-                      value={rate.valid_from}
-                      onChange={(e) => updateRate(index, 'valid_from', e.target.value)}
-                      disabled={readonly}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor={`valid-to-${index}`}>Valid To</Label>
-                    <Input
-                      id={`valid-to-${index}`}
-                      type="date"
-                      value={rate.valid_to}
-                      onChange={(e) => updateRate(index, 'valid_to', e.target.value)}
-                      disabled={readonly}
-                    />
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`active-${index}`}
-                      checked={rate.is_active}
-                      onCheckedChange={(checked) => updateRate(index, 'is_active', checked)}
-                      disabled={readonly}
-                    />
-                    <Label htmlFor={`active-${index}`}>Active</Label>
-                  </div>
-
-                  {!readonly && (
-                    <div className="flex items-end">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeRate(index)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-2 flex items-center gap-2">
-                  <Badge variant={rate.is_active ? 'default' : 'secondary'}>
-                    {rate.is_active ? 'Active' : 'Inactive'}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {rate.origin} → {rate.destination}
-                  </span>
-                </div>
-              </Card>
-            ))}
+        )}
+        {isEditable && !tableExists && (
+          <div className="mt-6 flex justify-end">
+            <Button disabled>Save Rate Card (Table Missing)</Button>
           </div>
         )}
       </CardContent>

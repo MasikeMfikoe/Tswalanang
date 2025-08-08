@@ -1,50 +1,37 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseClient'
+import { NextResponse } from "next/server"
+import { ShippingUpdateService } from "@/lib/services/shipping-update-service"
+import { supabase } from "@/lib/supabaseClient"
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const supabase = createServerClient()
-    
-    const { trackingNumber, status, location, timestamp, notes } = body
-    
-    if (!trackingNumber || !status) {
-      return NextResponse.json(
-        { success: false, error: 'Tracking number and status are required' },
-        { status: 400 }
-      )
-    }
-    
-    const { data: update, error } = await supabase
-      .from('shipment_updates')
-      .insert({
-        tracking_number: trackingNumber,
-        status,
-        location,
-        timestamp: timestamp || new Date().toISOString(),
-        notes,
-        source: 'manual'
-      })
-      .select()
-      .single()
+    const { searchParams } = new URL(request.url)
+    const shipmentId = searchParams.get("shipmentId")
 
-    if (error) {
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 400 }
-      )
+    if (!shipmentId) {
+      return NextResponse.json({ error: "Shipment ID is required" }, { status: 400 })
+    }
+
+    // Get the shipment
+    const { data: shipment, error } = await supabase.from("shipments").select("*").eq("id", shipmentId).single()
+
+    if (error || !shipment) {
+      return NextResponse.json({ error: "Shipment not found" }, { status: 404 })
+    }
+
+    // Update the shipment
+    const updateService = new ShippingUpdateService()
+    const update = await updateService.updateShipment(shipment)
+
+    if (!update) {
+      return NextResponse.json({ error: "Failed to update shipment" }, { status: 500 })
     }
 
     return NextResponse.json({
-      success: true,
-      data: update
+      message: "Shipment updated successfully",
+      update,
     })
-
   } catch (error) {
-    console.error('Error creating manual update:', error)
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    )
+    console.error("Error in manual shipping update:", error)
+    return NextResponse.json({ error: "Failed to update shipment" }, { status: 500 })
   }
 }
