@@ -1,16 +1,16 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
-  const { id } = params
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get("userId")
-
-  if (!userId) {
-    return NextResponse.json({ success: false, message: "User ID is required." }, { status: 400 })
-  }
-
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get("userId")
+
+    if (!userId) {
+      return NextResponse.json({ success: false, message: "User ID is required." }, { status: 400 })
+    }
+
     // 1. Get user profile to determine role and customer_id
     const { data: userProfile, error: userProfileError } = await supabase
       .from("user_profiles")
