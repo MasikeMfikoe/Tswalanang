@@ -8,38 +8,27 @@ interface Params {
 
 export async function GET(
  request: NextRequest,
- { params }: { params: Promise<Params> }
+ { params }: { params: Params }
 ) {
  try {
-   const { id } = await params; // Await the params object
-   const { searchParams } = new URL(request.url)
-   const clientId = searchParams.get("clientId")
+   const { id } = params;
 
-   if (!clientId) {
-     return NextResponse.json({ error: "Client ID is required" }, { status: 400 })
+   if (!id) {
+     return NextResponse.json({ error: "Order ID is required" }, { status: 400 })
    }
 
-   // Fetch the order details
-   const { data: order, error: orderError } = await ordersApi.getOrder(id)
+   const { data, error } = await supabase.from("orders").select("*").eq("id", id).single()
 
-   if (orderError || !order) {
-     console.error("Error fetching order:", orderError)
+   if (error) {
+     console.error("Error fetching order for client portal:", error)
+     return NextResponse.json({ error: "Failed to fetch order" }, { status: 500 })
+   }
+
+   if (!data) {
      return NextResponse.json({ error: "Order not found" }, { status: 404 })
    }
 
-   // Verify if the order belongs to the client
-   const { data: userProfile, error: userError } = await supabase
-     .from("user_profiles")
-     .select("customer_id")
-     .eq("id", clientId)
-     .single()
-
-   if (userError || !userProfile || userProfile.customer_id !== order.customer_id) {
-     console.warn(`Unauthorized access attempt for order ${id} by client ${clientId}`)
-     return NextResponse.json({ error: "Unauthorized access" }, { status: 403 })
-   }
-
-   return NextResponse.json({ success: true, data: order })
+   return NextResponse.json(data, { status: 200 })
  } catch (error) {
    console.error('Error in GET /api/client-portal/orders/[id]:', error);
    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -48,10 +37,10 @@ export async function GET(
 
 export async function PUT(
  request: NextRequest,
- { params }: { params: Promise<Params> }
+ { params }: { params: Params }
 ) {
  try {
-   const { id } = await params; // Await the params object
+   const { id } = params; // Await the params object
    const body = await request.json();
    const { clientId, updates } = body
 

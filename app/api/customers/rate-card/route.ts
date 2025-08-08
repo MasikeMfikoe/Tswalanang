@@ -1,52 +1,62 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabaseClient"
 
-export async function POST(request: NextRequest) {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const customerId = searchParams.get("customerId")
+
+  if (!customerId) {
+    return NextResponse.json({ error: "Customer ID is required" }, { status: 400 })
+  }
+
   try {
-    const body = await request.json()
-    const { customer_id, seaFreight, airFreight } = body
+    // In a real application, you would fetch the specific rate card for the customer.
+    // For this example, we'll return a mock rate card.
+    const { data, error } = await supabase
+      .from("customer_rate_cards")
+      .select("*")
+      .eq("customer_id", customerId)
+      .single()
 
-    if (!customer_id) {
-      return NextResponse.json({ error: "Customer ID is required" }, { status: 400 })
+    if (error && error.code !== "PGRST116") { // PGRST116 means no rows found
+      console.error("Error fetching customer rate card:", error)
+      return NextResponse.json({ error: "Failed to fetch customer rate card" }, { status: 500 })
     }
 
-    // Check if customer_rate_cards table exists
-    const { error: tableCheckError } = await supabase.from("customer_rate_cards").select("id").limit(1)
-
-    if (tableCheckError && tableCheckError.code === "42P01") {
-      return NextResponse.json(
-        { error: "Rate card table not available. Please run database migration." },
-        { status: 503 },
-      )
+    if (!data) {
+      // If no specific rate card, you might return a default one or an empty array
+      return NextResponse.json({ message: "No specific rate card found for this customer, returning default/empty." }, { status: 200 })
     }
 
-    const rateCardData = {
-      customer_id,
-      sea_freight_communication_fee: seaFreight.communicationFee,
-      sea_freight_documentation_fee: seaFreight.documentationFee,
-      sea_freight_agency_fee: seaFreight.agencyFee,
-      sea_freight_facility_fee: seaFreight.facilityFee,
-      air_freight_communication_fee: airFreight.communicationFee,
-      air_freight_documentation_fee: airFreight.documentationFee,
-      air_freight_agency_fee: airFreight.agencyFee,
-      air_freight_facility_fee: airFreight.facilityFee,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
+    return NextResponse.json(data, { status: 200 })
+  } catch (error) {
+    console.error("Unexpected error fetching customer rate card:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
 
-    const { data, error } = await supabase.from("customer_rate_cards").insert(rateCardData).select().single()
+export async function POST(request: Request) {
+  const { customer_id, rates, freight_types } = await request.json()
+
+  if (!customer_id || !rates || !freight_types) {
+    return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("customer_rate_cards")
+      .upsert({ customer_id, rates, freight_types }, { onConflict: "customer_id" })
+      .select()
+      .single()
 
     if (error) {
-      throw error
+      console.error("Error saving customer rate card:", error)
+      return NextResponse.json({ error: "Failed to save customer rate card" }, { status: 500 })
     }
 
-    return NextResponse.json({
-      success: true,
-      data,
-      message: "Rate card created successfully",
-    })
-  } catch (error: any) {
-    console.error("Error creating rate card:", error)
-    return NextResponse.json({ error: error.message || "Failed to create rate card" }, { status: 500 })
+    return NextResponse.json(data, { status: 201 })
+  } catch (error) {
+    console.error("Unexpected error saving customer rate card:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

@@ -192,4 +192,57 @@ export class ShippingUpdateService {
 
     return configs[shippingLine] || configs.other
   }
+
+  // Update shipment status manually
+  async updateShipmentStatus(
+    trackingNumber: string,
+    newStatus: string,
+    location?: string,
+    eventTime?: string,
+    remarks?: string,
+  ) {
+    try {
+      // Find the shipment by tracking number
+      const { data: shipment, error: fetchError } = await supabase
+        .from("shipments")
+        .select("id, current_status")
+        .eq("tracking_number", trackingNumber)
+        .single()
+
+      if (fetchError || !shipment) {
+        console.error(`Shipment with tracking number ${trackingNumber} not found:`, fetchError)
+        return { success: false, message: `Shipment with tracking number ${trackingNumber} not found.` }
+      }
+
+      // Update the current status of the shipment
+      const { error: updateError } = await supabase
+        .from("shipments")
+        .update({ current_status: newStatus, updated_at: new Date().toISOString() })
+        .eq("id", shipment.id)
+
+      if (updateError) {
+        console.error(`Error updating shipment status for ${trackingNumber}:`, updateError)
+        return { success: false, message: `Failed to update shipment status for ${trackingNumber}.` }
+      }
+
+      // Add a new entry to the shipment_history table
+      const { error: historyError } = await supabase.from("shipment_history").insert({
+        shipment_id: shipment.id,
+        status: newStatus,
+        location: location || null,
+        event_time: eventTime || new Date().toISOString(),
+        remarks: remarks || null,
+      })
+
+      if (historyError) {
+        console.error(`Error adding shipment history for ${trackingNumber}:`, historyError)
+        return { success: false, message: `Failed to log shipment history for ${trackingNumber}.` }
+      }
+
+      return { success: true, message: `Shipment ${trackingNumber} status updated to ${newStatus}.` }
+    } catch (error) {
+      console.error("Unexpected error in updateShipmentStatus:", error)
+      return { success: false, message: "An unexpected error occurred during shipment status update." }
+    }
+  }
 }

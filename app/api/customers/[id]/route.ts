@@ -1,98 +1,77 @@
-import { type NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient'; // Assuming this is the correct path to your Supabase client
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabaseClient"
 
-interface Params {
- id: string;
+export async function GET(request: Request, { params }: { params: { id: string } }) {
+  const { id } = params
+
+  if (!id) {
+    return NextResponse.json({ error: "Customer ID is required" }, { status: 400 })
+  }
+
+  try {
+    const { data, error } = await supabase.from("customers").select("*").eq("id", id).single()
+
+    if (error) {
+      console.error("Error fetching customer:", error)
+      return NextResponse.json({ error: "Failed to fetch customer" }, { status: 500 })
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+    }
+
+    return NextResponse.json(data, { status: 200 })
+  } catch (error) {
+    console.error("Unexpected error fetching customer:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
 }
 
-export async function GET(
- request: NextRequest,
- { params }: { params: Promise<Params> }
-) {
- try {
-   const { id } = await params; // Await the params object
-   const supabaseAdmin = createClient(
-     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-     process.env.SUPABASE_SERVICE_ROLE_KEY!
-   );
+export async function PUT(request: Request, { params }: { params: { id: string } }) {
+  const { id } = params
+  const updates = await request.json()
 
-   const { data, error } = await supabaseAdmin
-     .from('customers')
-     .select('*')
-     .eq('id', id)
-     .single();
+  if (!id) {
+    return NextResponse.json({ error: "Customer ID is required" }, { status: 400 })
+  }
 
-   if (error) {
-     console.error('Error fetching customer:', error);
-     return NextResponse.json({ error: error.message }, { status: 500 });
-   }
+  try {
+    const { data, error } = await supabase.from("customers").update(updates).eq("id", id).select().single()
 
-   if (!data) {
-     return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-   }
+    if (error) {
+      console.error("Error updating customer:", error)
+      return NextResponse.json({ error: "Failed to update customer" }, { status: 500 })
+    }
 
-   return NextResponse.json(data);
- } catch (error) {
-   console.error('Error in GET /api/customers/[id]:', error);
-   return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
- }
+    if (!data) {
+      return NextResponse.json({ error: "Customer not found or no changes applied" }, { status: 404 })
+    }
+
+    return NextResponse.json(data, { status: 200 })
+  } catch (error) {
+    console.error("Unexpected error updating customer:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
 }
 
-export async function PUT(
- request: NextRequest,
- { params }: { params: Promise<Params> }
-) {
- try {
-   const { id } = await params; // Await the params object
-   const body = await request.json();
-   const supabaseAdmin = createClient(
-     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-     process.env.SUPABASE_SERVICE_ROLE_KEY!
-   );
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const { id } = params
 
-   const { data, error } = await supabaseAdmin
-     .from('customers')
-     .update(body)
-     .eq('id', id)
-     .select()
-     .single();
+  if (!id) {
+    return NextResponse.json({ error: "Customer ID is required" }, { status: 400 })
+  }
 
-   if (error) {
-     console.error('Error updating customer:', error);
-     return NextResponse.json({ error: error.message }, { status: 500 });
-   }
+  try {
+    const { error } = await supabase.from("customers").delete().eq("id", id)
 
-   return NextResponse.json(data);
- } catch (error) {
-   console.error('Error in PUT /api/customers/[id]:', error);
-   return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
- }
-}
+    if (error) {
+      console.error("Error deleting customer:", error)
+      return NextResponse.json({ error: "Failed to delete customer" }, { status: 500 })
+    }
 
-export async function DELETE(
- request: NextRequest,
- { params }: { params: Promise<Params> }
-) {
- try {
-   const { id } = await params; // Await the params object
-   const supabaseAdmin = createClient(
-     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-     process.env.SUPABASE_SERVICE_ROLE_KEY!
-   );
-
-   const { error } = await supabaseAdmin
-     .from('customers')
-     .delete()
-     .eq('id', id);
-
-   if (error) {
-     console.error('Error deleting customer:', error);
-     return NextResponse.json({ error: error.message }, { status: 500 });
-   }
-
-   return NextResponse.json({ message: 'Customer deleted successfully' });
- } catch (error) {
-   console.error('Error in DELETE /api/customers/[id]:', error);
-   return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
- }
+    return NextResponse.json({ message: "Customer deleted successfully" }, { status: 200 })
+  } catch (error) {
+    console.error("Unexpected error deleting customer:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
 }

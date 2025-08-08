@@ -1,37 +1,24 @@
 import { NextResponse } from "next/server"
-import { ShippingUpdateService } from "@/lib/services/shipping-update-service"
 import { supabase } from "@/lib/supabaseClient"
+import { updateShipmentStatus } from "@/lib/services/shipping-update-service"
 
 export async function POST(request: Request) {
+  const { trackingNumber, newStatus, location, eventTime, remarks } = await request.json()
+
+  if (!trackingNumber || !newStatus) {
+    return NextResponse.json({ error: "Tracking number and new status are required" }, { status: 400 })
+  }
+
   try {
-    const { searchParams } = new URL(request.url)
-    const shipmentId = searchParams.get("shipmentId")
+    const result = await updateShipmentStatus(trackingNumber, newStatus, location, eventTime, remarks)
 
-    if (!shipmentId) {
-      return NextResponse.json({ error: "Shipment ID is required" }, { status: 400 })
+    if (result.success) {
+      return NextResponse.json({ message: result.message }, { status: 200 })
+    } else {
+      return NextResponse.json({ error: result.message }, { status: 500 })
     }
-
-    // Get the shipment
-    const { data: shipment, error } = await supabase.from("shipments").select("*").eq("id", shipmentId).single()
-
-    if (error || !shipment) {
-      return NextResponse.json({ error: "Shipment not found" }, { status: 404 })
-    }
-
-    // Update the shipment
-    const updateService = new ShippingUpdateService()
-    const update = await updateService.updateShipment(shipment)
-
-    if (!update) {
-      return NextResponse.json({ error: "Failed to update shipment" }, { status: 500 })
-    }
-
-    return NextResponse.json({
-      message: "Shipment updated successfully",
-      update,
-    })
   } catch (error) {
-    console.error("Error in manual shipping update:", error)
-    return NextResponse.json({ error: "Failed to update shipment" }, { status: 500 })
+    console.error("Error processing manual shipping update:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

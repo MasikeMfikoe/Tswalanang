@@ -96,40 +96,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: {
-          documents: [
-            {
-              id: "1",
-              name: "Invoice-2023-001.pdf",
-              type: "Invoice",
-              order: { po_number: "PO-2023-001" },
-              status: "Approved",
-              size: "1.2 MB",
-              created_at: "2023-06-15",
-            },
-            {
-              id: "2",
-              name: "BOL-2023-002.pdf",
-              type: "Bill of Lading",
-              order: { po_number: "PO-2023-002" },
-              status: "Pending Review",
-              size: "0.8 MB",
-              created_at: "2023-06-20",
-            },
-            {
-              id: "3",
-              name: "Packing-List-2023-003.pdf",
-              type: "Packing List",
-              order: { po_number: "PO-2023-003" },
-              status: "Approved",
-              size: "0.5 MB",
-              created_at: "2023-06-25",
-            },
-          ],
+          documents: [],
           statistics: {
-            totalDocuments: 3,
-            approvedDocuments: 2,
-            pendingDocuments: 1,
-            thisMonthDocuments: 3,
+            totalDocuments: 0,
+            approvedDocuments: 0,
+            pendingDocuments: 0,
+            thisMonthDocuments: 0,
           },
         },
       })
@@ -237,5 +209,31 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 },
     )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const { customer_id, document_type, file_url, file_name, uploaded_by } = await request.json()
+
+  if (!customer_id || !document_type || !file_url || !file_name || !uploaded_by) {
+    return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("documents")
+      .insert({ customer_id, document_type, file_url, file_name, uploaded_by })
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error uploading document for client portal:", error)
+      return NextResponse.json({ error: "Failed to upload document" }, { status: 500 })
+    }
+
+    return NextResponse.json(data, { status: 201 })
+  } catch (error) {
+    console.error("Unexpected error uploading document for client portal:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

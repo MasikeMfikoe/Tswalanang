@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabaseClient"
 import { v4 as uuidv4 } from "uuid"
 import type { ShipmentUpdate } from "@/types/shipping"
 import crypto from "crypto"
+import { updateShipmentStatus } from "@/lib/services/shipping-update-service"
 
 export async function GET() {
   return NextResponse.json({
@@ -31,15 +32,36 @@ export async function POST(request: NextRequest) {
 
     console.log("Parsed data:", data)
 
-    // Simple success response
-    return NextResponse.json({
-      success: true,
-      message: "Webhook received successfully",
-      timestamp: new Date().toISOString(),
-    })
+    // Assuming TrackShip webhook payload structure:
+    // {
+    //   "tracking_number": "YOUR_TRACKING_NUMBER",
+    //   "status": "DELIVERED",
+    //   "location": "New York",
+    //   "event_time": "2023-10-27T10:00:00Z",
+    //   "description": "Package delivered successfully"
+    // }
+
+    const trackingNumber = data.tracking_number
+    const newStatus = data.status
+    const location = data.location
+    const eventTime = data.event_time
+    const remarks = data.description
+
+    if (!trackingNumber || !newStatus) {
+      return NextResponse.json({ error: "Missing tracking_number or status in TrackShip webhook payload" }, { status: 400 })
+    }
+
+    const result = await updateShipmentStatus(trackingNumber, newStatus, location, eventTime, remarks)
+
+    if (result.success) {
+      return NextResponse.json({ message: result.message }, { status: 200 })
+    } else {
+      console.error("Failed to process TrackShip webhook:", result.message)
+      return NextResponse.json({ error: result.message }, { status: 500 })
+    }
   } catch (error) {
-    console.error("Webhook error:", error)
-    return NextResponse.json({ error: "Failed to process webhook" }, { status: 500 })
+    console.error("Error handling TrackShip webhook:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
@@ -95,130 +117,6 @@ async function verifyTrackShipSignature(
   } catch (error) {
     console.error("Error verifying signature:", error)
     return false
-  }
-}
-
-async function processTrackShipWebhook(data: any): Promise<ShipmentUpdate | null> {
-  try {
-    console.log("Processing TrackShip webhook data:", data)
-
-    // Handle different TrackShip webhook formats
-    const trackingData = data.data || data.tracking || data
-    const trackingNumber = trackingData.tracking_number || trackingData.trackingNumber || data.tracking_number
-    const carrier = trackingData.carrier?.name || trackingData.carrier || "unknown"
-    const status = normalizeTrackShipStatus(trackingData.status || trackingData.delivery_status)
-    const location = trackingData.location || trackingData.current_location || "Unknown"
-    const timestamp = trackingData.timestamp || trackingData.updated_at || new Date().toISOString()
-    const estimatedDelivery = trackingData.estimated_delivery || trackingData.eta
-    const statusDetail = trackingData.status_detail || trackingData.description
-    const events = trackingData.events || trackingData.tracking_events || []
-
-    if (!trackingNumber) {
-      console.error("TrackShip webhook missing tracking number. Available fields:", Object.keys(trackingData))
-      return null
-    }
-
-    console.log("Extracted tracking info:", {
-      trackingNumber,
-      carrier,
-      status,
-      location,
-      timestamp,
-    })
-
-    // Find the shipment in our database
-    const { data: shipments, error } = await supabase
-      .from("shipments")
-      .select("*")
-      .or(`container_number.eq.${trackingNumber},booking_reference.eq.${trackingNumber}`)
-      .limit(1)
-
-    if (error) {
-      console.error("Error finding shipment:", error)
-      return null
-    }
-
-    if (!shipments || shipments.length === 0) {
-      console.log("Creating new shipment record for tracking number:", trackingNumber)
-
-      // Create a new shipment record if it doesn't exist
-      const newShipment = {
-        id: uuidv4(),
-        container_number: trackingNumber,
-        booking_reference: trackingNumber,
-        status: status,
-        location: location,
-        carrier: carrier,
-        eta: estimatedDelivery,
-        last_updated: timestamp,
-        created_at: new Date().toISOString(),
-      }
-
-      const { data: createdShipment, error: createError } = await supabase
-        .from("shipments")
-        .insert(newShipment)
-        .select()
-        .single()
-
-      if (createError) {
-        console.error("Error creating shipment:", createError)
-        return null
-      }
-
-      shipments.push(createdShipment)
-    }
-
-    const shipment = shipments[0]
-
-    // Create update record
-    const update: ShipmentUpdate = {
-      id: uuidv4(),
-      shipmentId: shipment.id,
-      containerNumber: trackingNumber,
-      bookingReference: shipment.booking_reference,
-      shippingLine: mapCarrierToShippingLine(carrier),
-      status: status,
-      previousStatus: shipment.status,
-      location: location,
-      timestamp: timestamp,
-      eta: estimatedDelivery,
-      vessel: trackingData.vessel?.name || trackingData.vessel_name,
-      voyage: trackingData.voyage?.number || trackingData.voyage_number,
-      details: statusDetail || `${status} - ${location}`,
-      source: "trackship-webhook",
-      raw: JSON.stringify(data),
-      createdAt: new Date().toISOString(),
-    }
-
-    // Save the update to the database
-    const { error: updateError } = await supabase.from("shipment_updates").insert(update)
-
-    if (updateError) {
-      console.error("Error saving shipment update:", updateError)
-      return null
-    }
-
-    // Update the shipment with new status
-    const { error: shipmentError } = await supabase
-      .from("shipments")
-      .update({
-        status: status,
-        location: location,
-        last_updated: timestamp,
-        eta: estimatedDelivery,
-        carrier: carrier,
-      })
-      .eq("id", shipment.id)
-
-    if (shipmentError) {
-      console.error("Error updating shipment:", shipmentError)
-    }
-
-    console.log("Successfully processed TrackShip webhook for:", trackingNumber)
-    return update
-  } catch (error) {
-    console.error("Error processing TrackShip webhook:", error)
-    return null
   }
 }
 
