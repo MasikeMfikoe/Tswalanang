@@ -5,7 +5,8 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Bell, CalendarDays, Ship, Plane } from "lucide-react"
+import { Search, ArrowLeft, Ship, Plane } from 'lucide-react'
+import { useRouter } from "next/navigation"
 import {
   detectShipmentInfo,
   getCarrierSuggestions,
@@ -17,6 +18,8 @@ import ShipmentTrackingResults from "@/components/ShipmentTrackingResults"
 const RECENT_KEY = "recentShipmentSearches"
 
 export default function ShipmentTrackerPage() {
+  const router = useRouter()
+  
   // ----- state -------------------------------------------------------------
   const [trackingNumber, setTrackingNumber] = useState("")
   const [detectedType, setDetectedType] = useState<ShipmentType>("unknown")
@@ -118,6 +121,16 @@ export default function ShipmentTrackerPage() {
     setShowResults(true)
   }
 
+  const handleBack = () => {
+    // Check if there's history to go back to
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      // If no history (direct access), go to landing page
+      router.push('/')
+    }
+  }
+
   // ----- render ------------------------------------------------------------
   return (
     <div
@@ -126,13 +139,14 @@ export default function ShipmentTrackerPage() {
     >
       <div className="absolute inset-0 bg-black/50" />
 
-      {/* header buttons */}
-      <div className="absolute top-4 right-4 z-20 flex gap-2">
-        <Button variant="ghost" className="text-white hover:bg-white/20">
-          <Bell className="h-5 w-5 mr-1" /> Notifications
-        </Button>
-        <Button variant="ghost" className="text-white hover:bg-white/20">
-          <CalendarDays className="h-5 w-5 mr-1" /> Calendar
+      {/* back button */}
+      <div className="absolute top-4 left-4 z-20">
+        <Button 
+          variant="ghost" 
+          className="text-white hover:bg-white/20 text-center shadow px-4 my-72 mx-[560px] bg-slate-400 font-bold"
+          onClick={handleBack}
+        >
+          <ArrowLeft className="h-5 w-5 mr-1" /> Back to Landing Page
         </Button>
       </div>
 
