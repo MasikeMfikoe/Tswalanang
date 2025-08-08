@@ -1,297 +1,309 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Checkbox } from "@/components/ui/checkbox"
-import { useToast } from "@/components/ui/use-toast"
-import { Plus, Pencil, Save, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
+import { Trash2, Plus, Save } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
-interface RateItem {
-  id: string
-  name: string
-  seaFreight: number
-  airFreight: number
-  isPercentage: boolean
-  percentageBase?: string
+interface RateCardItem {
+  id?: string
+  service_type: string
+  origin: string
+  destination: string
+  rate: number
+  currency: string
+  valid_from: string
+  valid_to: string
+  is_active: boolean
 }
 
-interface FreightType {
-  id: string
-  name: string
+interface RateCardProps {
+  customerId?: string
+  readonly?: boolean
 }
 
-// Mock data for initial development
-const defaultRates: RateItem[] = [
-  { id: "standard-sea", name: "Standard Sea Freight", seaFreight: 1500, airFreight: 3000, isPercentage: false },
-  { id: "express-air", name: "Express Air Freight", seaFreight: 0, airFreight: 5000, isPercentage: false },
-  { id: "customs-duty", name: "Customs Duty", seaFreight: 10, airFreight: 10, isPercentage: true, percentageBase: "totalDisbursements" },
-  { id: "insurance", name: "Insurance", seaFreight: 2, airFreight: 2, isPercentage: true, percentageBase: "cargoValue" },
-]
-
-const defaultFreightTypes: FreightType[] = [
-  { id: "fcl", name: "Full Container Load (FCL)" },
-  { id: "lcl", name: "Less than Container Load (LCL)" },
-  { id: "air-cargo", name: "Air Cargo" },
-  { id: "road-freight", name: "Road Freight" },
-]
-
-export default function RateCard() {
-  const [rates, setRates] = useState<RateItem[]>(defaultRates)
-  const [freightTypes, setFreightTypes] = useState<FreightType[]>(defaultFreightTypes)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [newRate, setNewRate] = useState<Partial<RateItem>>({
-    name: "",
-    seaFreight: 0,
-    airFreight: 0,
-    isPercentage: false,
-  })
-  const [newFreightType, setNewFreightType] = useState<string>("")
+export default function RateCard({ customerId, readonly = false }: RateCardProps) {
+  const [rates, setRates] = useState<RateCardItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const { toast } = useToast()
 
-  const handleSave = (id: string, updatedRate: RateItem) => {
-    setRates(rates.map((rate) => (rate.id === id ? updatedRate : rate)))
-    setEditingId(null)
-    toast({
-      title: "Success",
-      description: "Rate updated successfully",
-    })
+  const defaultRate: RateCardItem = {
+    service_type: 'FCL',
+    origin: '',
+    destination: '',
+    rate: 0,
+    currency: 'USD',
+    valid_from: new Date().toISOString().split('T')[0],
+    valid_to: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    is_active: true
   }
 
-  const handleAddRate = () => {
-    if (newRate.name) {
-      const newRateItem: RateItem = {
-        id: newRate.name.toLowerCase().replace(/\s+/g, "-"),
-        name: newRate.name,
-        seaFreight: Number(newRate.seaFreight) || 0,
-        airFreight: Number(newRate.airFreight) || 0,
-        isPercentage: newRate.isPercentage || false,
-        percentageBase: newRate.isPercentage ? "totalDisbursements" : undefined, // Default for percentage
+  useEffect(() => {
+    if (customerId) {
+      fetchRates()
+    } else {
+      setLoading(false)
+    }
+  }, [customerId])
+
+  const fetchRates = async () => {
+    try {
+      const response = await fetch(`/api/customers/rate-card?customerId=${customerId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setRates(data)
       }
-      setRates([...rates, newRateItem])
-      setNewRate({
-        name: "",
-        seaFreight: 0,
-        airFreight: 0,
-        isPercentage: false,
-      })
+    } catch (error) {
+      console.error('Error fetching rates:', error)
       toast({
-        title: "Success",
-        description: "New rate added successfully",
+        title: 'Error',
+        description: 'Failed to load rate card',
+        variant: 'destructive'
       })
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleAddFreightType = () => {
-    if (newFreightType) {
-      const newType: FreightType = {
-        id: newFreightType.toLowerCase().replace(/\s+/g, "-"),
-        name: newFreightType,
-      }
-      setFreightTypes([...freightTypes, newType])
-      setNewFreightType("")
-      toast({
-        title: "Success",
-        description: "New freight type added successfully",
+  const addRate = () => {
+    setRates([...rates, { ...defaultRate }])
+  }
+
+  const updateRate = (index: number, field: keyof RateCardItem, value: any) => {
+    const updatedRates = [...rates]
+    updatedRates[index] = { ...updatedRates[index], [field]: value }
+    setRates(updatedRates)
+  }
+
+  const removeRate = (index: number) => {
+    setRates(rates.filter((_, i) => i !== index))
+  }
+
+  const saveRates = async () => {
+    if (!customerId) return
+
+    setSaving(true)
+    try {
+      const response = await fetch('/api/customers/rate-card', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          customerId,
+          rates
+        })
       })
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: 'Rate card saved successfully'
+        })
+        fetchRates()
+      } else {
+        throw new Error('Failed to save rate card')
+      }
+    } catch (error) {
+      console.error('Error saving rates:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to save rate card',
+        variant: 'destructive'
+      })
+    } finally {
+      setSaving(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Rate Card</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Rate Card Management</h1>
-          <div className="flex space-x-2">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add New Rate
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Rate</DialogTitle>
-                  <DialogDescription>Add a new rate to the rate card.</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Rate Name</Label>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>Rate Card</CardTitle>
+          {!readonly && (
+            <div className="flex gap-2">
+              <Button onClick={addRate} size="sm">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Rate
+              </Button>
+              <Button onClick={saveRates} disabled={saving} size="sm">
+                <Save className="mr-2 h-4 w-4" />
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {rates.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground mb-4">No rates configured</p>
+            {!readonly && (
+              <Button onClick={addRate}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add First Rate
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {rates.map((rate, index) => (
+              <Card key={index} className="p-4">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <Label htmlFor={`service-${index}`}>Service Type</Label>
+                    <Select
+                      value={rate.service_type}
+                      onValueChange={(value) => updateRate(index, 'service_type', value)}
+                      disabled={readonly}
+                    >
+                      <SelectTrigger id={`service-${index}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="FCL">FCL</SelectItem>
+                        <SelectItem value="LCL">LCL</SelectItem>
+                        <SelectItem value="Air">Air Freight</SelectItem>
+                        <SelectItem value="Road">Road Transport</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor={`origin-${index}`}>Origin</Label>
                     <Input
-                      id="name"
-                      value={newRate.name}
-                      onChange={(e) => setNewRate({ ...newRate, name: e.target.value })}
+                      id={`origin-${index}`}
+                      value={rate.origin}
+                      onChange={(e) => updateRate(index, 'origin', e.target.value)}
+                      placeholder="Origin port/city"
+                      disabled={readonly}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="seaFreight">Sea Freight Rate</Label>
+
+                  <div>
+                    <Label htmlFor={`destination-${index}`}>Destination</Label>
+                    <Input
+                      id={`destination-${index}`}
+                      value={rate.destination}
+                      onChange={(e) => updateRate(index, 'destination', e.target.value)}
+                      placeholder="Destination port/city"
+                      disabled={readonly}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor={`rate-${index}`}>Rate</Label>
+                    <div className="flex gap-2">
                       <Input
-                        id="seaFreight"
+                        id={`rate-${index}`}
                         type="number"
-                        value={newRate.seaFreight}
-                        onChange={(e) => setNewRate({ ...newRate, seaFreight: Number(e.target.value) })}
+                        value={rate.rate}
+                        onChange={(e) => updateRate(index, 'rate', parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        disabled={readonly}
                       />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="airFreight">Air Freight Rate</Label>
-                      <Input
-                        id="airFreight"
-                        type="number"
-                        value={newRate.airFreight}
-                        onChange={(e) => setNewRate({ ...newRate, airFreight: Number(e.target.value) })}
-                      />
+                      <Select
+                        value={rate.currency}
+                        onValueChange={(value) => updateRate(index, 'currency', value)}
+                        disabled={readonly}
+                      >
+                        <SelectTrigger className="w-20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="USD">USD</SelectItem>
+                          <SelectItem value="EUR">EUR</SelectItem>
+                          <SelectItem value="GBP">GBP</SelectItem>
+                          <SelectItem value="ZAR">ZAR</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
+
+                  <div>
+                    <Label htmlFor={`valid-from-${index}`}>Valid From</Label>
+                    <Input
+                      id={`valid-from-${index}`}
+                      type="date"
+                      value={rate.valid_from}
+                      onChange={(e) => updateRate(index, 'valid_from', e.target.value)}
+                      disabled={readonly}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor={`valid-to-${index}`}>Valid To</Label>
+                    <Input
+                      id={`valid-to-${index}`}
+                      type="date"
+                      value={rate.valid_to}
+                      onChange={(e) => updateRate(index, 'valid_to', e.target.value)}
+                      disabled={readonly}
+                    />
+                  </div>
+
                   <div className="flex items-center space-x-2">
                     <Checkbox
-                      id="isPercentage"
-                      checked={newRate.isPercentage}
-                      onCheckedChange={(checked) => setNewRate({ ...newRate, isPercentage: !!checked })}
+                      id={`active-${index}`}
+                      checked={rate.is_active}
+                      onCheckedChange={(checked) => updateRate(index, 'is_active', checked)}
+                      disabled={readonly}
                     />
-                    <Label htmlFor="isPercentage">Is Percentage</Label>
+                    <Label htmlFor={`active-${index}`}>Active</Label>
                   </div>
-                  <Button onClick={handleAddRate}>Add Rate</Button>
+
+                  {!readonly && (
+                    <div className="flex items-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeRate(index)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </DialogContent>
-            </Dialog>
+
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge variant={rate.is_active ? 'default' : 'secondary'}>
+                    {rate.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {rate.origin} → {rate.destination}
+                  </span>
+                </div>
+              </Card>
+            ))}
           </div>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Rates</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {rates.map((rate) => (
-                  <div key={rate.id} className="border rounded-lg p-4">
-                    {editingId === rate.id ? (
-                      <div className="space-y-4">
-                        <Input
-                          value={rate.name}
-                          onChange={(e) => handleSave(rate.id, { ...rate, name: e.target.value })}
-                        />
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label>Sea Freight</Label>
-                            <Input
-                              type="number"
-                              value={rate.seaFreight}
-                              onChange={(e) => handleSave(rate.id, { ...rate, seaFreight: Number(e.target.value) })}
-                            />
-                          </div>
-                          <div>
-                            <Label>Air Freight</Label>
-                            <Input
-                              type="number"
-                              value={rate.airFreight}
-                              onChange={(e) => handleSave(rate.id, { ...rate, airFreight: Number(e.target.value) })}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex justify-end space-x-2">
-                          <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
-                            <X className="w-4 h-4 mr-2" />
-                            Cancel
-                          </Button>
-                          <Button size="sm" onClick={() => handleSave(rate.id, rate)}>
-                            <Save className="w-4 h-4 mr-2" />
-                            Save
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <h3 className="font-medium">{rate.name}</h3>
-                          <Button size="sm" variant="ghost" onClick={() => setEditingId(rate.id)}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Sea Freight:</span>{" "}
-                            {rate.isPercentage ? `${rate.seaFreight}%` : `R${rate.seaFreight}`}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Air Freight:</span>{" "}
-                            {rate.isPercentage ? `${rate.airFreight}%` : `R${rate.airFreight}`}
-                          </div>
-                        </div>
-                        {rate.isPercentage && (
-                          <div className="text-sm text-muted-foreground">
-                            Percentage based on: {rate.percentageBase}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Freight Types</CardTitle>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Type
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add New Freight Type</DialogTitle>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="freightType">Freight Type Name</Label>
-                        <Input
-                          id="freightType"
-                          value={newFreightType}
-                          onChange={(e) => setNewFreightType(e.target.value)}
-                        />
-                      </div>
-                      <Button onClick={handleAddFreightType}>Add Freight Type</Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {freightTypes.length === 0 ? (
-                  <p className="text-muted-foreground">No freight types defined.</p>
-                ) : (
-                  freightTypes.map((type) => (
-                    <div key={type.id} className="flex justify-between items-center p-4 border rounded-lg">
-                      <span>{type.name}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

@@ -1,42 +1,79 @@
-import { NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
-import { v4 as uuidv4 } from "uuid"
-import type { ShipmentUpdate, ShippingLine } from "@/types/shipping"
-import { updateShipmentStatus } from "@/lib/services/shipping-update-service"
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@/lib/supabaseClient'
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const payload = await request.json()
-    console.log("Received shipping webhook:", JSON.stringify(payload, null, 2))
+    const body = await request.json()
+    const { 
+      trackingNumber, 
+      status, 
+      location, 
+      timestamp, 
+      carrier,
+      description 
+    } = body
 
-    // Determine which shipping line sent the webhook
-    const shippingLine = determineShippingLine(request.headers)
-
-    // Process the webhook data
-    const result = await updateShipmentStatus(payload, shippingLine)
-
-    if (result.success) {
-      return NextResponse.json({ message: result.message }, { status: 200 })
-    } else {
-      console.error("Failed to process shipping webhook:", result.message)
-      return NextResponse.json({ error: result.message }, { status: 500 })
+    if (!trackingNumber || !status) {
+      return NextResponse.json(
+        { error: 'Tracking number and status are required' },
+        { status: 400 }
+      )
     }
+
+    const supabase = createServerClient()
+    
+    // Find the order associated with this tracking number
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('tracking_number', trackingNumber)
+      .single()
+
+    // Create shipping update record
+    const { data: update, error: updateError } = await supabase
+      .from('shipping_updates')
+      .insert({
+        tracking_number: trackingNumber,
+        status,
+        location,
+        timestamp: timestamp || new Date().toISOString(),
+        carrier,
+        description,
+        order_id: order?.id,
+        source: 'webhook',
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: 'Failed to create shipping update' },
+        { status: 500 }
+      )
+    }
+
+    // Update order status if order was found
+    if (order) {
+      await supabase
+        .from('orders')
+        .update({ 
+          status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', order.id)
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      updateId: update.id,
+      orderUpdated: !!order
+    })
   } catch (error) {
-    console.error("Error handling shipping webhook:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error('Error processing shipping webhook:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
-}
-
-function determineShippingLine(headers: Headers): ShippingLine {
-  // Check headers or other identifiers to determine which shipping line sent the webhook
-  const source = headers.get("X-Webhook-Source")
-
-  if (source?.includes("maersk")) {
-    return "maersk"
-  } else if (source?.includes("msc")) {
-    return "msc"
-  }
-
-  // Default to 'other' if we can't determine
-  return "other"
 }
