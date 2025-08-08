@@ -8,6 +8,9 @@
     "lint": "next lint",
     "start": "next start"
   },
+  "resolutions": {
+    "@supabase/supabase-js": "2.53.0"
+  },
   "dependencies": {
     "@hookform/resolvers": "latest",
     "@radix-ui/react-accordion": "1.2.2",
