@@ -1,235 +1,214 @@
-"use client"
+'use client'
 
-import type React from "react"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { ArrowLeft, Search, Package, Truck, Ship, Plane } from 'lucide-react'
 
-import { useState, useEffect, useRef } from "react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Search, ArrowLeft, Ship, Plane } from 'lucide-react'
-import { useRouter } from "next/navigation"
-import {
-  detectShipmentInfo,
-  getCarrierSuggestions,
-  type ShipmentType,
-  type CarrierSuggestion,
-} from "@/lib/services/container-detection-service"
-import ShipmentTrackingResults from "@/components/ShipmentTrackingResults"
-
-const RECENT_KEY = "recentShipmentSearches"
-
-export default function ShipmentTrackerPage() {
+const ShipmentTrackerPage = () => {
   const router = useRouter()
-  
-  // ----- state -------------------------------------------------------------
-  const [trackingNumber, setTrackingNumber] = useState("")
-  const [detectedType, setDetectedType] = useState<ShipmentType>("unknown")
-  const [carrierHint, setCarrierHint] = useState<string>()
-  const [manualOverride, setManualOverride] = useState<ShipmentType>()
-  const [suggestions, setSuggestions] = useState<CarrierSuggestion[]>([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [recent, setRecent] = useState<string[]>([])
-  const [showResults, setShowResults] = useState(false)
-
-  const inputRef = useRef<HTMLInputElement>(null)
-  const suggestionBoxRef = useRef<HTMLDivElement>(null)
-
-  // ----- life-cycle --------------------------------------------------------
-  useEffect(() => {
-    inputRef.current?.focus()
-    const stored = localStorage.getItem(RECENT_KEY)
-    if (stored) setRecent(JSON.parse(stored))
-  }, [])
-
-  // close autocomplete when clicking outside
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (
-        suggestionBoxRef.current &&
-        !suggestionBoxRef.current.contains(e.target as Node) &&
-        !inputRef.current?.contains(e.target as Node)
-      ) {
-        setShowSuggestions(false)
-      }
-    }
-    document.addEventListener("mousedown", handler)
-    return () => document.removeEventListener("mousedown", handler)
-  }, [])
-
-  // ----- helpers -----------------------------------------------------------
-  const saveRecent = (value: string) => {
-    setRecent((prev) => {
-      const updated = [value, ...prev.filter((v) => v !== value)].slice(0, 5)
-      localStorage.setItem(RECENT_KEY, JSON.stringify(updated))
-      return updated
-    })
-  }
-
-  const displayType: ShipmentType = manualOverride || detectedType
-
-  // icon used in UI only
-  const typeIcon =
-    displayType === "air" ? (
-      <Plane className="h-4 w-4 ml-1" />
-    ) : displayType === "ocean" ? (
-      <Ship className="h-4 w-4 ml-1" />
-    ) : null
-
-  // ----- event handlers ----------------------------------------------------
-  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setTrackingNumber(value)
-    setShowResults(false) // hide old results
-    setManualOverride(undefined)
-
-    if (value.trim().length >= 3) {
-      const detect = detectShipmentInfo(value)
-      setDetectedType(detect.type)
-      setCarrierHint(detect.carrierHint)
-      const sug = getCarrierSuggestions(value)
-      setSuggestions(sug)
-      setShowSuggestions(sug.length > 0)
-    } else {
-      setDetectedType("unknown")
-      setCarrierHint(undefined)
-      setSuggestions([])
-      setShowSuggestions(false)
-    }
-  }
-
-  const submitSearch = (e?: React.FormEvent) => {
-    e?.preventDefault()
-    const value = trackingNumber.trim()
-    if (!value) return
-    saveRecent(value)
-    setShowResults(true)
-    setShowSuggestions(false)
-  }
-
-  // clicking a suggestion fills carrier hint & maybe type
-  const chooseSuggestion = (s: CarrierSuggestion) => {
-    setCarrierHint(s.name)
-    setManualOverride(s.type)
-    setShowSuggestions(false)
-  }
-
-  const chooseRecent = (value: string) => {
-    setTrackingNumber(value)
-    const detect = detectShipmentInfo(value)
-    setDetectedType(detect.type)
-    setCarrierHint(detect.carrierHint)
-    setManualOverride(undefined)
-    setShowResults(true)
-  }
+  const [trackingNumber, setTrackingNumber] = useState('')
+  const [trackingResults, setTrackingResults] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleBack = () => {
-    // Check if we're in the browser environment
     if (typeof window !== 'undefined') {
-      // Check if there's history to go back to
       if (window.history.length > 1) {
         router.back()
       } else {
-        // If no history (direct access), go to landing page
         router.push('/')
       }
     } else {
-      // Fallback for server-side rendering
       router.push('/')
     }
   }
 
-  // ----- render ------------------------------------------------------------
+  const handleTrack = async () => {
+    if (!trackingNumber.trim()) return
+
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/track', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ trackingNumber: trackingNumber.trim() }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setTrackingResults(data)
+      } else {
+        console.error('Failed to track shipment')
+        setTrackingResults({ error: 'Failed to track shipment' })
+      }
+    } catch (error) {
+      console.error('Error tracking shipment:', error)
+      setTrackingResults({ error: 'Error tracking shipment' })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'in_transit':
+        return <Truck className="h-4 w-4" />
+      case 'delivered':
+        return <Package className="h-4 w-4" />
+      case 'shipped':
+        return <Ship className="h-4 w-4" />
+      case 'air_transport':
+        return <Plane className="h-4 w-4" />
+      default:
+        return <Package className="h-4 w-4" />
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'delivered':
+        return 'bg-green-100 text-green-800'
+      case 'in_transit':
+        return 'bg-blue-100 text-blue-800'
+      case 'shipped':
+        return 'bg-yellow-100 text-yellow-800'
+      case 'pending':
+        return 'bg-gray-100 text-gray-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
   return (
-    <div
-      className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 bg-cover bg-center"
-      style={{ backgroundImage: "url('/images/world-map.jpg')" }}
-    >
-      <div className="absolute inset-0 bg-black/50" />
-
-      {/* back button */}
-      <div className="absolute top-4 left-4 z-20">
-        <Button 
-          variant="ghost" 
-          className="text-white hover:bg-white/20"
-          onClick={handleBack}
-        >
-          <ArrowLeft className="h-5 w-5 mr-1" /> Back
-        </Button>
-      </div>
-
-      {/* search box */}
-      <form onSubmit={submitSearch} className="relative z-20 w-full max-w-2xl flex flex-col items-center space-y-3">
-        <div className="relative w-full">
-          <Input
-            ref={inputRef}
-            value={trackingNumber}
-            onChange={onChange}
-            placeholder="Shipment number"
-            className="w-full py-3 pl-4 pr-12 rounded-full bg-white/80 backdrop-blur text-lg"
-          />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header with Back Button */}
+        <div className="flex items-center justify-between mb-8">
           <Button
-            type="submit"
-            size="icon"
-            variant="ghost"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full hover:bg-gray-200"
-            aria-label="search"
+            onClick={handleBack}
+            variant="outline"
+            className="flex items-center gap-2"
           >
-            <Search className="h-6 w-6 text-gray-700" />
+            <ArrowLeft className="h-4 w-4" />
+            Back
           </Button>
+          <h1 className="text-3xl font-bold text-gray-900">Shipment Tracker</h1>
+          <div></div> {/* Spacer for centering */}
         </div>
 
-        {/* autocomplete */}
-        {showSuggestions && (
-          <div
-            ref={suggestionBoxRef}
-            className="absolute top-full mt-2 w-full max-w-2xl bg-white/90 backdrop-blur rounded-lg shadow-lg z-30"
-          >
-            {suggestions.map((s) => (
-              <Button
-                key={s.code}
-                variant="ghost"
-                className="w-full justify-start px-4 py-2 text-left text-gray-800 hover:bg-gray-100"
-                onClick={() => chooseSuggestion(s)}
-              >
-                {s.name} ({s.code}) – {s.type.toUpperCase()}
+        {/* Tracking Input */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Track Your Shipment
+            </CardTitle>
+            <CardDescription>
+              Enter your tracking number to get real-time updates on your shipment
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <Input
+                placeholder="Enter tracking number..."
+                value={trackingNumber}
+                onChange={(e) => setTrackingNumber(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleTrack()}
+                className="flex-1"
+              />
+              <Button onClick={handleTrack} disabled={isLoading || !trackingNumber.trim()}>
+                {isLoading ? 'Tracking...' : 'Track'}
               </Button>
-            ))}
-          </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tracking Results */}
+        {trackingResults && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tracking Results</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {trackingResults.error ? (
+                <div className="text-center py-8">
+                  <p className="text-red-600 mb-4">{trackingResults.error}</p>
+                  <p className="text-gray-500">Please check your tracking number and try again.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Shipment Overview */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className="flex items-center justify-center mb-2">
+                        {getStatusIcon(trackingResults.status)}
+                      </div>
+                      <p className="text-sm text-gray-600">Status</p>
+                      <Badge className={getStatusColor(trackingResults.status)}>
+                        {trackingResults.status?.replace('_', ' ').toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600">Origin</p>
+                      <p className="font-medium">{trackingResults.origin || 'N/A'}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600">Destination</p>
+                      <p className="font-medium">{trackingResults.destination || 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Tracking History */}
+                  {trackingResults.events && trackingResults.events.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Tracking History</h3>
+                      <div className="space-y-4">
+                        {trackingResults.events.map((event, index) => (
+                          <div key={index} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
+                            <div className="flex-shrink-0">
+                              {getStatusIcon(event.status)}
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium">{event.description}</p>
+                              <p className="text-sm text-gray-600">{event.location}</p>
+                              <p className="text-xs text-gray-500">{event.timestamp}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Additional Details */}
+                  {trackingResults.details && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Shipment Details</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.entries(trackingResults.details).map(([key, value]) => (
+                          <div key={key} className="flex justify-between">
+                            <span className="text-gray-600 capitalize">{key.replace('_', ' ')}:</span>
+                            <span className="font-medium">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
-
-        {/* detected display */}
-        <div className="text-white text-sm">
-          Detected: <span className="capitalize">{displayType}</span> {typeIcon}
-          {carrierHint && <span className="ml-1 text-gray-300">({carrierHint})</span>}
-        </div>
-      </form>
-
-      {/* recent chips */}
-      {recent.length > 0 && (
-        <div className="z-20 mt-6 flex flex-wrap gap-2 justify-center">
-          {recent.map((v) => (
-            <Button
-              key={v}
-              size="sm"
-              variant="outline"
-              className="bg-white/20 text-white hover:bg-white/30 border-white/30"
-              onClick={() => chooseRecent(v)}
-            >
-              {v}
-            </Button>
-          ))}
-        </div>
-      )}
-
-      {/* results */}
-      {showResults && (
-        <div className="z-20 mt-10 w-full max-w-4xl">
-          <ShipmentTrackingResults
-            trackingNumber={trackingNumber}
-            bookingType={displayType}
-            carrierHint={carrierHint}
-          />
-        </div>
-      )}
+      </div>
     </div>
   )
 }
+
+export default ShipmentTrackerPage
