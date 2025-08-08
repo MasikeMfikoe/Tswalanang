@@ -1,29 +1,43 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-// Create a Supabase client with service role key for admin operations
-const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-})
-
 export async function DELETE(request: NextRequest) {
   try {
     console.log("🗑️ Starting user deletion process...")
 
-    // Validate environment variables
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error("❌ Missing Supabase environment variables")
+    // Validate environment variables first
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl) {
+      console.error("❌ Missing NEXT_PUBLIC_SUPABASE_URL")
       return NextResponse.json(
         {
           error: "Server configuration error",
-          details: "Missing Supabase credentials",
+          details: "Missing Supabase URL",
         },
         { status: 500 },
       )
     }
+
+    if (!supabaseServiceKey) {
+      console.error("❌ Missing SUPABASE_SERVICE_ROLE_KEY")
+      return NextResponse.json(
+        {
+          error: "Server configuration error",
+          details: "Missing Supabase service role key",
+        },
+        { status: 500 },
+      )
+    }
+
+    // Create a Supabase client with service role key for admin operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
 
     const { userId } = await request.json()
 
