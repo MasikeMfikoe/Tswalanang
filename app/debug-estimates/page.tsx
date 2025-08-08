@@ -41,7 +41,7 @@ export default function DebugEstimatesPage() {
         apiStatus: apiResponse.status,
         timestamp: new Date().toISOString(),
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Debug error:", error)
       setResults({ error: error.message, timestamp: new Date().toISOString() })
     } finally {
@@ -58,7 +58,7 @@ export default function DebugEstimatesPage() {
 
       console.log("EstimatesApi result:", result)
       setResults({ estimatesApiResult: result, timestamp: new Date().toISOString() })
-    } catch (error) {
+    } catch (error: any) {
       console.error("EstimatesApi error:", error)
       setResults({ estimatesApiError: error.message, timestamp: new Date().toISOString() })
     } finally {

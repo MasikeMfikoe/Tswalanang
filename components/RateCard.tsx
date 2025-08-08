@@ -224,10 +224,6 @@ export function RateCard({
         sea_freight_documentation_fee: seaFreight.documentationFee,
         sea_freight_agency_fee: seaFreight.agencyFee,
         sea_freight_facility_fee: seaFreight.facilityFee,
-        air_freight_communication_fee: airFreight.communicationFee,
-        air_freight_documentation_fee: airFreight.documentationFee,
-        air_freight_agency_fee: airFreight.agencyFee,
-        air_freight_facility_fee: airFreight.facilityFee,
         updated_at: new Date().toISOString(),
       }
 
