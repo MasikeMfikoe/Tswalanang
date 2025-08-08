@@ -1,54 +1,98 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { type NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabaseClient'; // Assuming this is the correct path to your Supabase client
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
-    const { data, error } = await supabase.from("estimates").select("*").eq("id", id).single()
-
-    if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json({ error: "Estimate not found" }, { status: 404 })
-      }
-      throw error
-    }
-
-    return NextResponse.json(data)
-  } catch (error: any) {
-    console.error("Error fetching estimate:", error)
-    return NextResponse.json({ error: error.message || "Failed to fetch estimate" }, { status: 500 })
-  }
+interface Params {
+ id: string;
 }
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
-    const body = await request.json()
-    const { data, error } = await supabase.from("estimates").update(body).eq("id", id).select().single()
+export async function GET(
+ request: NextRequest,
+ { params }: { params: Promise<Params> }
+) {
+ try {
+   const { id } = await params; // Await the params object
+   const supabaseAdmin = createClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.SUPABASE_SERVICE_ROLE_KEY!
+   );
 
-    if (error) {
-      throw error
-    }
+   const { data, error } = await supabaseAdmin
+     .from('estimates')
+     .select('*')
+     .eq('id', id)
+     .single();
 
-    return NextResponse.json(data)
-  } catch (error: any) {
-    console.error("Error updating estimate:", error)
-    return NextResponse.json({ error: error.message || "Failed to update estimate" }, { status: 500 })
-  }
+   if (error) {
+     console.error('Error fetching estimate:', error);
+     return NextResponse.json({ error: error.message }, { status: 500 });
+   }
+
+   if (!data) {
+     return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
+   }
+
+   return NextResponse.json(data);
+ } catch (error) {
+   console.error('Error in GET /api/estimates/[id]:', error);
+   return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+ }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
-    const { error } = await supabase.from("estimates").delete().eq("id", id)
+export async function PUT(
+ request: NextRequest,
+ { params }: { params: Promise<Params> }
+) {
+ try {
+   const { id } = await params; // Await the params object
+   const body = await request.json();
+   const supabaseAdmin = createClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.SUPABASE_SERVICE_ROLE_KEY!
+   );
 
-    if (error) {
-      throw error
-    }
+   const { data, error } = await supabaseAdmin
+     .from('estimates')
+     .update(body)
+     .eq('id', id)
+     .select()
+     .single();
 
-    return NextResponse.json({ message: "Estimate deleted successfully" })
-  } catch (error: any) {
-    console.error("Error deleting estimate:", error)
-    return NextResponse.json({ error: error.message || "Failed to delete estimate" }, { status: 500 })
-  }
+   if (error) {
+     console.error('Error updating estimate:', error);
+     return NextResponse.json({ error: error.message }, { status: 500 });
+   }
+
+   return NextResponse.json(data);
+ } catch (error) {
+   console.error('Error in PUT /api/estimates/[id]:', error);
+   return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+ }
+}
+
+export async function DELETE(
+ request: NextRequest,
+ { params }: { params: Promise<Params> }
+) {
+ try {
+   const { id } = await params; // Await the params object
+   const supabaseAdmin = createClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.SUPABASE_SERVICE_ROLE_KEY!
+   );
+
+   const { error } = await supabaseAdmin
+     .from('estimates')
+     .delete()
+     .eq('id', id);
+
+   if (error) {
+     console.error('Error deleting estimate:', error);
+     return NextResponse.json({ error: error.message }, { status: 500 });
+   }
+
+   return NextResponse.json({ message: 'Estimate deleted successfully' });
+ } catch (error) {
+   console.error('Error in DELETE /api/estimates/[id]:', error);
+   return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+ }
 }

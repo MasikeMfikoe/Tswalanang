@@ -5,7 +5,7 @@ import { courierOrdersApi } from "@/lib/api/courierOrdersApi"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id: orderId } = await params
+    const { id: orderId } = await params // Await the params object
     const body = await request.json()
     const { recipientEmail, recipientName, senderEmail, senderName, notificationType } = body
 

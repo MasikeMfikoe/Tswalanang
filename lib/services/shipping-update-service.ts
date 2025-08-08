@@ -84,7 +84,7 @@ export class ShippingUpdateService {
       const { error: shipmentError } = await supabase
         .from("shipments")
         .update({
-          status: status,
+          status: status.status,
           location: status.location,
           last_updated: new Date().toISOString(),
           next_update_time: nextUpdateTime.toISOString(),

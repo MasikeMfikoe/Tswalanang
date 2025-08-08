@@ -7,5 +7,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("Missing Supabase environment variables, using mock data")
 }
 
+// Export the Supabase client instance
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-export { createClient } // Re-export createClient
+
+// Re-export createClient to make it available from this utility file if needed elsewhere
+export { createClient }
