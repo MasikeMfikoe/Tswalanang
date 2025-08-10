@@ -3,9 +3,10 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Bell, CalendarDays, Ship, Plane } from "lucide-react"
+import { Search, Bell, CalendarDays, Ship, Plane, ArrowLeft } from "lucide-react"
 import {
   detectShipmentInfo,
   getCarrierSuggestions,
@@ -13,6 +14,7 @@ import {
   type CarrierSuggestion,
 } from "@/lib/services/container-detection-service"
 import ShipmentTrackingResults from "@/components/ShipmentTrackingResults"
+import { useAuth } from "@/contexts/AuthContext"
 
 const RECENT_KEY = "recentShipmentSearches"
 
@@ -29,6 +31,8 @@ export default function ShipmentTrackerPage() {
 
   const inputRef = useRef<HTMLInputElement>(null)
   const suggestionBoxRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+  const { user } = useAuth()
 
   // ----- life-cycle --------------------------------------------------------
   useEffect(() => {
@@ -118,23 +122,40 @@ export default function ShipmentTrackerPage() {
     setShowResults(true)
   }
 
+  const handleBackToLanding = () => {
+    router.push("/")
+  }
+
   // ----- render ------------------------------------------------------------
   return (
     <div
       className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 bg-cover bg-center"
       style={{ backgroundImage: "url('/images/world-map.jpg')" }}
     >
-      <div className="absolute inset-0parent bg-transparent text-transparent" />
+      <div className="absolute inset-0 bg-black/50" />
 
       {/* header buttons */}
       <div className="absolute top-4 right-4 z-20 flex gap-2">
-        <Button variant="ghost" className="hover:bg-white/20 text-transparent bg-transparent">
+        <Button variant="ghost" className="text-white hover:bg-white/20">
           <Bell className="h-5 w-5 mr-1" /> Notifications
         </Button>
-        <Button variant="ghost" className="hover:bg-white/20 bg-transparent text-transparent">
+        <Button variant="ghost" className="text-white hover:bg-white/20">
           <CalendarDays className="h-5 w-5 mr-1" /> Calendar
         </Button>
       </div>
+
+      {/* back to landing button - only show if results are displayed and no user is logged in */}
+      {showResults && !user && (
+        <div className="relative z-20 w-full max-w-2xl flex justify-center mb-4">
+          <Button
+            onClick={handleBackToLanding}
+            className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Landing page
+          </Button>
+        </div>
+      )}
 
       {/* search box */}
       <form onSubmit={submitSearch} className="relative z-20 w-full max-w-2xl flex flex-col items-center space-y-3">

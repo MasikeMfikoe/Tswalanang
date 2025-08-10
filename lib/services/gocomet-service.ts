@@ -98,7 +98,8 @@ export class GocometService {
         return null
       }
 
-      // Enhanced parsing for common API formats with time
+      // --- START: Enhanced parsing for common API formats with time ---
+
       // 1. YYYY-MM-DD HH:MM:SS (or just YYYY-MM-DD)
       const yyyymmddMatch = trimmedValue.match(
         /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2}):(\d{1,2}))?/,
@@ -144,6 +145,8 @@ export class GocometService {
           }
         }
       }
+
+      // --- END: Enhanced parsing for common API formats with time ---
 
       // Fallback to existing date formats array (less specific, relies on Date constructor)
       const dateFormats = [
@@ -346,12 +349,14 @@ export class GocometService {
       if (data && data.updated_trackings && data.updated_trackings.length > 0) {
         const gocometTrackingInfo = data.updated_trackings[0]
 
+        // --- START: Added console.log for raw ETA/ETD dates ---
         console.log(
           `Raw Gocomet ETA Date: "${gocometTrackingInfo.eta_date}"`,
           `Raw Gocomet ETD Date: "${gocometTrackingInfo.etd_date}"`,
         )
+        // --- END: Added console.log for raw ETA/ETD dates ---
 
-        const originalTrackingNumber = trackingNumber
+        const originalTrackingNumber = trackingNumber // Declare the variable here
         return {
           success: true,
           data: this.transformGocometData(gocometTrackingInfo, originalTrackingNumber, options?.shipmentType),
@@ -426,6 +431,7 @@ export class GocometService {
           voyage: gocometData.voyage_number,
           plannedDate: parsedPlannedDate ? this.formatDateString(parsedPlannedDate) : undefined,
           actualDate: parsedActualDate ? this.formatDateString(parsedActualDate) : undefined,
+          // Add a flag to indicate if it has a valid date for sorting purposes
           hasValidDate:
             (parsedActualDate && !isNaN(parsedActualDate.getTime())) ||
             (parsedPlannedDate && !isNaN(parsedPlannedDate.getTime())),
@@ -471,7 +477,8 @@ export class GocometService {
       return dateB - dateA // Most recent first
     })
 
-    // Sort special events internally if there are multiple of them
+    // Sort special events internally if there are multiple of them (e.g., multiple dispatches)
+    // For consistency, sort them chronologically if they have dates, otherwise keep original order.
     emptyReturnEvents.sort((a, b) => {
       const dateA = a.timestamp === "N/A" ? Number.NaN : new Date(a.timestamp).getTime()
       const dateB = b.timestamp === "N/A" ? Number.NaN : new Date(b.timestamp).getTime()
@@ -491,7 +498,11 @@ export class GocometService {
       return dateA - dateB
     })
 
-    // Combine events in the desired display order
+    // Combine events in the desired display order:
+    // 1. Empty Return (at the very top)
+    // 2. Other events (sorted reverse chronological)
+    // 3. Dispatch (second from bottom)
+    // 4. Empty Pickup (at the very bottom)
     const allTransformedEvents: (TrackingEvent & { hasValidDate: boolean })[] = [
       ...emptyReturnEvents,
       ...otherEvents,
@@ -518,9 +529,14 @@ export class GocometService {
       if (!locationMap.has(locationKey)) {
         locationMap.set(locationKey, { location: locationKey, events: [] })
       }
+      // Push directly, as allTransformedEvents is already in the desired display order
       locationMap.get(locationKey)!.events.push(event)
     })
 
+    // Convert map values to array. The order of entries in the map is insertion order,
+    // which should reflect the order of the first event encountered for that location
+    // in the already sorted allTransformedEvents array.
+    // This ensures the grouped timeline maintains the overall desired display order.
     Array.from(locationMap.values()).forEach((entry) => groupedTimeline.push(entry))
 
     let finalEstimatedArrival = "N/A"
