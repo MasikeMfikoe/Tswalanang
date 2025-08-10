@@ -1,4 +1,6 @@
 import type { TrackingResult, TrackingData, TrackingEvent, ShipmentType } from "@/types/tracking"
+import type { GocometTrackingResponse, TransformedTrackingData } from "@/types/tracking"
+import { format } from "date-fns"
 
 export class GocometService {
   private email: string
@@ -7,12 +9,22 @@ export class GocometService {
   private trackingUrl: string
   private token: string | null = null
   private tokenExpiry = 0 // Unix timestamp
+  private readonly API_KEY: string
+  private readonly API_URL: string
 
   constructor() {
     this.email = process.env.GOCOMET_EMAIL || "ofentse@tlogistics.net.za"
     this.password = process.env.GOCOMET_PASSWORD || "Tswa#@2025"
     this.loginUrl = "https://login.gocomet.com/api/v1/integrations/generate-token-number"
     this.trackingUrl = "https://tracking.gocomet.com/api/v1/integrations/live-tracking"
+    this.API_KEY = process.env.GOCOMET_API_KEY || ""
+    this.API_URL = process.env.GOCOMET_API_URL || "https://api.gocomet.com/v1"
+    if (!this.API_KEY) {
+      console.warn("GOCOMET_API_KEY is not set. GocometService may not function correctly.")
+    }
+    if (!this.API_URL) {
+      console.warn("GOCOMET_API_URL is not set. Using default Gocomet API URL.")
+    }
   }
 
   private async getToken(): Promise<string | null> {
@@ -58,10 +70,10 @@ export class GocometService {
     }
   }
 
-  private parseDate(dateValue: any): Date {
+  private parseDate(dateValue: any): Date | null {
     if (!dateValue) {
       console.log("parseDate: No date value provided")
-      return new Date(Number.NaN)
+      return null
     }
 
     console.log("parseDate: Attempting to parse:", dateValue, "Type:", typeof dateValue)
@@ -75,7 +87,7 @@ export class GocometService {
         return dateValue
       } else {
         console.warn("parseDate: Invalid Date object provided")
-        return new Date(Number.NaN)
+        return null
       }
     }
 
@@ -95,7 +107,7 @@ export class GocometService {
       // Skip empty or placeholder strings
       if (trimmedValue === "" || trimmedValue === "--" || trimmedValue.toLowerCase() === "n/a") {
         console.log("parseDate: Empty or placeholder string:", trimmedValue)
-        return new Date(Number.NaN)
+        return null
       }
 
       // --- START: Enhanced parsing for common API formats with time ---
@@ -221,7 +233,7 @@ export class GocometService {
     }
 
     console.warn(`parseDate: Failed to parse date: "${dateValue}" (type: ${typeof dateValue})`)
-    return new Date(Number.NaN)
+    return null
   }
 
   private formatDateString(date: Date): string {
@@ -656,6 +668,35 @@ export class GocometService {
       },
       demurrageDetentionDays: demurrageDetentionDays,
       raw: gocometData,
+    }
+  }
+
+  private formatEventDate(date: Date | null): string | null {
+    return date ? format(date, "yyyy-MM-dd HH:mm:ss") : null
+  }
+
+  async getTrackingStatus(trackingNumber: string): Promise<TransformedTrackingData | null> {
+    try {
+      const response = await fetch(`${this.API_URL}/track`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": this.API_KEY,
+        },
+        body: JSON.stringify({ tracking_number: trackingNumber }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("Gocomet API error:", errorData)
+        return null
+      }
+
+      const data: GocometTrackingResponse = await response.json()
+      return this.transformGocometData(data)
+    } catch (error) {
+      console.error("Error fetching Gocomet tracking status:", error)
+      return null
     }
   }
 }
