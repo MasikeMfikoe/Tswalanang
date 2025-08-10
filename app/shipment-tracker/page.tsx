@@ -124,14 +124,14 @@ export default function ShipmentTrackerPage() {
       className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 bg-cover bg-center"
       style={{ backgroundImage: "url('/images/world-map.jpg')" }}
     >
-      <div className="absolute inset-0 bg-black/50" />
+      <div className="absolute inset-0parent bg-transparent text-transparent" />
 
       {/* header buttons */}
       <div className="absolute top-4 right-4 z-20 flex gap-2">
-        <Button variant="ghost" className="text-white hover:bg-white/20">
+        <Button variant="ghost" className="hover:bg-white/20 text-transparent bg-transparent">
           <Bell className="h-5 w-5 mr-1" /> Notifications
         </Button>
-        <Button variant="ghost" className="text-white hover:bg-white/20">
+        <Button variant="ghost" className="hover:bg-white/20 bg-transparent text-transparent">
           <CalendarDays className="h-5 w-5 mr-1" /> Calendar
         </Button>
       </div>
