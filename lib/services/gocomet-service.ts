@@ -1,6 +1,4 @@
 import type { TrackingResult, TrackingData, TrackingEvent, ShipmentType } from "@/types/tracking"
-import type { GocometTrackingResponse, TransformedTrackingData } from "@/types/tracking"
-import { format } from "date-fns"
 
 export class GocometService {
   private email: string
@@ -9,22 +7,12 @@ export class GocometService {
   private trackingUrl: string
   private token: string | null = null
   private tokenExpiry = 0 // Unix timestamp
-  private readonly API_KEY: string
-  private readonly API_URL: string
 
   constructor() {
     this.email = process.env.GOCOMET_EMAIL || "ofentse@tlogistics.net.za"
     this.password = process.env.GOCOMET_PASSWORD || "Tswa#@2025"
     this.loginUrl = "https://login.gocomet.com/api/v1/integrations/generate-token-number"
     this.trackingUrl = "https://tracking.gocomet.com/api/v1/integrations/live-tracking"
-    this.API_KEY = process.env.GOCOMET_API_KEY || ""
-    this.API_URL = process.env.GOCOMET_API_URL || "https://api.gocomet.com/v1"
-    if (!this.API_KEY) {
-      console.warn("GOCOMET_API_KEY is not set. GocometService may not function correctly.")
-    }
-    if (!this.API_URL) {
-      console.warn("GOCOMET_API_URL is not set. Using default Gocomet API URL.")
-    }
   }
 
   private async getToken(): Promise<string | null> {
@@ -236,9 +224,9 @@ export class GocometService {
     return null
   }
 
-  private formatDateString(date: Date): string {
+  private formatDateString(date: Date | null): string {
     try {
-      if (isNaN(date.getTime())) {
+      if (!date || isNaN(date.getTime())) {
         return "N/A"
       }
       return date.toLocaleDateString("en-US", {
@@ -252,9 +240,9 @@ export class GocometService {
     }
   }
 
-  private formatTimeString(date: Date): string {
+  private formatTimeString(date: Date | null): string {
     try {
-      if (isNaN(date.getTime())) {
+      if (!date || isNaN(date.getTime())) {
         return "N/A"
       }
       return date.toLocaleTimeString("en-US", {
@@ -288,14 +276,14 @@ export class GocometService {
       const arrivalDate = this.parseDate(gocometData.actual_arrival_date || gocometData.eta_date)
       const freeDaysEnd = this.parseDate(gocometData.free_days_end_date)
 
-      if (!isNaN(arrivalDate.getTime()) && !isNaN(freeDaysEnd.getTime())) {
+      if (arrivalDate && freeDaysEnd && !isNaN(arrivalDate.getTime()) && !isNaN(freeDaysEnd.getTime())) {
         const currentDate = new Date()
         const daysDiff = Math.floor((currentDate.getTime() - freeDaysEnd.getTime()) / (1000 * 60 * 60 * 24))
         return Math.max(0, daysDiff) // Return 0 if negative (still within free days)
       }
 
       // If we have arrival date but no free days end date, assume standard free days (e.g., 7 days)
-      if (!isNaN(arrivalDate.getTime())) {
+      if (arrivalDate && !isNaN(arrivalDate.getTime())) {
         const currentDate = new Date()
         const standardFreeDays = 7 // Assume 7 free days as standard
         const freeDaysEndDate = new Date(arrivalDate.getTime() + standardFreeDays * 24 * 60 * 60 * 1000)
@@ -419,33 +407,34 @@ export class GocometService {
         const parsedActualDate = this.parseDate(event.actual_date || event.event_date || event.date)
         const parsedPlannedDate = this.parseDate(event.planned_date)
 
-        let eventTimestamp: string | number = Number.NaN
+        let eventTimestamp = "N/A"
 
-        if (!isNaN(parsedActualDate.getTime())) {
+        if (parsedActualDate && !isNaN(parsedActualDate.getTime())) {
           eventTimestamp = parsedActualDate.toISOString()
           console.log(`transformGocometData: Using actual date for timestamp: ${eventTimestamp}`)
-        } else if (!isNaN(parsedPlannedDate.getTime())) {
+        } else if (parsedPlannedDate && !isNaN(parsedPlannedDate.getTime())) {
           eventTimestamp = parsedPlannedDate.toISOString()
           console.log(`transformGocometData: Using planned date for timestamp: ${eventTimestamp}`)
         } else {
-          console.warn(`transformGocometData: No valid date found for event ${index}, setting timestamp to NaN`)
-          // eventTimestamp remains NaN
+          console.warn(`transformGocometData: No valid date found for event ${index}, setting timestamp to N/A`)
         }
 
         rawTransformedEvents.push({
           type: "event",
           status: event.display_event || event.event_type || "N/A",
           location: event.location || "N/A",
-          timestamp: typeof eventTimestamp === "number" ? "N/A" : eventTimestamp, // Store 'N/A' for display, but use NaN for sorting
-          date: !isNaN(parsedActualDate.getTime()) ? this.formatDateString(parsedActualDate) : "N/A",
-          time: !isNaN(parsedActualDate.getTime()) ? this.formatTimeString(parsedActualDate) : "N/A",
+          timestamp: eventTimestamp,
+          date: this.formatDateString(parsedActualDate),
+          time: this.formatTimeString(parsedActualDate),
           description: event.event_description || event.display_event,
           vessel: gocometData.vessel_name,
           voyage: gocometData.voyage_number,
-          plannedDate: !isNaN(parsedPlannedDate.getTime()) ? this.formatDateString(parsedPlannedDate) : undefined,
-          actualDate: !isNaN(parsedActualDate.getTime()) ? this.formatDateString(parsedActualDate) : undefined,
+          plannedDate: parsedPlannedDate ? this.formatDateString(parsedPlannedDate) : undefined,
+          actualDate: parsedActualDate ? this.formatDateString(parsedActualDate) : undefined,
           // Add a flag to indicate if it has a valid date for sorting purposes
-          hasValidDate: !isNaN(parsedActualDate.getTime()) || !isNaN(parsedPlannedDate.getTime()),
+          hasValidDate:
+            (parsedActualDate && !isNaN(parsedActualDate.getTime())) ||
+            (parsedPlannedDate && !isNaN(parsedPlannedDate.getTime())),
         })
       })
     }
@@ -476,8 +465,8 @@ export class GocometService {
 
     // Sort 'otherEvents' in reverse chronological order (most recent first)
     otherEvents.sort((a, b) => {
-      const dateA = new Date(a.timestamp === "N/A" ? Number.NaN : a.timestamp).getTime()
-      const dateB = new Date(b.timestamp === "N/A" ? Number.NaN : b.timestamp).getTime()
+      const dateA = a.timestamp === "N/A" ? Number.NaN : new Date(a.timestamp).getTime()
+      const dateB = b.timestamp === "N/A" ? Number.NaN : new Date(b.timestamp).getTime()
 
       // Events with valid dates come before events without valid dates
       if (a.hasValidDate && !b.hasValidDate) return -1
@@ -491,20 +480,20 @@ export class GocometService {
     // Sort special events internally if there are multiple of them (e.g., multiple dispatches)
     // For consistency, sort them chronologically if they have dates, otherwise keep original order.
     emptyReturnEvents.sort((a, b) => {
-      const dateA = new Date(a.timestamp === "N/A" ? Number.NaN : a.timestamp).getTime()
-      const dateB = new Date(b.timestamp === "N/A" ? Number.NaN : b.timestamp).getTime()
+      const dateA = a.timestamp === "N/A" ? Number.NaN : new Date(a.timestamp).getTime()
+      const dateB = b.timestamp === "N/A" ? Number.NaN : new Date(b.timestamp).getTime()
       if (isNaN(dateA) || isNaN(dateB)) return 0 // Keep original order if no date
       return dateA - dateB // Chronological for internal consistency
     })
     dispatchEvents.sort((a, b) => {
-      const dateA = new Date(a.timestamp === "N/A" ? Number.NaN : a.timestamp).getTime()
-      const dateB = new Date(b.timestamp === "N/A" ? Number.NaN : b.timestamp).getTime()
+      const dateA = a.timestamp === "N/A" ? Number.NaN : new Date(a.timestamp).getTime()
+      const dateB = b.timestamp === "N/A" ? Number.NaN : new Date(b.timestamp).getTime()
       if (isNaN(dateA) || isNaN(dateB)) return 0
       return dateA - dateB
     })
     emptyPickupEvents.sort((a, b) => {
-      const dateA = new Date(a.timestamp === "N/A" ? Number.NaN : a.timestamp).getTime()
-      const dateB = new Date(b.timestamp === "N/A" ? Number.NaN : b.timestamp).getTime()
+      const dateA = a.timestamp === "N/A" ? Number.NaN : new Date(a.timestamp).getTime()
+      const dateB = b.timestamp === "N/A" ? Number.NaN : new Date(b.timestamp).getTime()
       if (isNaN(dateA) || isNaN(dateB)) return 0
       return dateA - dateB
     })
@@ -555,12 +544,12 @@ export class GocometService {
 
     // Attempt to get ETA/ETD from gocometData first
     const gocometEtaDate = this.parseDate(gocometData.eta_date)
-    if (!isNaN(gocometEtaDate.getTime())) {
+    if (gocometEtaDate && !isNaN(gocometEtaDate.getTime())) {
       finalEstimatedArrival = gocometEtaDate.toISOString()
     }
 
     const gocometEtdDate = this.parseDate(gocometData.etd_date)
-    if (!isNaN(gocometEtdDate.getTime())) {
+    if (gocometEtdDate && !isNaN(gocometEtdDate.getTime())) {
       finalEstimatedDeparture = gocometEtdDate.toISOString()
     }
 
@@ -591,8 +580,8 @@ export class GocometService {
       if (departureEvents.length > 0) {
         // Find the earliest departure event
         const earliestDeparture = departureEvents.reduce((prev, curr) => {
-          const prevDate = new Date(prev.timestamp === "N/A" ? Number.MAX_SAFE_INTEGER : prev.timestamp).getTime()
-          const currDate = new Date(curr.timestamp === "N/A" ? Number.MAX_SAFE_INTEGER : curr.timestamp).getTime()
+          const prevDate = prev.timestamp === "N/A" ? Number.MAX_SAFE_INTEGER : new Date(prev.timestamp).getTime()
+          const currDate = curr.timestamp === "N/A" ? Number.MAX_SAFE_INTEGER : new Date(curr.timestamp).getTime()
           return currDate < prevDate ? curr : prev
         })
         if (earliestDeparture.timestamp !== "N/A") {
@@ -626,8 +615,8 @@ export class GocometService {
       if (arrivalEvents.length > 0) {
         // Find the latest arrival event
         const latestArrival = arrivalEvents.reduce((prev, curr) => {
-          const prevDate = new Date(prev.timestamp === "N/A" ? Number.MIN_SAFE_INTEGER : prev.timestamp).getTime()
-          const currDate = new Date(curr.timestamp === "N/A" ? Number.MIN_SAFE_INTEGER : curr.timestamp).getTime()
+          const prevDate = prev.timestamp === "N/A" ? Number.MIN_SAFE_INTEGER : new Date(prev.timestamp).getTime()
+          const currDate = curr.timestamp === "N/A" ? Number.MIN_SAFE_INTEGER : new Date(curr.timestamp).getTime()
           return currDate > prevDate ? curr : prev
         })
         if (latestArrival.timestamp !== "N/A") {
@@ -668,35 +657,6 @@ export class GocometService {
       },
       demurrageDetentionDays: demurrageDetentionDays,
       raw: gocometData,
-    }
-  }
-
-  private formatEventDate(date: Date | null): string | null {
-    return date ? format(date, "yyyy-MM-dd HH:mm:ss") : null
-  }
-
-  async getTrackingStatus(trackingNumber: string): Promise<TransformedTrackingData | null> {
-    try {
-      const response = await fetch(`${this.API_URL}/track`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": this.API_KEY,
-        },
-        body: JSON.stringify({ tracking_number: trackingNumber }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error("Gocomet API error:", errorData)
-        return null
-      }
-
-      const data: GocometTrackingResponse = await response.json()
-      return this.transformGocometData(data)
-    } catch (error) {
-      console.error("Error fetching Gocomet tracking status:", error)
-      return null
     }
   }
 }
