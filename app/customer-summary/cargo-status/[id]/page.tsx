@@ -15,12 +15,15 @@ import { ArrowLeft, ExternalLink, Ship, Package, Calendar, MapPin, AlertCircle }
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/lib/toast"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 
 export default function CargoStatusDetails({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { user } = useAuth()
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
   const [order, setOrder] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)

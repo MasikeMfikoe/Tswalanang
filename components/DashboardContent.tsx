@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader"
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs"
 import { ErrorDisplay } from "@/components/ErrorDisplay"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { toast } from "@/lib/toast"
 
 type DateRange = {
@@ -21,7 +21,10 @@ type PeriodOption = {
 }
 
 export default function DashboardContent() {
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
 
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")

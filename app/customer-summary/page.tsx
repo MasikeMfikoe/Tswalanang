@@ -12,7 +12,7 @@ import { Activity, Banknote, Clock, TrendingUp, Ship } from "lucide-react"
 import { BarChart } from "@/components/Charts"
 import { toast } from "@/lib/toast"
 import CargoStatusTab from "@/components/CargoStatusTab"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import type { Customer, Order } from "@/types/models"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -43,7 +43,10 @@ interface OrderWithTracking extends Order {
 export default function CustomerSummary() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
   const { user } = useAuth()
 
   const [selectedCustomer, setSelectedCustomer] = useState<string>("")

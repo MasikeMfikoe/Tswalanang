@@ -10,7 +10,7 @@ import { ExternalLink, Ship, AlertCircle } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/lib/toast"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 
 interface CargoStatusTabProps {
   customerId: string
@@ -21,7 +21,10 @@ interface CargoStatusTabProps {
 export default function CargoStatusTab({ customerId, startDate, endDate }: CargoStatusTabProps) {
   const router = useRouter()
   const { user } = useAuth()
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
   const [orders, setOrders] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
