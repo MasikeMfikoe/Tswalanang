@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,17 +9,27 @@ import { Label } from "@/components/ui/label"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
 
+interface UserData {
+  name: string
+  surname: string
+  username: string
+  email: string
+  password: string
+  companyName: string
+  orderId: string
+}
+
 export default function TrackingUserCreator() {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
-  const [userData, setUserData] = useState({
+  const [userData, setUserData] = useState<UserData>({
     name: "",
     surname: "",
     username: "",
     email: "",
     password: "",
     companyName: "",
-    orderId: "", // Optional: to associate with specific orders
+    orderId: "",
   })
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,7 +42,6 @@ export default function TrackingUserCreator() {
     setIsLoading(true)
 
     try {
-      // 1. Create auth user in Supabase
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email || `${userData.username}@example.com`,
         password: userData.password,
@@ -41,17 +49,19 @@ export default function TrackingUserCreator() {
 
       if (authError) throw authError
 
-      // 2. Create user profile with tracking-only permissions
+      if (!authData.user) {
+        throw new Error("Failed to create user account")
+      }
+
       const { error: profileError } = await supabase.from("user_profiles").insert({
-        id: authData.user?.id,
+        id: authData.user.id,
         username: userData.username,
         name: userData.name,
         surname: userData.surname,
-        role: "guest", // Using guest role with limited access
+        role: "guest",
         department: userData.companyName,
-        page_access: ["shipmentTracker"], // Only shipment tracker access
+        page_access: ["shipmentTracker"],
         company_name: userData.companyName,
-        // If you want to associate specific orders with this user:
         associated_orders: userData.orderId ? [userData.orderId] : [],
       })
 
@@ -60,7 +70,7 @@ export default function TrackingUserCreator() {
       toast({
         title: "Tracking User Created",
         description: `Username: ${userData.username}, Password: ${userData.password}`,
-        duration: 10000, // Longer duration so you can note the credentials
+        duration: 10000,
       })
 
       // Reset form
