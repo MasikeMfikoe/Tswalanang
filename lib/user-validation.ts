@@ -170,6 +170,9 @@ export function getDefaultPageAccess(role: string): string[] {
         "shipmentTracker",
         "userManagement",
         "auditTrail",
+        "estimates",
+        "currency",
+        "rateCard",
       ]
     case "manager":
       return ["dashboard", "orders", "customers", "documents", "deliveries", "courierOrders", "shipmentTracker"]

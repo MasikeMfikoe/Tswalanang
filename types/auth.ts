@@ -107,3 +107,25 @@ export const rolePermissions = {
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
   },
 }
+
+export interface UserGroup {
+  id: string
+  name: string
+  description?: string
+  permissions: GroupPermission[]
+  users: User[]
+  created_at: string
+  updated_at: string
+}
+
+export interface GroupPermission {
+  id: string
+  group_id: string
+  module: string
+  view: boolean
+  create: boolean
+  edit: boolean
+  delete: boolean
+  created_at: string
+  updated_at: string
+}

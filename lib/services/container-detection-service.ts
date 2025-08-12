@@ -1,4 +1,8 @@
-import type { CarrierSuggestion } from "@/types/tracking"
+export type CarrierSuggestion = {
+  name: string
+  code: string
+  type: ShipmentType
+}
 
 export type ShipmentType = "ocean" | "air" | "lcl" | "unknown"
 

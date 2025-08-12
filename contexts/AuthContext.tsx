@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import type { User, UserRole } from "@/types/auth"
 import { rolePermissions } from "@/types/auth"
+import { AuditLogger } from "@/lib/audit-logger"
 
 interface AuthContextType {
   user: User | null
@@ -43,7 +44,11 @@ const MOCK_USERS: User[] = [
       "deliveries",
       "courierOrders",
       "shipmentTracker",
-      "clientPortal",
+      "userManagement",
+      "auditTrail",
+      "estimates",
+      "currency",
+      "rateCard",
     ],
     email: "demo@tswsmartlog.com",
   },
@@ -104,6 +109,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
+  // Helper function to get client IP and user agent
+  const getClientInfo = () => {
+    return {
+      userAgent: typeof window !== "undefined" ? window.navigator.userAgent : undefined,
+      // Note: Getting real IP address requires server-side implementation
+      ipAddress: undefined,
+    }
+  }
+
   // Check for existing session on mount
   useEffect(() => {
     checkUser()
@@ -160,6 +174,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           console.log("✅ Setting user from Supabase:", userData.email)
           setUser(userData)
+
+          // Redirect client users to client portal immediately
+          if (userData.role === "client") {
+            router.push("/client-portal")
+          } else if (userData.role === "employee") {
+            router.push("/customer-summary")
+          }
         } catch (error) {
           console.error("❌ Error processing user profile:", error)
           setUser(null)
@@ -181,6 +202,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true)
       console.log(`🔐 Attempting login for user: ${username}`)
+
+      const { userAgent, ipAddress } = getClientInfo()
 
       // First, try to find user by username in Supabase
       try {
@@ -216,9 +239,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log("✅ Setting user from Supabase auth:", userData.email)
             setUser(userData)
 
+            // Log successful login
+            await AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent)
+
             // Redirect client users to client portal immediately
             if (userData.role === "client") {
               router.push("/client-portal")
+            } else if (userData.role === "employee") {
+              router.push("/customer-summary")
             }
 
             return true
@@ -265,9 +293,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               }
 
               setUser(userData)
+
+              // Log successful login
+              await AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent)
+
               if (userData.role === "client") {
                 router.push("/client-portal")
+              } else if (userData.role === "employee") {
+                router.push("/customer-summary")
               }
+
               return true
             }
           }
@@ -285,9 +320,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log("✅ Using local mock authentication for:", username)
           setUser(mockUser)
 
+          // Log successful login (using mock user ID)
+          await AuditLogger.logUserLogin(mockUser.id, mockUser.email, ipAddress, userAgent)
+
           if (mockUser.role === "client") {
             router.push("/client-portal")
+          } else if (mockUser.role === "employee") {
+            router.push("/customer-summary")
           }
+
           return true
         }
       }
@@ -307,6 +348,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true)
       console.log("🚪 Logging out...")
+
+      const { userAgent, ipAddress } = getClientInfo()
+
+      // Log logout before clearing user state
+      if (user) {
+        await AuditLogger.logUserLogout(user.id, user.email, ipAddress, userAgent)
+      }
 
       // Sign out from Supabase
       try {
@@ -351,6 +399,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       console.log("🔄 Updating user:", userId)
 
+      // Get old user data for audit logging
+      const { data: oldUserData, error: fetchError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", userId)
+        .single()
+
       // Try to update via API route
       const updateResponse = await fetch("/api/update-auth-user", {
         method: "PUT",
@@ -366,6 +421,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (updateResponse.ok) {
         const result = await updateResponse.json()
         console.log("✅ User updated via API route:", result)
+
+        // Log user update
+        if (user && oldUserData) {
+          await AuditLogger.logUserUpdated(user.id, userId, oldUserData, userData)
+        }
 
         // Update current user if it's the same user
         if (user && user.id === userId) {
@@ -494,6 +554,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authResponse.ok) {
         const result = await authResponse.json()
         console.log("✅ User created via API route:", result)
+
+        // Log user creation
+        if (user) {
+          await AuditLogger.logUserCreated(user.id, result.user.id, userData)
+        }
+
         return true
       } else {
         const errorText = await authResponse.text()
@@ -529,12 +595,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       console.log("🗑️ Deleting user:", userId)
 
+      // Get user data for audit logging before deletion
+      const { data: userToDelete, error: fetchError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", userId)
+        .single()
+
       // Delete from Supabase user_profiles
       const { error: profileError } = await supabase.from("user_profiles").delete().eq("id", userId)
 
       if (profileError) {
         console.error("❌ Error deleting user profile:", profileError)
         return false
+      }
+
+      // Log user deletion
+      if (user && userToDelete) {
+        await AuditLogger.logUserDeleted(user.id, userId, userToDelete)
       }
 
       // Try to delete from auth (this might fail if user doesn't exist in auth)

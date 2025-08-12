@@ -1,6 +1,27 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
+import { AuditLogger } from "@/lib/audit-logger"
+
+// Helper function to get user ID from request
+const getUserIdFromRequest = async (request: NextRequest): Promise<string | null> => {
+  try {
+    const supabase = createRouteHandlerClient({ cookies })
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+
+    if (!error && user) {
+      return user.id
+    }
+
+    return null
+  } catch (error) {
+    console.error("Error getting user ID from request:", error)
+    return null
+  }
+}
 
 // GET: Fetch all customers with optional filtering
 export async function GET(request: NextRequest) {
@@ -62,6 +83,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
     const customerData = await request.json()
+    const userId = await getUserIdFromRequest(request)
 
     // Validate required fields
     const requiredFields = ["name", "email"]
@@ -77,6 +99,15 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error("Error creating customer:", error)
       return NextResponse.json({ error: "Failed to create customer", details: error.message }, { status: 500 })
+    }
+
+    // Log customer creation
+    if (userId && newCustomer) {
+      await AuditLogger.logCustomerCreated(userId, newCustomer.id, {
+        name: customerData.name,
+        email: customerData.email,
+        contact_person: customerData.contact_person,
+      })
     }
 
     return NextResponse.json(

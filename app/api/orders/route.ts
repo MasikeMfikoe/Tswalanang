@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
+import { AuditLogger } from "@/lib/audit-logger"
 
 // Supabase Configuration
 import { createClient } from "@supabase/supabase-js"
@@ -33,10 +34,34 @@ const orders = [
   { id: "3", poNumber: "PO003", supplier: "Supplier C", importer: "Tech Innovators", status: "Pending" },
 ]
 
-// Add a new function to log audit entries
-const logAuditEntry = (action: string, user: string, details: string) => {
-  // In a real application, you would save this to a database
-  console.log(`Audit: ${action} | User: ${user} | ${details} | ${new Date().toISOString()}`)
+// Helper function to get user ID from request headers or session
+const getUserIdFromRequest = async (request: Request): Promise<string | null> => {
+  try {
+    // Try to get user from Supabase session
+    const authHeader = request.headers.get("authorization")
+    if (authHeader) {
+      // Extract token and validate with Supabase
+      const token = authHeader.replace("Bearer ", "")
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser(token)
+      if (!error && user) {
+        return user.id
+      }
+    }
+
+    // Fallback: try to get from custom header (if set by client)
+    const userIdHeader = request.headers.get("x-user-id")
+    if (userIdHeader) {
+      return userIdHeader
+    }
+
+    return null
+  } catch (error) {
+    console.error("Error getting user ID from request:", error)
+    return null
+  }
 }
 
 // 📌 Handle GET Requests
@@ -59,11 +84,24 @@ export async function GET(request: Request) {
 // 📌 Handle Order Creation (POST)
 export async function POST(request: Request) {
   const body = await request.json()
-  const newOrder = { id: String(orders.length + 1), ...body, createdAt: new Date().toISOString() }
+  const userId = await getUserIdFromRequest(request)
+
+  const newOrder = {
+    id: String(orders.length + 1),
+    ...body,
+    createdAt: new Date().toISOString(),
+  }
   orders.push(newOrder)
 
   // Log the audit entry
-  logAuditEntry("Order Created", body.createdBy || "Unknown", `Order ${newOrder.id} created`)
+  if (userId) {
+    await AuditLogger.logOrderCreated(userId, newOrder.id, {
+      poNumber: body.poNumber,
+      supplier: body.supplier,
+      importer: body.importer,
+      status: body.status || "Pending",
+    })
+  }
 
   return NextResponse.json(newOrder, { status: 201 })
 }
@@ -71,12 +109,17 @@ export async function POST(request: Request) {
 // 📌 Handle Order Updates (PUT)
 export async function PUT(request: Request) {
   const body = await request.json()
+  const userId = await getUserIdFromRequest(request)
+
   const index = orders.findIndex((order) => order.id === body.id)
   if (index !== -1) {
+    const oldOrder = { ...orders[index] }
     orders[index] = { ...orders[index], ...body, updatedAt: new Date().toISOString() }
 
     // Log the audit entry
-    logAuditEntry("Order Updated", body.updatedBy || "Unknown", `Order ${body.id} updated`)
+    if (userId) {
+      await AuditLogger.logOrderUpdated(userId, body.id, oldOrder, body)
+    }
 
     return NextResponse.json(orders[index])
   }
@@ -90,6 +133,8 @@ export async function POST_upload(request: Request) {
     const file = formData.get("file") as File
     const documentType = formData.get("documentType") as string
     const uploadedBy = formData.get("uploadedBy") as string
+    const orderId = formData.get("orderId") as string
+    const userId = await getUserIdFromRequest(request)
 
     if (!file || !documentType) {
       return NextResponse.json({ error: "File and document type are required." }, { status: 400 })
@@ -109,9 +154,17 @@ export async function POST_upload(request: Request) {
     }
 
     const fileUrl = `${supabaseUrl}/storage/v1/object/public/documents/${fileKey}`
+    const documentId = uuidv4()
 
-    // Log the audit entry
-    logAuditEntry("Document Uploaded", uploadedBy || "Unknown", `${documentType} uploaded: ${file.name}`)
+    // Log document upload
+    if (userId) {
+      await AuditLogger.logDocumentUploaded(userId, documentId, {
+        fileName: file.name,
+        documentType: documentType,
+        fileSize: file.size,
+        orderId: orderId,
+      })
+    }
 
     return NextResponse.json({ message: "File uploaded successfully", fileUrl }, { status: 201 })
   } catch (error) {

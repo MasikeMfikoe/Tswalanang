@@ -77,3 +77,16 @@ export type CarrierSuggestion = {
   code: string
   type: ShipmentType
 }
+
+export interface TrackingProvider {
+  id: string
+  name: string
+  code: string
+  type: ShipmentType
+  apiSupported: boolean
+  trackingUrl: string
+  isActive: boolean
+  priority: number
+  created_at: string
+  updated_at: string
+}

@@ -115,6 +115,24 @@ export interface Rate {
   notes?: string
 }
 
+export interface RateItem {
+  id: string
+  rate_card_id: string
+  freight_type: string
+  service_type: string
+  origin_country?: string
+  destination_country?: string
+  origin_port?: string
+  destination_port?: string
+  unit_type: "per_kg" | "per_cbm" | "flat_rate" | "per_container"
+  unit_price: number
+  min_charge?: number
+  currency: string
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface Address {
   street: string
   city: string

@@ -1,6 +1,27 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
+import { AuditLogger } from "@/lib/audit-logger"
+
+// Helper function to get user ID from request
+const getUserIdFromRequest = async (request: NextRequest): Promise<string | null> => {
+  try {
+    const supabase = createRouteHandlerClient({ cookies })
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+
+    if (!error && user) {
+      return user.id
+    }
+
+    return null
+  } catch (error) {
+    console.error("Error getting user ID from request:", error)
+    return null
+  }
+}
 
 // GET: Fetch a single customer by ID
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -37,16 +58,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   try {
     const customerId = params.id
     const customerData = await request.json()
+    const userId = await getUserIdFromRequest(request)
     const supabase = createRouteHandlerClient({ cookies })
 
-    // Check if customer exists
-    const { data: existingCustomer, error: checkError } = await supabase
+    // Get old customer data for audit logging
+    const { data: oldCustomer, error: fetchError } = await supabase
       .from("customers")
-      .select("id")
+      .select("*")
       .eq("id", customerId)
       .single()
 
-    if (checkError || !existingCustomer) {
+    if (fetchError || !oldCustomer) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 })
     }
 
@@ -61,6 +83,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (error) {
       console.error("Error updating customer:", error)
       return NextResponse.json({ error: "Failed to update customer", details: error.message }, { status: 500 })
+    }
+
+    // Log customer update
+    if (userId) {
+      await AuditLogger.logCustomerUpdated(userId, customerId, oldCustomer, customerData)
     }
 
     return NextResponse.json({
@@ -81,16 +108,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const customerId = params.id
+    const userId = await getUserIdFromRequest(request)
     const supabase = createRouteHandlerClient({ cookies })
 
-    // Check if customer exists
-    const { data: existingCustomer, error: checkError } = await supabase
+    // Get customer data for audit logging before deletion
+    const { data: customerToDelete, error: fetchError } = await supabase
       .from("customers")
-      .select("id")
+      .select("*")
       .eq("id", customerId)
       .single()
 
-    if (checkError || !existingCustomer) {
+    if (fetchError || !customerToDelete) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 })
     }
 
@@ -100,6 +128,15 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (error) {
       console.error("Error deleting customer:", error)
       return NextResponse.json({ error: "Failed to delete customer", details: error.message }, { status: 500 })
+    }
+
+    // Log customer deletion
+    if (userId) {
+      await AuditLogger.logCustomerDeleted(userId, customerId, {
+        name: customerToDelete.name,
+        email: customerToDelete.email,
+        contact_person: customerToDelete.contact_person,
+      })
     }
 
     return NextResponse.json({

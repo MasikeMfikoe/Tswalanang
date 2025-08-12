@@ -59,7 +59,7 @@ BEGIN
             'demo@tswsmartlog.com',
             'admin',
             'IT',
-            ARRAY['dashboard', 'orders', 'customers', 'documents', 'deliveries', 'courierOrders', 'shipmentTracker'],
+            ARRAY['dashboard', 'orders', 'customers', 'documents', 'deliveries', 'courierOrders', 'shipmentTracker', 'userManagement', 'auditTrail', 'estimates', 'currency', 'rateCard'],
             NOW(),
             NOW()
         ) ON CONFLICT (id) DO UPDATE SET

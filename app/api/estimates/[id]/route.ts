@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { AuditLogger } from "@/lib/audit-logger"
 
 // Initialize Supabase client with service role key
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -10,6 +11,35 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey)
+
+// Helper function to get user ID from request
+const getUserIdFromRequest = async (request: NextRequest): Promise<string | null> => {
+  try {
+    // Try to get from authorization header
+    const authHeader = request.headers.get("authorization")
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "")
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser(token)
+      if (!error && user) {
+        return user.id
+      }
+    }
+
+    // Fallback: try to get from custom header
+    const userIdHeader = request.headers.get("x-user-id")
+    if (userIdHeader) {
+      return userIdHeader
+    }
+
+    return null
+  } catch (error) {
+    console.error("Error getting user ID from request:", error)
+    return null
+  }
+}
 
 // Mock data for fallback when estimate not found in Supabase or for preview IDs
 const generateMockEstimate = (id: string) => {
@@ -99,6 +129,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   try {
     const { id } = params
     const estimateData = await request.json()
+    const userId = await getUserIdFromRequest(request)
     console.log("PUT /api/estimates/[id] - Updating estimate:", id, estimateData)
 
     if (!id) {
@@ -114,6 +145,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         },
         { status: 400 },
       )
+    }
+
+    // Get old estimate data for audit logging
+    const { data: oldEstimate, error: fetchError } = await supabase.from("estimates").select("*").eq("id", id).single()
+
+    if (fetchError || !oldEstimate) {
+      return NextResponse.json({ error: "Estimate not found", success: false }, { status: 404 })
     }
 
     // Prepare data for Supabase update
@@ -152,6 +190,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     console.log("Successfully updated estimate in Supabase:", data)
 
+    // Log estimate update
+    if (userId) {
+      await AuditLogger.logEstimateUpdated(userId, id, oldEstimate, supabaseData)
+    }
+
     return NextResponse.json({
       data: data,
       success: true,
@@ -174,6 +217,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { id } = params
+    const userId = await getUserIdFromRequest(request)
     console.log("DELETE /api/estimates/[id] - Deleting estimate:", id)
 
     if (!id) {
@@ -191,6 +235,17 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       )
     }
 
+    // Get estimate data for audit logging before deletion
+    const { data: estimateToDelete, error: fetchError } = await supabase
+      .from("estimates")
+      .select("*")
+      .eq("id", id)
+      .single()
+
+    if (fetchError || !estimateToDelete) {
+      return NextResponse.json({ error: "Estimate not found", success: false }, { status: 404 })
+    }
+
     // Delete from Supabase
     const { error } = await supabase.from("estimates").delete().eq("id", id)
 
@@ -200,6 +255,15 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     console.log("Successfully deleted estimate from Supabase")
+
+    // Log estimate deletion
+    if (userId) {
+      await AuditLogger.logEstimateDeleted(userId, id, {
+        display_id: estimateToDelete.display_id,
+        customer_name: estimateToDelete.customer_name,
+        total_amount: estimateToDelete.total_amount,
+      })
+    }
 
     return NextResponse.json({
       success: true,

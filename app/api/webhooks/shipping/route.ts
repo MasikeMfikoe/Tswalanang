@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabaseClient"
 import { v4 as uuidv4 } from "uuid"
 import type { ShipmentUpdate, ShippingLine } from "@/types/shipping"
+import { AuditLogger } from "@/lib/audit-logger"
 
 export async function POST(request: Request) {
   try {
@@ -151,6 +152,16 @@ async function processWebhook(shippingLine: ShippingLine, data: any): Promise<Sh
     if (shipmentError) {
       throw shipmentError
     }
+
+    // Log webhook update (no user ID since it's automated)
+    await AuditLogger.logShipmentWebhookUpdate(shipment.id, {
+      shippingLine,
+      containerNumber: containerNumber || shipment.container_number,
+      bookingReference: bookingReference || shipment.booking_reference,
+      status,
+      previousStatus: shipment.status,
+      location,
+    })
 
     return update
   } catch (error) {

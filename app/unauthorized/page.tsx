@@ -20,6 +20,8 @@ export default function UnauthorizedPage() {
         (user.role === "guest" && user.pageAccess.length === 1 && user.pageAccess.includes("shipmentTracker"))
       ) {
         router.push("/shipment-tracker")
+      } else if (user.role === "employee") {
+        router.push("/customer-summary")
       } else {
         router.push("/dashboard")
       }
@@ -69,9 +71,11 @@ export default function UnauthorizedPage() {
                 ? "Go to Client Portal"
                 : user?.role === "tracking"
                   ? "Go to Shipment Tracker"
-                  : "Go to Dashboard"}
+                  : user?.role === "employee"
+                    ? "Go to Customer Summary"
+                    : "Go to Dashboard"}
             </Button>
-            <Button variant="outline" onClick={handleLoginAsDifferentUser} className="w-full">
+            <Button variant="outline" onClick={handleLoginAsDifferentUser} className="w-full bg-transparent">
               Login as Different User
             </Button>
           </div>

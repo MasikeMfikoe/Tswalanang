@@ -16,9 +16,12 @@ import { emailService } from "@/lib/email-service"
 import { generateSecureToken } from "@/lib/qr-code-utils"
 import { supabase } from "@/lib/supabase"
 import { toast } from "@/lib/toast"
+import { useAuth } from "@/contexts/AuthContext"
+import { AuditLogger } from "@/lib/audit-logger"
 
 export default function NewCourierOrderPage() {
   const router = useRouter()
+  const { user } = useAuth()
   const [formData, setFormData] = useState({
     orderDate: "",
     poNumber: "",
@@ -260,6 +263,16 @@ export default function NewCourierOrderPage() {
         console.error("Error creating courier order:", orderError)
         toast.error("Error creating courier order: " + orderError.message)
         return
+      }
+
+      // Log courier order creation
+      if (user && courierOrder) {
+        await AuditLogger.logCourierOrderCreated(user.id, courierOrder.id, {
+          waybill_no: courierOrder.waybill_no,
+          sender: courierOrder.sender,
+          receiver: courierOrder.receiver,
+          service_type: courierOrder.service_type,
+        })
       }
 
       // Save courier order items
@@ -695,7 +708,7 @@ export default function NewCourierOrderPage() {
               ))}
             </tbody>
           </table>
-          <Button type="button" variant="outline" onClick={addItem} className="mt-2">
+          <Button type="button" variant="outline" onClick={addItem} className="mt-2 bg-transparent">
             Add Item
           </Button>
         </div>

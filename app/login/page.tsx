@@ -25,7 +25,7 @@ export default function LoginPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      console.log("User is already authenticated, redirecting to dashboard")
+      console.log("User is already authenticated, redirecting to appropriate page")
 
       // Check if user is a tracking user
       if (
@@ -39,6 +39,8 @@ export default function LoginPage() {
         router.push("/shipment-tracker")
       } else if (user && user.role === "client") {
         router.push("/client-portal")
+      } else if (user && user.role === "employee") {
+        router.push("/customer-summary")
       } else {
         router.push("/dashboard")
       }

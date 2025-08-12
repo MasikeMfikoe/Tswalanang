@@ -37,6 +37,8 @@ export default function CreateOrder() {
     origin: "", // Add origin field
     destination: "", // Add destination field
     tracking_number: "", // Add tracking_number field
+    shipping_line: "", // Added shipping_line field
+    vessel_name: "", // Added vessel_name field
   })
 
   // State for order financials
@@ -300,6 +302,8 @@ export default function CreateOrder() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         tracking_number: order.tracking_number || null, // Include tracking number
+        shipping_line: order.shipping_line || null, // Added shipping_line to order submission data
+        vessel_name: order.vessel_name || null, // Added vessel_name to order submission data
       }
 
       const { data, error } = await supabase.from("orders").insert([orderData]).select().single()
@@ -537,6 +541,24 @@ export default function CreateOrder() {
                           value={order.cargoStatusComment || ""}
                           onChange={(e) => handleChange("cargoStatusComment", e.target.value)}
                           className="resize-y"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="shippingLine">Shipping Line</Label>
+                        <Input
+                          id="shippingLine"
+                          value={order.shipping_line || ""}
+                          onChange={(e) => handleChange("shipping_line", e.target.value)}
+                          placeholder="Enter shipping line (optional)"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vesselName">Vessel Name</Label>
+                        <Input
+                          id="vesselName"
+                          value={order.vessel_name || ""}
+                          onChange={(e) => handleChange("vessel_name", e.target.value)}
+                          placeholder="Enter vessel name (optional)"
                         />
                       </div>
                     </div>

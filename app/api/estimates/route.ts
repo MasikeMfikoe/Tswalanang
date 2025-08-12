@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { AuditLogger } from "@/lib/audit-logger"
 
 // Initialize Supabase client with service role key
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -10,6 +11,35 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey)
+
+// Helper function to get user ID from request
+const getUserIdFromRequest = async (request: NextRequest): Promise<string | null> => {
+  try {
+    // Try to get from authorization header
+    const authHeader = request.headers.get("authorization")
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "")
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser(token)
+      if (!error && user) {
+        return user.id
+      }
+    }
+
+    // Fallback: try to get from custom header
+    const userIdHeader = request.headers.get("x-user-id")
+    if (userIdHeader) {
+      return userIdHeader
+    }
+
+    return null
+  } catch (error) {
+    console.error("Error getting user ID from request:", error)
+    return null
+  }
+}
 
 // GET: Fetch all estimates with optional filtering
 export async function GET(request: NextRequest) {
@@ -79,6 +109,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log("POST /api/estimates - Creating new estimate")
     const estimateData = await request.json()
+    const userId = await getUserIdFromRequest(request)
     console.log("Estimate data received:", estimateData)
 
     // Validate required fields
@@ -137,6 +168,17 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("Successfully created estimate:", data)
+
+    // Log estimate creation
+    if (userId && data) {
+      await AuditLogger.logEstimateCreated(userId, data.id, {
+        display_id: data.display_id,
+        customer_name: data.customer_name,
+        freight_type: data.freight_type,
+        total_amount: data.total_amount,
+        status: data.status,
+      })
+    }
 
     return NextResponse.json(
       {

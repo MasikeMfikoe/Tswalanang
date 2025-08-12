@@ -59,22 +59,15 @@ export default function CargoStatusTab({ customerId, startDate, endDate }: Cargo
         throw error
       }
 
-      // Transform the data to include shipping information
       const ordersWithShipping =
         data?.map((order) => ({
           ...order,
-          shippingLine:
-            order.freightType === "Sea Freight" ? ["Maersk", "MSC", "CMA CGM"][Math.floor(Math.random() * 3)] : "",
-          trackingNumber:
-            order.freightType === "Sea Freight"
-              ? `${["MAEU", "MSCU", "CMAU"][Math.floor(Math.random() * 3)]}${Math.floor(Math.random() * 10000000)}`
-              : "",
-          trackingUrl:
-            order.freightType === "Sea Freight"
-              ? `https://www.${["maersk", "msc", "cma-cgm"][Math.floor(Math.random() * 3)]}.com/tracking/`
-              : "",
-          lastUpdated: order.updated_at || order.created_at,
-          hasTracking: order.freightType === "Sea Freight",
+          shippingLine: order.shipping_line || "Not assigned",
+          trackingNumber: order.tracking_number || "",
+          trackingUrl: order.tracking_number ? `https://tracking.example.com/` : "",
+          lastUpdated: order.last_event_date || order.updated_at || order.created_at,
+          hasTracking: !!order.tracking_number,
+          cargoStatus: order.cargo_status || "not-shipped",
         })) || []
 
       setOrders(ordersWithShipping)
@@ -142,7 +135,7 @@ export default function CargoStatusTab({ customerId, startDate, endDate }: Cargo
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Order ID</TableHead>
+              <TableHead>Client Name</TableHead>
               <TableHead>PO Number</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Shipping Line</TableHead>
@@ -154,11 +147,11 @@ export default function CargoStatusTab({ customerId, startDate, endDate }: Cargo
           <TableBody>
             {orders.map((order) => (
               <TableRow key={order.id}>
-                <TableCell className="font-medium">{order.id}</TableCell>
-                <TableCell>{order.poNumber}</TableCell>
+                <TableCell className="font-medium">{order.importer}</TableCell>
+                <TableCell>{order.po_number || "N/A"}</TableCell>
                 <TableCell>{format(parseISO(order.created_at), "MMM dd, yyyy")}</TableCell>
                 <TableCell>
-                  {order.shippingLine ? (
+                  {order.shippingLine && order.shippingLine !== "Not assigned" ? (
                     <div className="flex items-center">
                       <Ship className="h-4 w-4 mr-1 text-blue-500" />
                       {order.shippingLine}

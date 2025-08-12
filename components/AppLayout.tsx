@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
@@ -30,6 +30,7 @@ interface NavigationItem {
   href?: string
   label: string
   icon: any
+  pageKey?: string // Added pageKey to map navigation items to page access
   requiredPermission?: {
     module: string
     action: string
@@ -37,6 +38,7 @@ interface NavigationItem {
   dropdown?: Array<{
     href: string
     label: string
+    pageKey?: string // Added pageKey for dropdown items
     requiredPermission?: {
       module: string
       action: string
@@ -49,8 +51,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
 
-  // Don't show navigation on login page or home page
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024) // lg breakpoint
+    }
+
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
+
   if (pathname === "/login" || pathname === "/") {
     return <>{children}</>
   }
@@ -62,104 +74,42 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isAdmin = user.role === "admin"
   const isClient = user.role === "client"
 
-  // CLIENT USERS: Minimal top navigation bar
-  if (isClient) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Client Top Navigation */}
-        <div className="bg-white shadow-sm border-b px-4 py-3">
-          <div className="flex items-center justify-between">
-            {/* Logo and Navigation */}
-            <div className="flex items-center space-x-6">
-              <Link href="/client-portal" className="flex items-center space-x-3">
-                <img src="/images/TG_Logo-04.png" alt="TSW SmartLog" className="h-8 w-8 object-contain" />
-                <span className="text-lg font-bold text-gray-900">TSW SmartLog</span>
-              </Link>
-
-              {/* Client Navigation Links */}
-              <nav className="flex items-center space-x-4">
-                <Link
-                  href="/client-portal"
-                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    pathname === "/client-portal" || pathname.startsWith("/client-portal")
-                      ? "text-blue-600 bg-blue-50"
-                      : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                  }`}
-                >
-                  Client Portal
-                </Link>
-                <Link
-                  href="/shipment-tracker"
-                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    pathname === "/shipment-tracker"
-                      ? "text-blue-600 bg-blue-50"
-                      : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                  }`}
-                >
-                  Track Shipments
-                </Link>
-              </nav>
-            </div>
-
-            {/* User Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2">
-                  <div className="h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
-                    <User className="h-4 w-4 text-gray-600" />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-sm font-medium text-gray-900">
-                      {user.name} {user.surname}
-                    </div>
-                    <div className="text-xs text-gray-500">{user.department}</div>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => logout()}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <main className="flex-1">{children}</main>
-      </div>
-    )
+  const hasPageAccess = (pageKey: string) => {
+    if (!user?.pageAccess || user.pageAccess.length === 0) return true
+    return user.pageAccess.includes(pageKey)
   }
 
-  // Navigation items with permission requirements for non-client users
   const navigationItems: NavigationItem[] = [
     {
       href: "/dashboard",
       label: "Dashboard",
       icon: BarChart3,
+      pageKey: "dashboard",
       requiredPermission: { module: "dashboard", action: "view" },
     },
     {
       href: "/shipment-tracker",
       label: "Shipment Tracker",
       icon: Search,
+      pageKey: "shipmentTracker",
       requiredPermission: { module: "containerTracking", action: "view" },
     },
     {
       label: "Orders",
       icon: Package,
+      pageKey: "orders",
       requiredPermission: { module: "orders", action: "view" },
       dropdown: [
         {
           href: "/orders",
           label: "Shipment Orders",
+          pageKey: "orders",
           requiredPermission: { module: "orders", action: "view" },
         },
         {
           href: "/courier-orders",
           label: "Courier Orders",
+          pageKey: "courierOrders",
           requiredPermission: { module: "courierOrders", action: "view" },
         },
       ],
@@ -168,21 +118,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       href: "/estimates",
       label: "Estimates",
       icon: FileText,
+      pageKey: "estimates",
       requiredPermission: { module: "orders", action: "view" },
     },
     {
       label: "Documents",
       icon: FileText,
+      pageKey: "documents",
       requiredPermission: { module: "documents", action: "view" },
       dropdown: [
         {
           href: "/documents",
           label: "All Documents",
+          pageKey: "documents",
           requiredPermission: { module: "documents", action: "view" },
         },
         {
           href: "/documents/upload",
           label: "Upload Document",
+          pageKey: "documents",
           requiredPermission: { module: "documents", action: "create" },
         },
       ],
@@ -191,61 +145,72 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       href: "/deliveries",
       label: "Deliveries",
       icon: Truck,
+      pageKey: "deliveries",
       requiredPermission: { module: "deliveries", action: "view" },
     },
     {
       href: "/customers",
       label: "Customers",
       icon: UserCheck,
+      pageKey: "customers",
       requiredPermission: { module: "customers", action: "view" },
     },
     {
       href: "/customer-summary",
       label: "Customer Summary",
       icon: TrendingUp,
+      pageKey: "customers",
       requiredPermission: { module: "customers", action: "view" },
     },
     {
       href: "/currency",
       label: "Currency Conversion",
       icon: DollarSign,
+      pageKey: "currency",
       requiredPermission: { module: "currencyConversion", action: "view" },
     },
     {
       href: "/rate-card",
       label: "Rate Card",
       icon: DollarSign,
+      pageKey: "rateCard",
       requiredPermission: { module: "rateCard", action: "view" },
     },
     {
       href: "/audit-trail",
       label: "Audit Trail",
       icon: FileText,
+      pageKey: "auditTrail",
       requiredPermission: { module: "auditTrail", action: "view" },
     },
     {
       label: "Admin",
       icon: Settings,
+      pageKey: "admin",
       requiredPermission: { module: "admin", action: "view" },
       dropdown: [
         {
           href: "/admin/settings",
           label: "Settings",
+          pageKey: "admin",
           requiredPermission: { module: "admin", action: "view" },
         },
         {
           href: "/admin/user-groups",
           label: "User Groups",
+          pageKey: "userManagement",
           requiredPermission: { module: "admin", action: "view" },
         },
         {
           href: "/user-management",
           label: "Users",
+          pageKey: "userManagement",
           requiredPermission: { module: "admin", action: "view" },
         },
         {
           href: "/admin/tracking-users",
           label: "Tracking Users",
+          pageKey: "userManagement",
           requiredPermission: { module: "admin", action: "view" },
         },
       ],
@@ -254,29 +219,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       href: "/user-management",
       label: "User Management",
       icon: User,
+      pageKey: "userManagement",
       requiredPermission: { module: "admin", action: "view" },
     },
   ]
 
-  // Filter function for dropdown items
   const filterDropdownItems = (dropdownItems: NavigationItem["dropdown"]) => {
     if (!dropdownItems) return []
     return dropdownItems.filter((item) => {
-      if (!item.requiredPermission) return true
-      return hasPermission(item.requiredPermission.module, item.requiredPermission.action)
+      if (item.requiredPermission) {
+        const hasRolePermission = hasPermission(item.requiredPermission.module, item.requiredPermission.action)
+        if (!hasRolePermission) return false
+      }
+
+      if (item.pageKey && !hasPageAccess(item.pageKey)) return false
+
+      return true
     })
   }
 
-  // Filter function for main navigation items
   const getFilteredNavigationItems = () => {
     return navigationItems.filter((item) => {
-      // Check if user has permission for the main item
       if (item.requiredPermission) {
-        const hasMainPermission = hasPermission(item.requiredPermission.module, item.requiredPermission.action)
-        if (!hasMainPermission) return false
+        const hasRolePermission = hasPermission(item.requiredPermission.module, item.requiredPermission.action)
+        if (!hasRolePermission) return false
       }
 
-      // If it's a dropdown, check if any dropdown items are accessible
+      if (item.pageKey && !hasPageAccess(item.pageKey)) return false
+
       if (item.dropdown) {
         const accessibleDropdownItems = filterDropdownItems(item.dropdown)
         return accessibleDropdownItems.length > 0
@@ -286,18 +256,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     })
   }
 
-  // Get the filtered navigation items
   const filteredNavigationItems = getFilteredNavigationItems()
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Left Sidebar Navigation - Hidden for Client Users */}
       <div
         className={`bg-white shadow-lg border-r flex flex-col transition-all duration-300 ${
           isSidebarCollapsed ? "w-16" : "w-64"
-        } ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 fixed lg:relative z-50 h-full`}
+        } ${isMobile ? `${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"} fixed z-50 h-full` : "relative z-10 h-screen"}`}
       >
-        {/* Logo Section */}
         <div className="flex items-center justify-between p-4 border-b">
           <Link
             href="/dashboard"
@@ -312,7 +279,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
           </Link>
 
-          {/* Collapse Button - Desktop Only */}
           <Button
             variant="ghost"
             size="sm"
@@ -323,12 +289,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Button>
         </div>
 
-        {/* Navigation Items */}
         <nav className="flex-1 overflow-y-auto py-4">
           <div className="space-y-1 px-3">
             {filteredNavigationItems.map((item, index) => {
               if (item.dropdown) {
-                // Filter dropdown items for this specific dropdown
                 const accessibleDropdownItems = filterDropdownItems(item.dropdown)
 
                 return (
@@ -380,7 +344,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        {/* Client Portal Badge (Admin Only) */}
         {isAdmin && hasPermission("clientPortal", "view") && (
           <div className="p-3 border-t">
             <Link
@@ -400,7 +363,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* User Menu */}
         <div className="p-3 border-t">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -432,18 +394,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {/* Mobile Overlay */}
-      {isMobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
+      {isMobileMenuOpen && isMobile && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-screen">
-        {/* Mobile Header - Hidden for Client Users */}
-        {!isClient && (
+        {!isClient && isMobile && (
           <div className="lg:hidden bg-white shadow-sm border-b px-4 py-3 flex items-center justify-between">
             <Button variant="ghost" size="sm" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
               <Menu className="h-5 w-5" />
@@ -453,7 +409,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Main Content */}
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>

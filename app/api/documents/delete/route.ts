@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { AuditLogger } from "@/lib/audit-logger"
 
 // Create Supabase client with service role key for admin operations
 const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -9,9 +10,39 @@ const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, proces
   },
 })
 
+// Helper function to get user ID from request
+const getUserIdFromRequest = async (request: NextRequest): Promise<string | null> => {
+  try {
+    // Try to get from authorization header
+    const authHeader = request.headers.get("authorization")
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "")
+      const {
+        data: { user },
+        error,
+      } = await supabaseAdmin.auth.getUser(token)
+      if (!error && user) {
+        return user.id
+      }
+    }
+
+    // Fallback: try to get from custom header
+    const userIdHeader = request.headers.get("x-user-id")
+    if (userIdHeader) {
+      return userIdHeader
+    }
+
+    return null
+  } catch (error) {
+    console.error("Error getting user ID from request:", error)
+    return null
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     const { documentId, orderId, filePath } = await request.json()
+    const userId = await getUserIdFromRequest(request)
 
     console.log("🗑️ API: Starting document deletion:", { documentId, orderId })
 
@@ -56,6 +87,15 @@ export async function DELETE(request: NextRequest) {
     if (count === 0) {
       console.error("❌ API: No rows were deleted")
       return NextResponse.json({ error: "No rows were deleted - document may not exist" }, { status: 404 })
+    }
+
+    // Log document deletion
+    if (userId) {
+      await AuditLogger.logDocumentDeleted(userId, documentId, {
+        fileName: existingDoc.file_name || "Unknown",
+        documentType: existingDoc.document_type || "Unknown",
+        orderId: orderId,
+      })
     }
 
     // Try to delete from storage (non-critical)
