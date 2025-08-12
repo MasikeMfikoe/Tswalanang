@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
-import TrackingUserCreator from "@/tracking-user-creator"
+import TrackingUserCreator from "@/components/TrackingUserCreator"
 import { Button } from "@/components/ui/button"
 
 export default function CreateTrackingUserPage() {
