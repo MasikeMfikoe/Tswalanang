@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { NewOrderDocumentUpload } from "@/components/NewOrderDocumentUpload"
 import { supabase } from "@/lib/supabase"
-import type { Order, Customer, Status, CargoStatus, FreightType } from "@/types/models"
+import type { Order, Customer, Status, CargoStatus, FreightTypeType } from "@/types/models"
 import { Textarea } from "@/components/ui/textarea"
 import { v4 as uuidv4 } from "uuid" // Import uuidv4
 
@@ -27,13 +27,13 @@ export default function CreateOrder() {
 
   // State for order form
   const [order, setOrder] = useState<Partial<Order>>({
-    poNumber: "",
+    po_number: "",
     supplier: "",
     importer: "",
     status: "Pending",
-    cargoStatus: "instruction-sent",
-    freightType: "Sea Freight",
-    cargoStatusComment: "",
+    cargo_status: "instruction-sent",
+    freight_type: "Sea Freight",
+    cargo_status_comment: "",
     origin: "", // Add origin field
     destination: "", // Add destination field
     tracking_number: "", // Add tracking_number field
@@ -199,7 +199,7 @@ export default function CreateOrder() {
   // Validate form fields
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {}
-    if (!order.poNumber) newErrors.poNumber = "PO Number is required"
+    if (!order.po_number) newErrors.po_number = "PO Number is required"
     if (!order.supplier) newErrors.supplier = "Supplier is required"
     if (!order.importer) newErrors.importer = "Importer is required"
     if (!order.origin) newErrors.origin = "Origin is required"
@@ -254,7 +254,7 @@ export default function CreateOrder() {
       const customer = customers.find((c) => c.name === customerName)
       if (customer?.rateCard) {
         const rateCard = customer.rateCard
-        const freightType = order.freightType || "Air Freight"
+        const freightType = order.freight_type || "Air Freight"
         const rates = freightType === "Air Freight" ? rateCard.airFreight : rateCard.seaFreight
 
         setCustomerRateCard(rateCard)
@@ -276,7 +276,7 @@ export default function CreateOrder() {
     if (order.importer) {
       fetchCustomerRateCard(order.importer)
     }
-  }, [order.importer, order.freightType, customers])
+  }, [order.importer, order.freight_type, customers])
 
   // Handle form submission - Save directly to Supabase
   const handleSubmit = async (e: React.MouseEvent) => {
@@ -287,16 +287,16 @@ export default function CreateOrder() {
     try {
       // Prepare order data for Supabase - include all required fields
       const orderData = {
-        order_number: order.poNumber,
-        po_number: order.poNumber,
+        order_number: order.po_number,
+        po_number: order.po_number,
         supplier: order.supplier,
         importer: order.importer,
         origin: order.origin || "Unknown", // Provide default value
         destination: order.destination || "Unknown", // Provide default value
         status: order.status || "Pending",
-        cargo_status: order.cargoStatus || "instruction-sent",
-        freight_type: order.freightType || "Sea Freight",
-        cargo_status_comment: order.cargoStatusComment || "",
+        cargo_status: order.cargo_status || "instruction-sent",
+        freight_type: order.freight_type || "Sea Freight",
+        cargo_status_comment: order.cargo_status_comment || "",
         total_value: 0,
         customer_name: order.importer,
         created_at: new Date().toISOString(),
@@ -372,22 +372,22 @@ export default function CreateOrder() {
                         <div className="flex gap-2">
                           <Input
                             id="poNumber"
-                            value={order.poNumber || ""}
-                            onChange={(e) => handleChange("poNumber", e.target.value)}
+                            value={order.po_number || ""}
+                            onChange={(e) => handleChange("po_number", e.target.value)}
                             aria-label="PO Number"
                             required
                             placeholder="Enter PO number or generate one"
-                            className={errors.poNumber ? "border-red-500" : ""}
+                            className={errors.po_number ? "border-red-500" : ""}
                           />
                           <Button
                             type="button"
                             variant="outline"
-                            onClick={() => handleChange("poNumber", generatePONumber())}
+                            onClick={() => handleChange("po_number", generatePONumber())}
                           >
                             Generate
                           </Button>
                         </div>
-                        {errors.poNumber && <p className="text-red-500 text-xs mt-1">{errors.poNumber}</p>}
+                        {errors.po_number && <p className="text-red-500 text-xs mt-1">{errors.po_number}</p>}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="supplier">Supplier</Label>
@@ -470,8 +470,8 @@ export default function CreateOrder() {
                       <div className="space-y-2">
                         <Label htmlFor="freightType">Freight Type</Label>
                         <Select
-                          value={order.freightType || "Sea Freight"}
-                          onValueChange={(value) => handleChange("freightType", value as FreightType)}
+                          value={order.freight_type || "Sea Freight"}
+                          onValueChange={(value) => handleChange("freight_type", value as FreightTypeType)}
                           disabled={isLoadingFreightTypes}
                         >
                           <SelectTrigger>
@@ -516,8 +516,8 @@ export default function CreateOrder() {
                       <div className="space-y-2 md:col-span-1">
                         <Label htmlFor="cargoStatus">Cargo Status</Label>
                         <Select
-                          value={order.cargoStatus || "instruction-sent"}
-                          onValueChange={(value) => handleChange("cargoStatus", value as CargoStatus)}
+                          value={order.cargo_status || "instruction-sent"}
+                          onValueChange={(value) => handleChange("cargo_status", value as CargoStatus)}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select cargo status" />
@@ -538,8 +538,8 @@ export default function CreateOrder() {
                         <Textarea
                           id="cargoStatusNotes"
                           placeholder="Add notes about the cargo status"
-                          value={order.cargoStatusComment || ""}
-                          onChange={(e) => handleChange("cargoStatusComment", e.target.value)}
+                          value={order.cargo_status_comment || ""}
+                          onChange={(e) => handleChange("cargo_status_comment", e.target.value)}
                           className="resize-y"
                         />
                       </div>
@@ -625,7 +625,7 @@ export default function CreateOrder() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="documentationFee">Documentation Fee ({order.freightType || "Air"}) (R)</Label>
+                        <Label htmlFor="documentationFee">Documentation Fee ({order.freight_type || "Air"}) (R)</Label>
                         <Input
                           id="documentationFee"
                           type="number"
@@ -636,7 +636,7 @@ export default function CreateOrder() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="communicationFee">Communication Fee ({order.freightType || "Air"}) (R)</Label>
+                        <Label htmlFor="communicationFee">Communication Fee ({order.freight_type || "Air"}) (R)</Label>
                         <Input
                           id="communicationFee"
                           type="number"
