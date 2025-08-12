@@ -39,7 +39,7 @@ export default function TrackingUserCreator() {
         password: userData.password,
       })
 
-      if (authError) throw new authError()
+      if (authError) throw authError
 
       // 2. Create user profile with tracking-only permissions
       const { error: profileError } = await supabase.from("user_profiles").insert({
