@@ -2,12 +2,12 @@
 
 import type React from "react"
 import { useState } from "react"
-import { Button } from "../components/ui/button"
-import { Input } from "../components/ui/input"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card"
-import { Label } from "../components/ui/label"
-import { supabase } from "../lib/supabase"
-import { useToast } from "../components/ui/use-toast"
+import { Button } from "./components/ui/button"
+import { Input } from "./components/ui/input"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./components/ui/card"
+import { Label } from "./components/ui/label"
+import { supabase } from "./lib/supabase"
+import { useToast } from "./components/ui/use-toast"
 
 interface UserData {
   name: string
