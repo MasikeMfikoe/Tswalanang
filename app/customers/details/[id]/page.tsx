@@ -43,9 +43,13 @@ interface Order {
   importer?: string
 }
 
-export default function CustomerDetails({ params }: { params: { id: string } }) {
+// <CHANGE> Updated component props to use Promise for Next.js 15 compatibility
+export default function CustomerDetails({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const { toast } = useToast()
+
+  // <CHANGE> Added state to store resolved params
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
 
   // State management
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -58,6 +62,21 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // <CHANGE> Added useEffect to resolve params Promise
+  useEffect(() => {
+    const resolveParams = async () => {
+      try {
+        const resolved = await params
+        setResolvedParams(resolved)
+      } catch (error) {
+        console.error('Error resolving params:', error)
+        setError('Failed to load page parameters')
+        setLoading(false)
+      }
+    }
+    resolveParams()
+  }, [params])
+
   // Add this function before the fetchCustomer function
   const isValidUUID = (str: string) => {
     if (!str) return false
@@ -68,19 +87,22 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
 
   // Update the fetchCustomer function to include validation
   const fetchCustomer = async () => {
+    // <CHANGE> Updated to use resolvedParams instead of params
+    if (!resolvedParams) return
+
     try {
       setLoading(true)
       setError(null)
 
-      console.log("Fetching customer with ID:", params.id)
+      console.log("Fetching customer with ID:", resolvedParams.id)
 
       // Validate UUID format
-      if (!isValidUUID(params.id)) {
-        console.log("Invalid UUID format:", params.id)
-        throw new Error(`Invalid customer ID format: ${params.id}`)
+      if (!isValidUUID(resolvedParams.id)) {
+        console.log("Invalid UUID format:", resolvedParams.id)
+        throw new Error(`Invalid customer ID format: ${resolvedParams.id}`)
       }
 
-      const { data, error } = await supabase.from("customers").select("*").eq("id", params.id).single()
+      const { data, error } = await supabase.from("customers").select("*").eq("id", resolvedParams.id).single()
 
       if (error) {
         console.error("Supabase error:", error)
@@ -109,7 +131,8 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
 
   // Fetch customer orders with fallback logic
   const fetchCustomerOrders = async () => {
-    if (!customer) return
+    // <CHANGE> Updated to use resolvedParams instead of params
+    if (!customer || !resolvedParams) return
 
     try {
       setOrdersLoading(true)
@@ -126,7 +149,7 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
         if (!testError) {
           // customer_id column exists, use it
           const { data, error } = await ordersQuery
-            .eq("customer_id", params.id)
+            .eq("customer_id", resolvedParams.id)
             .order("created_at", { ascending: false })
 
           if (error) throw error
@@ -160,15 +183,16 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
     }
   }
 
+  // <CHANGE> Updated useEffect to depend on resolvedParams instead of params
   // Load data on component mount - only for valid UUIDs
   useEffect(() => {
-    if (isValidUUID(params.id)) {
+    if (resolvedParams && isValidUUID(resolvedParams.id)) {
       fetchCustomer()
-    } else {
+    } else if (resolvedParams) {
       setLoading(false)
-      setError(`Invalid customer ID format: ${params.id}`)
+      setError(`Invalid customer ID format: ${resolvedParams.id}`)
     }
-  }, [params.id])
+  }, [resolvedParams])
 
   // Fetch orders after customer is loaded
   useEffect(() => {
@@ -189,7 +213,8 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!editedCustomer) return
+    // <CHANGE> Updated to use resolvedParams instead of params
+    if (!editedCustomer || !resolvedParams) return
 
     try {
       setSaving(true)
@@ -209,7 +234,7 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
           importers_code: editedCustomer.importers_code,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", params.id)
+        .eq("id", resolvedParams.id)
         .select()
         .single()
 
@@ -244,7 +269,7 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
   }
 
   // Loading state
-  if (loading) {
+  if (loading || !resolvedParams) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
@@ -269,7 +294,7 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
             </Button>
           </div>
           <div className="mt-4 text-sm text-gray-500">
-            <p>Current URL: /customers/details/{params.id}</p>
+            <p>Current URL: /customers/details/{resolvedParams.id}</p>
             <p>Expected: Valid UUID format</p>
           </div>
         </div>
@@ -446,7 +471,8 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
           </TabsContent>
 
           <TabsContent value="rateCard" className="mt-4">
-            <RateCard customerId={params.id} isEditable={isEditing} />
+            {/* <CHANGE> Updated to use resolvedParams instead of params */}
+            <RateCard customerId={resolvedParams.id} isEditable={isEditing} />
           </TabsContent>
         </Tabs>
       </div>
