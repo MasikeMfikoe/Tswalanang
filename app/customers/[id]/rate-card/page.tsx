@@ -20,7 +20,8 @@ import type { RateItem, FreightType } from "@/types/rates"
 import { useToast } from "@/components/ui/use-toast"
 import { Plus, Pencil, Save, X } from "lucide-react"
 
-export default function CustomerRateCard({ params }: { params: { id: string } }) {
+export default function CustomerRateCard({ params }: { params: Promise<{ id: string }> }) {
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
   const [rates, setRates] = useState<RateItem[]>(defaultRates)
   const [freightTypes, setFreightTypes] = useState<FreightType[]>(defaultFreightTypes)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -34,11 +35,21 @@ export default function CustomerRateCard({ params }: { params: { id: string } })
   const router = useRouter()
   const { toast } = useToast()
 
+  useEffect(() => {
+    const resolveParams = async () => {
+      const resolved = await params
+      setResolvedParams(resolved)
+    }
+    resolveParams()
+  }, [params])
+
   // In a real application, you would fetch the customer's specific rates here
   useEffect(() => {
-    // Fetch customer-specific rates
-    // For now, we'll use the default rates
-  }, [])
+    if (resolvedParams?.id) {
+      // Fetch customer-specific rates
+      // For now, we'll use the default rates
+    }
+  }, [resolvedParams])
 
   const handleSave = (id: string, updatedRate: RateItem) => {
     setRates(rates.map((rate) => (rate.id === id ? updatedRate : rate)))

@@ -14,10 +14,11 @@ export default function DeliveryConfirmationPage({
   params,
   searchParams,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
   searchParams: { token: string }
 }) {
   const router = useRouter()
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -29,16 +30,26 @@ export default function DeliveryConfirmationPage({
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
   const [orderDetails, setOrderDetails] = useState<any>(null)
 
+  useEffect(() => {
+    const resolveParams = async () => {
+      const resolved = await params
+      setResolvedParams(resolved)
+    }
+    resolveParams()
+  }, [params])
+
   // Fetch order details
   useEffect(() => {
     const fetchOrderDetails = async () => {
+      if (!resolvedParams?.id) return
+
       try {
         setLoading(true)
         // In a real implementation, this would validate the token and fetch order details
         // For now, we'll simulate a successful response
         setOrderDetails({
-          id: params.id,
-          waybillNo: `WB-${params.id}`,
+          id: resolvedParams.id,
+          waybillNo: `WB-${resolvedParams.id}`,
           sender: "ABC Company",
           receiver: "XYZ Corporation",
           status: "Out for Delivery",
@@ -50,8 +61,10 @@ export default function DeliveryConfirmationPage({
       }
     }
 
-    fetchOrderDetails()
-  }, [params.id, searchParams.token])
+    if (resolvedParams) {
+      fetchOrderDetails()
+    }
+  }, [resolvedParams, searchParams.token])
 
   // Signature pad functions
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -162,6 +175,17 @@ export default function DeliveryConfirmationPage({
     }
   }
 
+  if (!resolvedParams) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (loading && !orderDetails) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -215,7 +239,7 @@ export default function DeliveryConfirmationPage({
         <CardHeader>
           <CardTitle>Delivery Confirmation</CardTitle>
           <CardDescription>
-            Order #{params.id} • Waybill: {orderDetails?.waybillNo}
+            Order #{resolvedParams.id} • Waybill: {orderDetails?.waybillNo}
           </CardDescription>
         </CardHeader>
         <CardContent>
