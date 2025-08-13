@@ -24,8 +24,8 @@ interface LivePreviewSectionProps {
 
 export default function LivePreviewSection({ navigationStructure, permissions }: LivePreviewSectionProps) {
   const isPathAllowed = (path: string) => {
-    const permission = permissions.find((p) => p.pagePath === path)
-    return permission?.allowed || false
+    const permission = permissions.find((p) => p.module === path)
+    return permission?.view || false
   }
 
   // Map icon names to actual Lucide icons
