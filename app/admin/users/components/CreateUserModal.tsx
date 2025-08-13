@@ -9,6 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { User, UserGroup, UserRole } from "@/types/auth"
 import { AlertCircle, Check, RefreshCw, Building2, UserIcon } from "lucide-react"
 
+interface CreateUserFormData extends Partial<User> {
+  password: string
+}
+
 interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
@@ -26,7 +30,7 @@ export default function CreateUserModal({
   existingEmails,
   defaultRole = "employee",
 }: CreateUserModalProps) {
-  const [formData, setFormData] = useState<Partial<User>>({
+  const [formData, setFormData] = useState<CreateUserFormData>({
     name: "",
     surname: "",
     email: "",
@@ -87,7 +91,7 @@ export default function CreateUserModal({
     }, 500)
   }
 
-  const handleInputChange = (field: keyof User, value: string) => {
+  const handleInputChange = (field: keyof CreateUserFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
 
     // Clear error when user types
@@ -149,8 +153,9 @@ export default function CreateUserModal({
 
   const handleSubmit = () => {
     if (validateForm()) {
+      const { password, ...userData } = formData
       onCreateUser({
-        ...formData,
+        ...userData,
         sendWelcomeEmail,
       })
     }
