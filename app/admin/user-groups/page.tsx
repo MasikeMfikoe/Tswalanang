@@ -14,11 +14,11 @@ import type { UserGroup, GroupPermission } from "@/types/auth"
 
 // Mock data for initial development
 const initialGroups: UserGroup[] = [
-  { id: "1", name: "Super Admin", createdAt: new Date().toISOString() },
-  { id: "2", name: "Sales", createdAt: new Date().toISOString() },
-  { id: "3", name: "HR", createdAt: new Date().toISOString() },
-  { id: "4", name: "Support", createdAt: new Date().toISOString() },
-  { id: "5", name: "Guest", createdAt: new Date().toISOString() },
+  { id: "1", name: "Super Admin", created_at: new Date().toISOString() },
+  { id: "2", name: "Sales", created_at: new Date().toISOString() },
+  { id: "3", name: "HR", created_at: new Date().toISOString() },
+  { id: "4", name: "Support", created_at: new Date().toISOString() },
+  { id: "5", name: "Guest", created_at: new Date().toISOString() },
 ]
 
 export default function AdminUserGroupsPage() {
@@ -53,20 +53,20 @@ export default function AdminUserGroupsPage() {
       // In a real app, this would fetch from API
       // For now, we'll use mock data
       const mockPermissions: GroupPermission[] = [
-        { id: "1", groupId: selectedGroup.id, pagePath: "/dashboard", allowed: true },
-        { id: "2", groupId: selectedGroup.id, pagePath: "/orders", allowed: selectedGroup.id !== "5" },
-        { id: "3", groupId: selectedGroup.id, pagePath: "/orders/new", allowed: selectedGroup.id !== "5" },
-        { id: "4", groupId: selectedGroup.id, pagePath: "/documents", allowed: true },
-        { id: "5", groupId: selectedGroup.id, pagePath: "/settings", allowed: selectedGroup.id === "1" },
-        { id: "6", groupId: selectedGroup.id, pagePath: "/settings/users", allowed: selectedGroup.id === "1" },
-        { id: "7", groupId: selectedGroup.id, pagePath: "/settings/billing", allowed: selectedGroup.id === "1" },
-        { id: "8", groupId: selectedGroup.id, pagePath: "/analytics", allowed: selectedGroup.id !== "5" },
-        { id: "9", groupId: selectedGroup.id, pagePath: "/analytics/reports", allowed: selectedGroup.id !== "5" },
+        { id: "1", groupId: selectedGroup.id, module: "/dashboard", view: true },
+        { id: "2", groupId: selectedGroup.id, module: "/orders", view: selectedGroup.id !== "5" },
+        { id: "3", groupId: selectedGroup.id, module: "/orders/new", view: selectedGroup.id !== "5" },
+        { id: "4", groupId: selectedGroup.id, module: "/documents", view: true },
+        { id: "5", groupId: selectedGroup.id, module: "/settings", view: selectedGroup.id === "1" },
+        { id: "6", groupId: selectedGroup.id, module: "/settings/users", view: selectedGroup.id === "1" },
+        { id: "7", groupId: selectedGroup.id, module: "/settings/billing", view: selectedGroup.id === "1" },
+        { id: "8", groupId: selectedGroup.id, module: "/analytics", view: selectedGroup.id !== "5" },
+        { id: "9", groupId: selectedGroup.id, module: "/analytics/reports", view: selectedGroup.id !== "5" },
         {
           id: "10",
           groupId: selectedGroup.id,
-          pagePath: "/analytics/reports/monthly",
-          allowed: selectedGroup.id !== "5",
+          module: "/analytics/reports/monthly",
+          view: selectedGroup.id !== "5",
         },
       ]
       setPermissions(mockPermissions)
@@ -77,7 +77,7 @@ export default function AdminUserGroupsPage() {
     const newGroup: UserGroup = {
       id: `group-${Date.now()}`,
       name: "New Group",
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     }
     setGroups([...groups, newGroup])
     setSelectedGroup(newGroup)
