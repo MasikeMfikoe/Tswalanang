@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import { courierOrdersApi } from "@/lib/api/courierOrdersApi"
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await params
     const orderId = id
 
     // Get order details
