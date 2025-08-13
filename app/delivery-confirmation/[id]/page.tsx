@@ -15,10 +15,11 @@ export default function DeliveryConfirmationPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: { token: string }
+  searchParams: Promise<{ token: string }> // Updated to Promise type for Next.js 15 compatibility
 }) {
   const router = useRouter()
   const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
+  const [resolvedSearchParams, setResolvedSearchParams] = useState<{ token: string } | null>(null) // Added state for resolved searchParams
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -38,10 +39,18 @@ export default function DeliveryConfirmationPage({
     resolveParams()
   }, [params])
 
+  useEffect(() => {
+    const resolveSearchParams = async () => {
+      const resolved = await searchParams
+      setResolvedSearchParams(resolved)
+    }
+    resolveSearchParams()
+  }, [searchParams])
+
   // Fetch order details
   useEffect(() => {
     const fetchOrderDetails = async () => {
-      if (!resolvedParams?.id) return
+      if (!resolvedParams?.id || !resolvedSearchParams?.token) return
 
       try {
         setLoading(true)
@@ -61,10 +70,11 @@ export default function DeliveryConfirmationPage({
       }
     }
 
-    if (resolvedParams) {
+    if (resolvedParams && resolvedSearchParams) {
+      // Updated condition to check both resolved values
       fetchOrderDetails()
     }
-  }, [resolvedParams, searchParams.token])
+  }, [resolvedParams, resolvedSearchParams]) // Updated dependency to use resolved searchParams
 
   // Signature pad functions
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -175,7 +185,8 @@ export default function DeliveryConfirmationPage({
     }
   }
 
-  if (!resolvedParams) {
+  if (!resolvedParams || !resolvedSearchParams) {
+    // Updated condition to check both resolved values
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
