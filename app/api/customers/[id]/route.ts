@@ -24,9 +24,10 @@ const getUserIdFromRequest = async (request: NextRequest): Promise<string | null
 }
 
 // GET: Fetch a single customer by ID
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const customerId = params.id
+    const { id } = await params
+    const customerId = id
     const supabase = createRouteHandlerClient({ cookies })
 
     const { data: customer, error } = await supabase.from("customers").select("*").eq("id", customerId).single()
@@ -54,9 +55,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT: Update a customer
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const customerId = params.id
+    const { id } = await params
+    const customerId = id
     const customerData = await request.json()
     const userId = await getUserIdFromRequest(request)
     const supabase = createRouteHandlerClient({ cookies })
@@ -105,9 +107,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE: Delete a customer
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const customerId = params.id
+    const { id } = await params
+    const customerId = id
     const userId = await getUserIdFromRequest(request)
     const supabase = createRouteHandlerClient({ cookies })
 

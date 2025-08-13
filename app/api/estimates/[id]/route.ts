@@ -72,9 +72,9 @@ const generateMockEstimate = (id: string) => {
 }
 
 // GET: Fetch a single estimate by ID
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await params
     console.log("GET /api/estimates/[id] - Fetching estimate:", id)
 
     if (!id) {
@@ -125,9 +125,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT: Update an existing estimate
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await params
     const estimateData = await request.json()
     const userId = await getUserIdFromRequest(request)
     console.log("PUT /api/estimates/[id] - Updating estimate:", id, estimateData)
@@ -214,9 +214,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE: Delete an estimate
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await params
     const userId = await getUserIdFromRequest(request)
     console.log("DELETE /api/estimates/[id] - Deleting estimate:", id)
 
