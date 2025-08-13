@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "../../../../components/ui/switch"
 import type { User, UserGroup, UserRole } from "@/types/auth"
 import { AlertCircle, Check, RefreshCw, Building2, UserIcon } from "lucide-react"
 
@@ -329,7 +328,13 @@ export default function CreateUserModal({
           )}
 
           <div className="flex items-center space-x-2 pt-2">
-            <Switch id="send-email" checked={sendWelcomeEmail} onCheckedChange={setSendWelcomeEmail} />
+            <input
+              type="checkbox"
+              id="send-email"
+              checked={sendWelcomeEmail}
+              onChange={(e) => setSendWelcomeEmail(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
             <Label htmlFor="send-email">Send welcome email with login credentials</Label>
           </div>
         </div>
