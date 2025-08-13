@@ -17,7 +17,16 @@ interface UserAssignmentSectionProps {
 
 // Mock users for development
 const mockUsers: User[] = [
-  { id: "1", username: "john.doe", name: "John", surname: "Doe", role: "admin", department: "IT", pageAccess: [] },
+  {
+    id: "1",
+    username: "john.doe",
+    name: "John",
+    surname: "Doe",
+    role: "admin",
+    department: "IT",
+    pageAccess: [],
+    email: "john.doe@company.com",
+  },
   {
     id: "2",
     username: "jane.smith",
@@ -26,6 +35,7 @@ const mockUsers: User[] = [
     role: "manager",
     department: "Sales",
     pageAccess: [],
+    email: "jane.smith@company.com",
   },
   {
     id: "3",
@@ -35,6 +45,7 @@ const mockUsers: User[] = [
     role: "employee",
     department: "Support",
     pageAccess: [],
+    email: "bob.johnson@company.com",
   },
   {
     id: "4",
@@ -44,6 +55,7 @@ const mockUsers: User[] = [
     role: "manager",
     department: "HR",
     pageAccess: [],
+    email: "alice.williams@company.com",
   },
   {
     id: "5",
@@ -53,6 +65,7 @@ const mockUsers: User[] = [
     role: "employee",
     department: "Marketing",
     pageAccess: [],
+    email: "charlie.brown@company.com",
   },
   {
     id: "6",
@@ -62,6 +75,7 @@ const mockUsers: User[] = [
     role: "manager",
     department: "Operations",
     pageAccess: [],
+    email: "diana.prince@company.com",
   },
   {
     id: "7",
@@ -71,6 +85,7 @@ const mockUsers: User[] = [
     role: "employee",
     department: "Finance",
     pageAccess: [],
+    email: "edward.stark@company.com",
   },
 ]
 
@@ -120,7 +135,7 @@ export default function UserAssignmentSection({ groupId, isDefaultGroup }: UserA
                 variant="outline"
                 role="combobox"
                 aria-expanded={open}
-                className="justify-between"
+                className="justify-between bg-transparent"
                 disabled={isDefaultGroup}
               >
                 <span>Select users...</span>
