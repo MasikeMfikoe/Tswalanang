@@ -15,6 +15,7 @@ import ClientPackDocuments from "@/components/ClientPackDocuments"
 import { Download, Loader2, Search } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
+import { useQuery } from "react-query"
 
 interface OrderData {
   id: string
@@ -53,20 +54,36 @@ interface OrderData {
   total_amount?: number
 }
 
-export default function OrderDetails({ params }: { params: { id: string } }) {
-  const { toast } = useToast()
-  const router = useRouter()
+const fetchOrderById = async (id: string) => {
+  const { data, error } = await supabase.from("orders").select("*").eq("id", id).single()
+  if (error) {
+    throw error
+  }
+  return data
+}
 
-  const [order, setOrder] = useState<OrderData | null>(null)
+export default function OrderDetails({ params }: { params: Promise<{ id: string }> }) {
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
+  const router = useRouter()
+  const { toast } = useToast()
+  const [order, setOrder] = useState<OrderData | null>(null) // Declare setOrder variable
+
+  const {
+    data: fetchedOrder,
+    isLoading: queryLoading,
+    error: queryError,
+  } = useQuery({
+    queryKey: ["order", resolvedParams?.id],
+    queryFn: () => (resolvedParams?.id ? fetchOrderById(resolvedParams.id) : null),
+    enabled: !!resolvedParams?.id,
+  })
+
   const [tempOrder, setTempOrder] = useState<OrderData | null>(null)
   const [customers, setCustomers] = useState([])
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState("documents")
-  const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [hasFinancialColumns, setHasFinancialColumns] = useState(false)
-  // State to track if calculated financial columns exist in Supabase
   const [hasCalculatedFinancialColumns, setHasCalculatedFinancialColumns] = useState(false)
 
   const [cargoStatusHistory, setCargoStatusHistory] = useState([
@@ -82,10 +99,8 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     },
   ])
 
-  // Check if financial columns exist in the orders table
   const checkFinancialColumns = async () => {
     try {
-      // Try to select financial columns to see if they exist
       const { data, error } = await supabase
         .from("orders")
         .select(
@@ -101,7 +116,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         console.warn("Financial columns do NOT exist in orders table or query failed:", error.message)
       }
       console.log("Final hasFinancialColumns state:", !error)
-      // Check for calculated financial columns
+
       const { data: calculatedData, error: calculatedError } = await supabase
         .from("orders")
         .select("customs_vat, total_disbursements, facility_fee, agency_fee, subtotal_amount, vat_amount, total_amount")
@@ -125,56 +140,6 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     }
   }
 
-  // Fetch order details from Supabase
-  const fetchOrderDetails = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-
-      // First check if financial columns exist
-      await checkFinancialColumns()
-
-      const { data, error: supabaseError } = await supabase.from("orders").select("*").eq("id", params.id).single()
-
-      if (supabaseError) {
-        throw supabaseError
-      }
-
-      if (!data) {
-        throw new Error("Order not found")
-      }
-
-      console.log("Fetched order details:", data)
-      setOrder(data)
-      setTempOrder(data)
-
-      // Update cargo status history with real data
-      setCargoStatusHistory([
-        {
-          id: "1",
-          status: data.cargo_status || "pending",
-          comment: data.cargo_status_comment || "Order created",
-          timestamp: data.created_at,
-          user: {
-            name: "System",
-            surname: "User",
-          },
-        },
-      ])
-    } catch (error: any) {
-      console.error("Error fetching order:", error)
-      setError(error.message || "Failed to fetch order details")
-      toast({
-        title: "Error",
-        description: "Failed to load order details",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Fetch customers for dropdown
   const fetchCustomers = async () => {
     try {
       const { data, error: supabaseError } = await supabase.from("customers").select("id, name").order("name")
@@ -193,7 +158,6 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
       )
     } catch (error) {
       console.error("Error fetching customers:", error)
-      // Use fallback data
       setCustomers([
         { id: 1, name: "Acme Corp" },
         { id: 2, name: "Global Traders" },
@@ -204,15 +168,28 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
   }
 
   useEffect(() => {
-    fetchOrderDetails()
-    fetchCustomers()
-  }, [params.id])
+    params.then(setResolvedParams)
+  }, [params])
+
+  useEffect(() => {
+    if (resolvedParams) {
+      checkFinancialColumns()
+      fetchCustomers()
+    }
+  }, [resolvedParams])
 
   useEffect(() => {
     if (!isEditing && activeTab === "upload") {
       setActiveTab("documents")
     }
   }, [isEditing, activeTab])
+
+  useEffect(() => {
+    if (fetchedOrder) {
+      setOrder(fetchedOrder)
+      setTempOrder(fetchedOrder)
+    }
+  }, [fetchedOrder])
 
   const handleChange = (field: string, value: string | number | null) => {
     if (tempOrder) {
@@ -227,11 +204,10 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     try {
       setIsSaving(true)
 
-      // First, verify the order exists
       const { data: existingOrder, error: checkError } = await supabase
         .from("orders")
         .select("id")
-        .eq("id", params.id)
+        .eq("id", resolvedParams?.id)
         .maybeSingle()
 
       if (checkError) {
@@ -243,24 +219,16 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         throw new Error("Order not found. It may have been deleted.")
       }
 
-      // Start with a copy of tempOrder to include all fields by default
       const updateData: Partial<OrderData> = { ...tempOrder }
 
-      // Remove properties that should not be updated or are handled separately
-      delete updateData.id // ID is used in the .eq() clause, not for update
-      delete updateData.created_at // Creation timestamp should not be updated by client
+      delete updateData.id
+      delete updateData.created_at
 
-      // Ensure updated_at is always set to now
       updateData.updated_at = new Date().toISOString()
 
-      // Only add financial fields if they exist in the table
-      // This block remains the same as it correctly handles conditional inclusion
-      // and calculation of derived financial fields.
       if (hasFinancialColumns) {
-        // Explicitly ensure financial_notes is included if hasFinancialColumns is true
         updateData.financial_notes = tempOrder.financial_notes || null
 
-        // Calculate derived financial fields and add them if columns exist
         if (hasCalculatedFinancialColumns) {
           const commercialValue = tempOrder.commercial_value || 0
           const customsDuties = tempOrder.customs_duties || 0
@@ -272,8 +240,8 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
 
           const totalDisbursements =
             customsDuties + customsVAT + handlingFees + shippingCost + documentationFee + communicationFee
-          const facilityFee = totalDisbursements * 0.025 // 2.5%
-          const agencyFee = totalDisbursements * 0.035 // 3.5%
+          const facilityFee = totalDisbursements * 0.025
+          const agencyFee = totalDisbursements * 0.035
           const subtotal = totalDisbursements + facilityFee + agencyFee
           const vat = subtotal * 0.15
           const total = subtotal + vat
@@ -287,7 +255,6 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
           updateData.total_amount = total
         }
       } else {
-        // If financial columns don't exist, ensure these are not sent
         delete updateData.commercial_value
         delete updateData.customs_duties
         delete updateData.handling_fees
@@ -309,15 +276,14 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
       console.log("hasCalculatedFinancialColumns:", hasCalculatedFinancialColumns)
       console.log("Update payload for financial_notes:", updateData.financial_notes)
 
-      // Update order in Supabase - Improved error handling
       const { error: updateError, count } = await supabase
         .from("orders")
         .update(updateData)
-        .eq("id", params.id)
+        .eq("id", resolvedParams?.id)
         .select("*", { count: "exact" })
 
       if (updateError) {
-        console.error("Supabase update error details:", updateError) // Log the full error object
+        console.error("Supabase update error details:", updateError)
         throw updateError
       }
 
@@ -325,16 +291,14 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         throw new Error("No order was updated. This may be due to permissions or the order may have been deleted.")
       }
 
-      // Fetch the updated order separately to ensure we have the latest data
       const { data: updatedOrder, error: fetchError } = await supabase
         .from("orders")
         .select("*")
-        .eq("id", params.id)
+        .eq("id", resolvedParams?.id)
         .single()
 
       if (fetchError || !updatedOrder) {
         console.error("Error fetching updated order:", fetchError)
-        // Don't throw error here, just log it and continue with existing data
         console.log("Continuing with existing order data")
       }
 
@@ -342,21 +306,19 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
 
       console.log("Order updated successfully. Rows affected:", count)
 
-      // Update cargo status history if status changed
       if (order.cargo_status !== tempOrder.cargo_status) {
         const historyEntry = {
-          order_id: params.id,
+          order_id: resolvedParams?.id,
           status: tempOrder.cargo_status || "pending",
           comment: tempOrder.cargo_status_comment || "",
           created_at: new Date().toISOString(),
-          user_name: "Current User", // You can replace this with actual user data
+          user_name: "Current User",
         }
 
         const { error: historyError } = await supabase.from("cargo_status_history").insert(historyEntry)
 
         if (historyError) {
           console.warn("Failed to create cargo status history:", historyError)
-          // Don't throw error here, just log it
         }
 
         setCargoStatusHistory((prev) => [
@@ -373,11 +335,9 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
           ...prev,
         ])
 
-        // Clear the comment after adding to history
         setTempOrder((prev) => ({ ...prev!, cargo_status_comment: "" }))
       }
 
-      // Update local state with the returned data
       setOrder(finalOrderData)
       setTempOrder(finalOrderData)
       setIsEditing(false)
@@ -387,8 +347,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         description: "Order updated successfully",
       })
 
-      // Refresh the page data to ensure consistency
-      await fetchOrderDetails()
+      await fetchOrderById(resolvedParams?.id!)
     } catch (error: any) {
       console.error("Error updating order:", error)
       toast({
@@ -412,11 +371,10 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     try {
       console.log("Marking order as completed:", order.id)
 
-      // First verify the order exists
       const { data: existingOrder, error: checkError } = await supabase
         .from("orders")
         .select("id")
-        .eq("id", params.id)
+        .eq("id", resolvedParams?.id)
         .maybeSingle()
 
       if (checkError) {
@@ -428,14 +386,13 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         throw new Error("Order not found. It may have been deleted.")
       }
 
-      // Update the order status to Completed in Supabase - Improved error handling
       const { error: updateError, count } = await supabase
         .from("orders")
         .update({
           status: "Completed",
           updated_at: new Date().toISOString(),
         })
-        .eq("id", params.id)
+        .eq("id", resolvedParams?.id)
         .select("*", { count: "exact" })
 
       if (updateError) {
@@ -447,11 +404,10 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         throw new Error("No order was updated. This may be due to permissions or the order may have been deleted.")
       }
 
-      // Fetch the updated order separately
       const { data: updatedOrder, error: fetchError } = await supabase
         .from("orders")
         .select("*")
-        .eq("id", params.id)
+        .eq("id", resolvedParams?.id)
         .single()
 
       if (fetchError || !updatedOrder) {
@@ -463,9 +419,8 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
 
       console.log("Payment status updated successfully. Rows affected:", count)
 
-      // Update cargo status history
       const historyEntry = {
-        order_id: params.id,
+        order_id: resolvedParams?.id,
         status: "delivered",
         comment: "Payment received and order completed",
         created_at: new Date().toISOString(),
@@ -541,13 +496,26 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     const link = document.createElement("a")
     const url = URL.createObjectURL(blob)
     link.setAttribute("href", url)
-    link.setAttribute("download", `cargo_status_report_${order?.order_number || order?.po_number || params.id}.csv`)
+    link.setAttribute(
+      "download",
+      `cargo_status_report_${order?.order_number || order?.po_number || resolvedParams?.id}.csv`,
+    )
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
 
-  if (isLoading) {
+  if (!resolvedParams) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (queryLoading) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="flex items-center space-x-2">
@@ -558,17 +526,17 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     )
   }
 
-  if (error || !order) {
+  if (queryError || !order) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4">
           <h2 className="text-xl font-semibold text-red-600">Order Not Found</h2>
-          <p className="text-gray-600">{error || "The requested order could not be found."}</p>
+          <p className="text-gray-600">{queryError?.message || "The requested order could not be found."}</p>
           <div className="space-x-2">
             <Button variant="outline" onClick={() => router.push("/orders")}>
               Back to Orders
             </Button>
-            <Button onClick={() => fetchOrderDetails()}>Try Again</Button>
+            <Button onClick={() => fetchOrderById(resolvedParams?.id!)}>Try Again</Button>
           </div>
         </div>
       </div>
@@ -785,7 +753,6 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {/* Financial Form - Editable */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="commercialValue">Commercial Value (R)</Label>
@@ -875,7 +842,6 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                         </div>
                       </div>
 
-                      {/* Notes - Full Width */}
                       <div className="space-y-2">
                         <Label htmlFor="financialNotes">Notes</Label>
                         {isEditing ? (
@@ -892,7 +858,6 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                         )}
                       </div>
 
-                      {/* Summary Section */}
                       <div className="border-t pt-6">
                         <h3 className="text-lg font-semibold mb-4">Financial Summary</h3>
                         <div className="bg-gray-50 p-4 rounded-lg space-y-3">
@@ -912,8 +877,8 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                               shippingCost +
                               documentationFee +
                               communicationFee
-                            const facilityFee = totalDisbursements * 0.025 // 2.5%
-                            const agencyFee = totalDisbursements * 0.035 // 3.5%
+                            const facilityFee = totalDisbursements * 0.025
+                            const agencyFee = totalDisbursements * 0.035
                             const subtotal = totalDisbursements + facilityFee + agencyFee
                             const vat = subtotal * 0.15
                             const total = subtotal + vat
@@ -963,7 +928,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
               </TabsContent>
             )}
             <TabsContent value="pod">
-              <PODManagement orderId={params.id} />
+              <PODManagement orderId={resolvedParams?.id} />
             </TabsContent>
             <TabsContent value="cargo-history">
               <Card>
@@ -1037,7 +1002,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
               </Card>
             </TabsContent>
             <TabsContent value="client-pack">
-              <ClientPackDocuments orderId={params.id} freightType={order.freight_type || ""} />
+              <ClientPackDocuments orderId={resolvedParams?.id} freightType={order.freight_type || ""} />
             </TabsContent>
           </Tabs>
         </div>
