@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server"
 import { AuditLogger } from "@/lib/audit-logger"
-
-// Supabase Configuration
-import { createClient } from "@supabase/supabase-js"
-
-const supabaseUrl = process.env.SUPABASE_URL || ""
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || ""
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
+import { supabase } from "@/lib/supabase"
 
 // Mock data (Replace with DB calls in real use)
 const customers = [
@@ -63,7 +57,7 @@ const getUserIdFromRequest = async (request: Request): Promise<string | null> =>
   }
 }
 
-// 📌 Handle GET Requests
+// Handle GET Requests
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const customerId = url.searchParams.get("customerId")
@@ -80,7 +74,7 @@ export async function GET(request: Request) {
   return NextResponse.json(orders)
 }
 
-// 📌 Handle Order Creation (POST)
+// Handle Order Creation (POST)
 export async function POST(request: Request) {
   const body = await request.json()
   const userId = await getUserIdFromRequest(request)
@@ -105,7 +99,7 @@ export async function POST(request: Request) {
   return NextResponse.json(newOrder, { status: 201 })
 }
 
-// 📌 Handle Order Updates (PUT)
+// Handle Order Updates (PUT)
 export async function PUT(request: Request) {
   const body = await request.json()
   const userId = await getUserIdFromRequest(request)

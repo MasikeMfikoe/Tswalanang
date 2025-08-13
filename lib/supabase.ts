@@ -4,7 +4,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Missing Supabase environment variables")
+  console.warn("Missing Supabase environment variables - API routes may not function properly")
 }
 
 export const supabase = createClient(
@@ -100,13 +100,18 @@ export async function deleteData(table: string, id: string): Promise<boolean> {
   }
 }
 
-// Test the connection
 export async function testConnection(): Promise<boolean> {
   try {
+    // Check if environment variables are properly set
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.warn("❌ Supabase environment variables not configured")
+      return false
+    }
+
     const { data, error } = await supabase.from("user_profiles").select("count").limit(1)
 
     if (error) {
-      console.error("Supabase connection test failed:", error)
+      console.error("Supabase connection test failed:", error.message)
       return false
     }
 
