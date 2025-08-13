@@ -7,15 +7,20 @@ interface ShipmentTrackerResultsPageProps {
   params: Promise<{
     trackingNumber: string
   }>
-  searchParams: {
+  searchParams: Promise<{
     bookingType?: string
     carrierHint?: string
     preferScraping?: string
-  }
+  }>
 }
 
 export default function ShipmentTrackerResultsPage({ params, searchParams }: ShipmentTrackerResultsPageProps) {
   const [resolvedParams, setResolvedParams] = useState<{ trackingNumber: string } | null>(null)
+  const [resolvedSearchParams, setResolvedSearchParams] = useState<{
+    bookingType?: string
+    carrierHint?: string
+    preferScraping?: string
+  } | null>(null)
 
   useEffect(() => {
     const resolveParams = async () => {
@@ -25,12 +30,22 @@ export default function ShipmentTrackerResultsPage({ params, searchParams }: Shi
     resolveParams()
   }, [params])
 
-  const { bookingType, carrierHint, preferScraping } = searchParams
+  useEffect(() => {
+    const resolveSearchParams = async () => {
+      const resolved = await searchParams
+      setResolvedSearchParams(resolved)
+    }
+    resolveSearchParams()
+  }, [searchParams])
+
+  const bookingType = resolvedSearchParams?.bookingType
+  const carrierHint = resolvedSearchParams?.carrierHint
+  const preferScraping = resolvedSearchParams?.preferScraping
 
   // Convert preferScraping to boolean
   const shouldPreferScraping = preferScraping === "true"
 
-  if (!resolvedParams) {
+  if (!resolvedParams || !resolvedSearchParams) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
         <div className="text-center">
