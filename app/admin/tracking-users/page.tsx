@@ -15,7 +15,7 @@ import { useAuth } from "@/contexts/AuthContext"
 export default function TrackingUsersPage() {
   const router = useRouter()
   const { toast } = useToast()
-  const { register, getUsers } = useAuth()
+  const { createUser, getUsers } = useAuth()
   const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -106,15 +106,15 @@ export default function TrackingUsersPage() {
 
     try {
       // Create a tracking-only user
-      await register({
-        username: newUser.username,
-        password: newUser.password,
+      await createUser({
         name: newUser.name,
         surname: newUser.surname,
         role: "guest", // Using guest role with limited access
         department: newUser.company || "Client",
         pageAccess: ["shipmentTracker"], // Only access to shipment tracker
         email: newUser.email,
+        password: newUser.password, // Now properly handled by createUser function
+        sendWelcomeEmail: false, // Don't send welcome email for tracking users
       })
 
       toast({
