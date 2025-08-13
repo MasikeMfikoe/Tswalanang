@@ -77,6 +77,10 @@ export default function PermissionsEditor({
 }: PermissionsEditorProps) {
   const [activeTab, setActiveTab] = useState("permissions")
 
+  const isSystemGroup = (groupName: string) => {
+    return groupName === "Super Admin" || groupName === "Admin" || groupName === "Default"
+  }
+
   const handlePermissionChange = (pagePath: string, view: boolean) => {
     const updatedPermissions = permissions.map((p) => (p.module === pagePath ? { ...p, view } : p))
 
@@ -111,7 +115,7 @@ export default function PermissionsEditor({
             id={item.path}
             checked={isAllowed}
             onCheckedChange={(checked) => handlePermissionChange(item.path, !!checked)}
-            disabled={group.name === "Super Admin"} // Super Admin always has all permissions
+            disabled={isSystemGroup(group.name)} // Super Admin always has all permissions
           />
           <Label htmlFor={item.path} className="ml-2 font-medium">
             {item.name}
@@ -131,7 +135,7 @@ export default function PermissionsEditor({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">
-          {group.isDefault ? (
+          {isSystemGroup(group.name) ? (
             group.name
           ) : (
             <Input
@@ -143,11 +147,11 @@ export default function PermissionsEditor({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {group.name === "Super Admin" && (
+        {isSystemGroup(group.name) && (
           <Alert className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Super Admin group has full access to all features and cannot be modified.
+              {group.name} group has full access to all features and cannot be modified.
             </AlertDescription>
           </Alert>
         )}
@@ -164,7 +168,7 @@ export default function PermissionsEditor({
           </TabsContent>
 
           <TabsContent value="users">
-            <UserAssignmentSection groupId={group.id} isDefaultGroup={group.isDefault} />
+            <UserAssignmentSection groupId={group.id} isDefaultGroup={isSystemGroup(group.name)} />
           </TabsContent>
 
           <TabsContent value="preview">
