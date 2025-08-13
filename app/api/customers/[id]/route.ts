@@ -39,9 +39,9 @@ const getUserIdFromRequest = async (request: NextRequest): Promise<string | null
 }
 
 // GET: Fetch a single customer by ID
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await params
     const customerId = id
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -84,9 +84,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT: Update a customer
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await params
     const customerId = id
     const customerData = await request.json()
     const userId = await getUserIdFromRequest(request)
@@ -150,9 +150,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE: Delete a customer
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await params
     const customerId = id
     const userId = await getUserIdFromRequest(request)
     const cookieStore = await cookies()
