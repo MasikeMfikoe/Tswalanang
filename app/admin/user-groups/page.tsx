@@ -88,18 +88,18 @@ export default function AdminUserGroupsPage() {
       // In a real app, this would fetch from API
       // For now, we'll use mock data
       const mockPermissions: GroupPermission[] = [
-        { id: "1", groupId: selectedGroup.id, module: "/dashboard", view: true },
-        { id: "2", groupId: selectedGroup.id, module: "/orders", view: selectedGroup.id !== "5" },
-        { id: "3", groupId: selectedGroup.id, module: "/orders/new", view: selectedGroup.id !== "5" },
-        { id: "4", groupId: selectedGroup.id, module: "/documents", view: true },
-        { id: "5", groupId: selectedGroup.id, module: "/settings", view: selectedGroup.id === "1" },
-        { id: "6", groupId: selectedGroup.id, module: "/settings/users", view: selectedGroup.id === "1" },
-        { id: "7", groupId: selectedGroup.id, module: "/settings/billing", view: selectedGroup.id === "1" },
-        { id: "8", groupId: selectedGroup.id, module: "/analytics", view: selectedGroup.id !== "5" },
-        { id: "9", groupId: selectedGroup.id, module: "/analytics/reports", view: selectedGroup.id !== "5" },
+        { id: "1", group_id: selectedGroup.id, module: "/dashboard", view: true },
+        { id: "2", group_id: selectedGroup.id, module: "/orders", view: selectedGroup.id !== "5" },
+        { id: "3", group_id: selectedGroup.id, module: "/orders/new", view: selectedGroup.id !== "5" },
+        { id: "4", group_id: selectedGroup.id, module: "/documents", view: true },
+        { id: "5", group_id: selectedGroup.id, module: "/settings", view: selectedGroup.id === "1" },
+        { id: "6", group_id: selectedGroup.id, module: "/settings/users", view: selectedGroup.id === "1" },
+        { id: "7", group_id: selectedGroup.id, module: "/settings/billing", view: selectedGroup.id === "1" },
+        { id: "8", group_id: selectedGroup.id, module: "/analytics", view: selectedGroup.id !== "5" },
+        { id: "9", group_id: selectedGroup.id, module: "/analytics/reports", view: selectedGroup.id !== "5" },
         {
           id: "10",
-          groupId: selectedGroup.id,
+          group_id: selectedGroup.id,
           module: "/analytics/reports/monthly",
           view: selectedGroup.id !== "5",
         },
