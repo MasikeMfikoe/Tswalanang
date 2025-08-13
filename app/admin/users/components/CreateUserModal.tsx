@@ -16,7 +16,7 @@ interface CreateUserFormData extends Partial<User> {
 interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreateUser: (user: Partial<User>) => void
+  onCreateUser: (userData: Partial<User>, options?: { sendWelcomeEmail?: boolean }) => void
   userGroups: UserGroup[]
   existingEmails: string[]
   defaultRole?: UserRole
@@ -154,10 +154,7 @@ export default function CreateUserModal({
   const handleSubmit = () => {
     if (validateForm()) {
       const { password, ...userData } = formData
-      onCreateUser({
-        ...userData,
-        sendWelcomeEmail,
-      })
+      onCreateUser(userData, { sendWelcomeEmail })
     }
   }
 
