@@ -33,7 +33,7 @@ export default function CreateUserModal({
     email: "",
     password: "",
     role: defaultRole,
-    department: "",
+    department: defaultRole === "client" ? "" : "",
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
