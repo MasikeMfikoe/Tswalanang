@@ -121,7 +121,7 @@ export default function UserAssignmentSection({ groupId, isDefaultGroup }: UserA
     (user) =>
       user.username?.toLowerCase().includes(search.toLowerCase()) ||
       `${user.name} ${user.surname}`.toLowerCase().includes(search.toLowerCase()) ||
-      user.department.toLowerCase().includes(search.toLowerCase()),
+      user.department?.toLowerCase().includes(search.toLowerCase()),
   )
 
   return (
