@@ -25,7 +25,7 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from "@/components/ui/pagination"
+} from "../../../components/ui/pagination"
 import { supabase } from "@/lib/supabaseClient"
 import { formatDate } from "@/lib/utils" // Import the new utility
 
