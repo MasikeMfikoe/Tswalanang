@@ -39,7 +39,7 @@ export default function TrackingUsersPage() {
       if (typeof getUsers === "function") {
         const allUsers = await getUsers()
         const trackingUsers = allUsers.filter(
-          (user) => user.role === "guest" && user.pageAccess.includes("shipmentTracker"),
+          (user) => user.role === "guest" && user.pageAccess?.includes("shipmentTracker"),
         )
         setUsers(trackingUsers)
       } else {
