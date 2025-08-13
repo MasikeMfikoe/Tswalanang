@@ -77,17 +77,17 @@ export default function PermissionsEditor({
 }: PermissionsEditorProps) {
   const [activeTab, setActiveTab] = useState("permissions")
 
-  const handlePermissionChange = (pagePath: string, allowed: boolean) => {
-    const updatedPermissions = permissions.map((p) => (p.pagePath === pagePath ? { ...p, allowed } : p))
+  const handlePermissionChange = (pagePath: string, view: boolean) => {
+    const updatedPermissions = permissions.map((p) => (p.module === pagePath ? { ...p, view } : p))
 
     // If this is a parent path, update all children
-    const childPaths = permissions.filter((p) => p.pagePath.startsWith(pagePath + "/")).map((p) => p.pagePath)
+    const childPaths = permissions.filter((p) => p.module.startsWith(pagePath + "/")).map((p) => p.module)
 
     if (childPaths.length > 0) {
       childPaths.forEach((childPath) => {
-        const childIndex = updatedPermissions.findIndex((p) => p.pagePath === childPath)
+        const childIndex = updatedPermissions.findIndex((p) => p.module === childPath)
         if (childIndex !== -1) {
-          updatedPermissions[childIndex] = { ...updatedPermissions[childIndex], allowed }
+          updatedPermissions[childIndex] = { ...updatedPermissions[childIndex], view }
         }
       })
     }
@@ -96,8 +96,8 @@ export default function PermissionsEditor({
   }
 
   const isPathAllowed = (path: string) => {
-    const permission = permissions.find((p) => p.pagePath === path)
-    return permission?.allowed || false
+    const permission = permissions.find((p) => p.module === path)
+    return permission?.view || false
   }
 
   const renderNavigationItem = (item: any, depth = 0) => {
