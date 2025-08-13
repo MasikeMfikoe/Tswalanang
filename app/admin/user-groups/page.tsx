@@ -14,11 +14,46 @@ import type { UserGroup, GroupPermission } from "@/types/auth"
 
 // Mock data for initial development
 const initialGroups: UserGroup[] = [
-  { id: "1", name: "Super Admin", created_at: new Date().toISOString() },
-  { id: "2", name: "Sales", created_at: new Date().toISOString() },
-  { id: "3", name: "HR", created_at: new Date().toISOString() },
-  { id: "4", name: "Support", created_at: new Date().toISOString() },
-  { id: "5", name: "Guest", created_at: new Date().toISOString() },
+  {
+    id: "1",
+    name: "Super Admin",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    permissions: [],
+    users: [],
+  },
+  {
+    id: "2",
+    name: "Sales",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    permissions: [],
+    users: [],
+  },
+  {
+    id: "3",
+    name: "HR",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    permissions: [],
+    users: [],
+  },
+  {
+    id: "4",
+    name: "Support",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    permissions: [],
+    users: [],
+  },
+  {
+    id: "5",
+    name: "Guest",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    permissions: [],
+    users: [],
+  },
 ]
 
 export default function AdminUserGroupsPage() {
@@ -78,6 +113,9 @@ export default function AdminUserGroupsPage() {
       id: `group-${Date.now()}`,
       name: "New Group",
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      permissions: [],
+      users: [],
     }
     setGroups([...groups, newGroup])
     setSelectedGroup(newGroup)
