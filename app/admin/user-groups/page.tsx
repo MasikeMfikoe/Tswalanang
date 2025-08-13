@@ -14,11 +14,11 @@ import type { UserGroup, GroupPermission } from "@/types/auth"
 
 // Mock data for initial development
 const initialGroups: UserGroup[] = [
-  { id: "1", name: "Super Admin", isDefault: true, createdAt: new Date().toISOString() },
-  { id: "2", name: "Sales", isDefault: false, createdAt: new Date().toISOString() },
-  { id: "3", name: "HR", isDefault: false, createdAt: new Date().toISOString() },
-  { id: "4", name: "Support", isDefault: false, createdAt: new Date().toISOString() },
-  { id: "5", name: "Guest", isDefault: true, createdAt: new Date().toISOString() },
+  { id: "1", name: "Super Admin", createdAt: new Date().toISOString() },
+  { id: "2", name: "Sales", createdAt: new Date().toISOString() },
+  { id: "3", name: "HR", createdAt: new Date().toISOString() },
+  { id: "4", name: "Support", createdAt: new Date().toISOString() },
+  { id: "5", name: "Guest", createdAt: new Date().toISOString() },
 ]
 
 export default function AdminUserGroupsPage() {
@@ -77,7 +77,6 @@ export default function AdminUserGroupsPage() {
     const newGroup: UserGroup = {
       id: `group-${Date.now()}`,
       name: "New Group",
-      isDefault: false,
       createdAt: new Date().toISOString(),
     }
     setGroups([...groups, newGroup])
@@ -98,7 +97,11 @@ export default function AdminUserGroupsPage() {
   }
 
   const handleUpdateGroupName = (name: string) => {
-    if (selectedGroup && !selectedGroup.isDefault) {
+    const isSystemGroup = (groupName: string) => {
+      return ["Super Admin", "Admin", "Manager"].includes(groupName)
+    }
+
+    if (selectedGroup && !isSystemGroup(selectedGroup.name)) {
       setSelectedGroup({ ...selectedGroup, name })
       setGroups(groups.map((g) => (g.id === selectedGroup.id ? { ...g, name } : g)))
       setHasChanges(true)
