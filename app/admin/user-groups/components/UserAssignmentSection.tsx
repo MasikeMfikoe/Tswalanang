@@ -119,7 +119,7 @@ export default function UserAssignmentSection({ groupId, isDefaultGroup }: UserA
 
   const filteredUsers = availableUsers.filter(
     (user) =>
-      user.username.toLowerCase().includes(search.toLowerCase()) ||
+      user.username?.toLowerCase().includes(search.toLowerCase()) ||
       `${user.name} ${user.surname}`.toLowerCase().includes(search.toLowerCase()) ||
       user.department.toLowerCase().includes(search.toLowerCase()),
   )
