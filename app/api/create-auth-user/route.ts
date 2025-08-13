@@ -77,41 +77,44 @@ export async function POST(request: NextRequest) {
     let existingAuthUser = null
 
     try {
-      const { data: existing, error: fetchError } = await supabaseAdmin.auth.admin.getUserByEmail(email)
+      const { data: userList, error: fetchError } = await supabaseAdmin.auth.admin.listUsers()
 
-      if (!fetchError && existing?.user) {
-        existingAuthUser = existing.user
-        console.log("⚠️ User already exists in auth:", existingAuthUser.id)
+      if (!fetchError && userList?.users) {
+        const existingUser = userList.users.find((user) => user.email === email)
+        if (existingUser) {
+          existingAuthUser = existingUser
+          console.log("⚠️ User already exists in auth:", existingAuthUser.id)
 
-        // Check if user profile exists
-        const { data: existingProfile, error: profileError } = await supabaseAdmin
-          .from("user_profiles")
-          .select("*")
-          .eq("id", existingAuthUser.id)
-          .single()
+          // Check if user profile exists
+          const { data: existingProfile, error: profileError } = await supabaseAdmin
+            .from("user_profiles")
+            .select("*")
+            .eq("id", existingAuthUser.id)
+            .single()
 
-        if (!profileError && existingProfile) {
-          console.log("⚠️ User profile also exists, returning conflict error")
-          return NextResponse.json(
-            {
-              error: "User already exists",
-              details: {
-                message: `A user with email ${email} already exists in the system.`,
-                existingUser: {
-                  id: existingProfile.id,
-                  name: existingProfile.name,
-                  surname: existingProfile.surname,
-                  email: existingProfile.email,
-                  role: existingProfile.role,
-                  department: existingProfile.department,
+          if (!profileError && existingProfile) {
+            console.log("⚠️ User profile also exists, returning conflict error")
+            return NextResponse.json(
+              {
+                error: "User already exists",
+                details: {
+                  message: `A user with email ${email} already exists in the system.`,
+                  existingUser: {
+                    id: existingProfile.id,
+                    name: existingProfile.name,
+                    surname: existingProfile.surname,
+                    email: existingProfile.email,
+                    role: existingProfile.role,
+                    department: existingProfile.department,
+                  },
                 },
               },
-            },
-            { status: 409 },
-          )
-        }
+              { status: 409 },
+            )
+          }
 
-        console.log("✅ Auth user exists but no profile, will create profile for existing user")
+          console.log("✅ Auth user exists but no profile, will create profile for existing user")
+        }
       }
     } catch (checkError) {
       console.log("🔍 User check failed, proceeding with creation:", checkError)
@@ -145,18 +148,21 @@ export async function POST(request: NextRequest) {
           ) {
             // Try to get the existing user one more time
             try {
-              const { data: retryExisting } = await supabaseAdmin.auth.admin.getUserByEmail(email)
-              if (retryExisting?.user) {
-                existingAuthUser = retryExisting.user
-                console.log("✅ Found existing user on retry:", existingAuthUser.id)
-              } else {
-                return NextResponse.json(
-                  {
-                    error: "Email already registered but user not found",
-                    details: { message: "This email is already registered but the user cannot be retrieved." },
-                  },
-                  { status: 409 },
-                )
+              const { data: retryUserList } = await supabaseAdmin.auth.admin.listUsers()
+              if (retryUserList?.users) {
+                const retryExistingUser = retryUserList.users.find((user) => user.email === email)
+                if (retryExistingUser) {
+                  existingAuthUser = retryExistingUser
+                  console.log("✅ Found existing user on retry:", existingAuthUser.id)
+                } else {
+                  return NextResponse.json(
+                    {
+                      error: "Email already registered but user not found",
+                      details: { message: "This email is already registered but the user cannot be retrieved." },
+                    },
+                    { status: 409 },
+                  )
+                }
               }
             } catch (retryError) {
               console.error("❌ Retry fetch failed:", retryError)
