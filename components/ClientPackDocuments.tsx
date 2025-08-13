@@ -62,9 +62,11 @@ export default function ClientPackDocuments({ orderId, freightType }: ClientPack
     const link = document.createElement("a")
     link.href = document.url
     link.download = document.name
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    if (document.body) {
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
   }
 
   const handleDownloadAll = () => {
@@ -154,7 +156,12 @@ export default function ClientPackDocuments({ orderId, freightType }: ClientPack
                       </span>
                     </td>
                     <td className="p-4">
-                      <Button variant="outline" size="sm" className="mr-2" onClick={() => handleViewDocument(doc)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mr-2 bg-transparent"
+                        onClick={() => handleViewDocument(doc)}
+                      >
                         View
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => handleDownloadDocument(doc)}>

@@ -81,11 +81,11 @@ export default function PermissionsEditor({
     return groupName === "Super Admin" || groupName === "Admin" || groupName === "Default"
   }
 
-  const handlePermissionChange = (pagePath: string, view: boolean) => {
-    const updatedPermissions = permissions.map((p) => (p.module === pagePath ? { ...p, view } : p))
+  const handlePermissionChange = (module: string, view: boolean) => {
+    const updatedPermissions = permissions.map((p) => (p.module === module ? { ...p, view } : p))
 
     // If this is a parent path, update all children
-    const childPaths = permissions.filter((p) => p.module.startsWith(pagePath + "/")).map((p) => p.module)
+    const childPaths = permissions.filter((p) => p.module.startsWith(module + "/")).map((p) => p.module)
 
     if (childPaths.length > 0) {
       childPaths.forEach((childPath) => {

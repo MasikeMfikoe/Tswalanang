@@ -52,13 +52,13 @@ export function NewOrderDocumentUpload() {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    if (e.dataTransfer?.files?.[0]) {
       await handleFileUpload(e.dataTransfer.files[0])
     }
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
+    if (e.target?.files?.[0]) {
       await handleFileUpload(e.target.files[0])
     }
   }

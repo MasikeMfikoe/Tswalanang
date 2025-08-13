@@ -249,7 +249,7 @@ export default function DashboardContent() {
       setIsLoading(true)
       setTimeout(() => {
         const filtered = allOrders.filter((order) => {
-          const orderDate = new Date(order.createdAt || order.created_at)
+          const orderDate = new Date(order.created_at)
           return orderDate >= new Date(startDate) && orderDate <= new Date(endDate)
         })
         setFilteredOrders(filtered)
@@ -274,9 +274,7 @@ export default function DashboardContent() {
   const recentOrders = useMemo(
     () =>
       [...filteredOrders]
-        .sort(
-          (a, b) => new Date(b.createdAt || b.created_at).getTime() - new Date(a.createdAt || a.created_at).getTime(),
-        )
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 5),
     [filteredOrders],
   )
@@ -322,7 +320,7 @@ export default function DashboardContent() {
     }
 
     allOrders.forEach((order) => {
-      const orderDate = new Date(order.created_at || order.createdAt)
+      const orderDate = new Date(order.created_at)
       if (orderDate >= oneYearAgo) {
         const month = format(orderDate, "MMM")
         monthlyCounts[month]++
@@ -403,7 +401,7 @@ export default function DashboardContent() {
     }
 
     customers.forEach((customer) => {
-      const customerDate = new Date(customer.created_at || customer.createdAt)
+      const customerDate = new Date(customer.created_at)
       if (customerDate >= oneYearAgo) {
         const month = format(customerDate, "MMM")
         monthlyCounts[month]++
@@ -530,7 +528,7 @@ export default function DashboardContent() {
     }
 
     allOrders.forEach((order) => {
-      const orderDate = new Date(order.created_at || order.createdAt)
+      const orderDate = new Date(order.created_at)
       if (orderDate >= oneYearAgo && (order.status === "Completed" || order.status === "completed")) {
         const month = format(orderDate, "MMM")
         monthlyData[month].total++
@@ -561,7 +559,7 @@ export default function DashboardContent() {
     }
 
     allOrders.forEach((order) => {
-      const orderDate = new Date(order.created_at || order.createdAt)
+      const orderDate = new Date(order.created_at)
       if (orderDate >= oneYearAgo) {
         const month = format(orderDate, "MMM")
         monthlyData[month].totalValue += order.total_value || order.totalValue || 0
