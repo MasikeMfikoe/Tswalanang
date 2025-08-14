@@ -31,6 +31,8 @@ export function SessionTimeout({
   }
 
   useEffect(() => {
+    if (typeof window === "undefined") return
+
     // Track user activity
     const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"]
 

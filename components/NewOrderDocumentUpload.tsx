@@ -86,16 +86,19 @@ export function NewOrderDocumentUpload() {
     setUploadProgress(0)
 
     try {
-      // Simulate upload progress
-      const interval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(interval)
-            return 90
-          }
-          return prev + 10
-        })
-      }, 500)
+      let interval: NodeJS.Timeout | null = null
+      if (typeof window !== "undefined") {
+        // Simulate upload progress
+        interval = setInterval(() => {
+          setUploadProgress((prev) => {
+            if (prev >= 90) {
+              if (interval) clearInterval(interval)
+              return 90
+            }
+            return prev + 10
+          })
+        }, 500)
+      }
 
       // In a real application, you would upload to your server here
       const formData = new FormData()
@@ -106,7 +109,7 @@ export function NewOrderDocumentUpload() {
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
       // Clear interval and set progress to 100
-      clearInterval(interval)
+      if (interval) clearInterval(interval)
       setUploadProgress(100)
 
       setSelectedType("")

@@ -93,9 +93,11 @@ export default function CurrencyConversion() {
   useEffect(() => {
     loadExchangeRates()
 
-    // Refresh rates every 5 minutes
-    const intervalId = setInterval(loadExchangeRates, 5 * 60 * 1000)
-    return () => clearInterval(intervalId)
+    if (typeof window !== "undefined") {
+      // Refresh rates every 5 minutes
+      const intervalId = setInterval(loadExchangeRates, 5 * 60 * 1000)
+      return () => clearInterval(intervalId)
+    }
   }, [])
 
   useEffect(() => {
@@ -331,7 +333,7 @@ export default function CurrencyConversion() {
               </div>
 
               <div className="flex justify-center md:col-span-1">
-                <Button variant="outline" size="icon" onClick={swapCurrencies} className="rounded-full">
+                <Button variant="outline" size="icon" onClick={swapCurrencies} className="rounded-full bg-transparent">
                   <ArrowLeftRight className="h-4 w-4" />
                 </Button>
               </div>
