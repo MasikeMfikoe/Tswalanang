@@ -85,15 +85,15 @@ export default function EditEstimatePage() {
 
       <EstimateForm
         initialData={{
-          customerId: estimate.customer_id || estimate.customerId,
-          customerEmail: estimate.customerEmail,
-          freightType: estimate.freightType,
-          commercialValue: estimate.commercialValue.toString(),
-          customsDuties: estimate.customsDuties.toString(),
-          handlingFees: estimate.handlingFees.toString(),
-          shippingCost: estimate.shippingCost.toString(),
-          documentationFee: estimate.documentationFee.toString(),
-          communicationFee: estimate.communicationFee.toString(),
+          customerId: estimate.customer_id,
+          customerEmail: estimate.customer_email,
+          freightType: estimate.freight_type,
+          commercialValue: estimate.commercial_value.toString(),
+          customsDuties: estimate.customs_duties.toString(),
+          handlingFees: estimate.handling_fees.toString(),
+          shippingCost: estimate.shipping_cost.toString(),
+          documentationFee: estimate.documentation_fee.toString(),
+          communicationFee: estimate.communication_fee.toString(),
           notes: estimate.notes || "",
         }}
         isEditing={true}

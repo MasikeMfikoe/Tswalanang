@@ -8,23 +8,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-export function EstimateForm() {
+interface EstimateFormProps {
+  initialData?: any
+  isEditing?: boolean
+  estimateId?: any
+}
+
+export function EstimateForm({ initialData, isEditing = false, estimateId }: EstimateFormProps) {
   const router = useRouter()
-  const [customerName, setCustomerName] = useState("")
-  const [customerEmail, setCustomerEmail] = useState("")
+  const [customerName, setCustomerName] = useState(initialData?.customerName || "")
+  const [customerEmail, setCustomerEmail] = useState(initialData?.customerEmail || "")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
 
-    // Simple form submission
     try {
       const response = await fetch("/api/estimates", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customer_name: customerName,
           customer_email: customerEmail,
@@ -49,6 +52,8 @@ export function EstimateForm() {
 
       if (response.ok) {
         router.push("/estimates")
+      } else {
+        console.error("Failed to create estimate")
       }
     } catch (error) {
       console.error("Error creating estimate:", error)
@@ -58,52 +63,43 @@ export function EstimateForm() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Create New Estimate</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="customerName" className="block text-sm font-medium mb-2">
-                Customer Name
-              </label>
-              <Input
-                id="customerName"
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Enter customer name"
-                required
-              />
-            </div>
+    <Card className="max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>Create New Estimate</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Customer Name</label>
+            <Input
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Enter customer name"
+              required
+            />
+          </div>
 
-            <div>
-              <label htmlFor="customerEmail" className="block text-sm font-medium mb-2">
-                Customer Email
-              </label>
-              <Input
-                id="customerEmail"
-                type="email"
-                value={customerEmail}
-                onChange={(e) => setCustomerEmail(e.target.value)}
-                placeholder="Enter customer email"
-                required
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Customer Email</label>
+            <Input
+              type="email"
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+              placeholder="Enter customer email"
+              required
+            />
+          </div>
 
-            <div className="flex gap-4 pt-4">
-              <Button type="button" variant="outline" onClick={() => router.push("/estimates")} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Estimate"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+          <div className="flex gap-4 pt-4">
+            <Button type="button" variant="outline" onClick={() => router.push("/estimates")}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Estimate"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

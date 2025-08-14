@@ -84,9 +84,9 @@ export default function EstimatesPage() {
 
     const filtered = estimates.filter(
       (estimate) =>
-        estimate.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        estimate.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         estimate.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (estimate.displayId && estimate.displayId.toLowerCase().includes(searchTerm.toLowerCase())),
+        (estimate.display_id && estimate.display_id.toLowerCase().includes(searchTerm.toLowerCase())),
     )
     setFilteredEstimates(filtered)
   }, [searchTerm, estimates])
@@ -238,16 +238,16 @@ export default function EstimatesPage() {
                   ) : (
                     filteredEstimates.map((estimate) => (
                       <TableRow key={estimate.id}>
-                        <TableCell className="font-mono text-sm">{estimate.displayId || estimate.id}</TableCell>
-                        <TableCell>{estimate.customerName || "N/A"}</TableCell>
-                        <TableCell>{formatDate(estimate.createdAt)}</TableCell>
+                        <TableCell className="font-mono text-sm">{estimate.display_id || estimate.id}</TableCell>
+                        <TableCell>{estimate.customer_name || "N/A"}</TableCell>
+                        <TableCell>{formatDate(estimate.created_at)}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className={getStatusColor(estimate.status)}>
                             {estimate.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>{formatCurrency(estimate.totalAmount)}</TableCell>
-                        <TableCell>{estimate.freightType || "N/A"}</TableCell>
+                        <TableCell>{formatCurrency(estimate.total_amount)}</TableCell>
+                        <TableCell>{estimate.freight_type || "N/A"}</TableCell>
                         <TableCell className="text-right">
                           <Link href={`/estimates/${estimate.id}`}>
                             <Button variant="ghost" size="sm">
