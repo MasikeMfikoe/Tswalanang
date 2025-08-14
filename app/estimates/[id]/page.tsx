@@ -99,7 +99,7 @@ export default function EstimateDetailsPage() {
     if (element) {
       html2pdf()
         .from(element)
-        .save(`Estimate-${estimate?.displayId || estimate?.id}.pdf`)
+        .save(`Estimate-${estimate?.display_id || estimate?.id}.pdf`)
       toast({
         title: "Downloading PDF",
         description: "Your estimate PDF is being generated.",
@@ -147,7 +147,7 @@ export default function EstimateDetailsPage() {
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Estimate {estimate.displayId || estimate.id}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Estimate {estimate.display_id || estimate.id}</h1>
           <p className="text-muted-foreground">View and manage estimate details</p>
         </div>
         <div className="flex gap-2">
@@ -188,7 +188,7 @@ export default function EstimateDetailsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-500">Estimate ID</label>
-                    <p className="font-mono">{estimate.displayId || estimate.id}</p>
+                    <p className="font-mono">{estimate.display_id || estimate.id}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Status</label>
