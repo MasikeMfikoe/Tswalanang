@@ -226,9 +226,10 @@ export default function CustomerSummary() {
       const enrichedOrders = await enrichOrdersWithTracking(orders || [])
       setFilteredOrders(enrichedOrders)
 
-      const totalRevenue = enrichedOrders?.reduce((sum, order) => sum + (order.orderValue || 0), 0) || 0
+      const totalRevenue = enrichedOrders?.reduce((sum, order) => sum + (order.total_cost || 0), 0) || 0
       const totalVAT = totalRevenue * 0.15
       const totalCustomsDuties = totalRevenue * 0.2
+
       const orderCount = enrichedOrders?.length || 0
       const completedOrders = enrichedOrders?.filter((order) => order.status === "Completed").length || 0
       const inProgressOrders = orderCount - completedOrders
@@ -557,7 +558,7 @@ export default function CustomerSummary() {
                       </div>
                       {user?.role !== "employee" && (
                         <div className="text-right">
-                          <p className="font-medium">{formatCurrency(order.orderValue || 0)}</p>
+                          <p className="font-medium">{formatCurrency(order.total_cost || 0)}</p>
                           <p className="text-sm text-muted-foreground">{order.importer}</p>
                         </div>
                       )}
@@ -598,9 +599,9 @@ export default function CustomerSummary() {
                         <th className="p-2 text-right font-medium">Demurrage/Detention Days</th>
                         {user?.role !== "employee" && (
                           <>
-                            <th className="p-2 text-right font-medium">Order Value</th>
-                            <th className="p-2 text-right font-medium">VAT</th>
-                            <th className="p-2 text-right font-medium">Customs</th>
+                            <th className="p-2 text-right font-medium">Total Cost</th>
+                            <th className="p-2 text-right font-medium">Tax Amount</th>
+                            <th className="p-2 text-right font-medium">Customs Duties</th>
                           </>
                         )}
                       </tr>
@@ -631,9 +632,11 @@ export default function CustomerSummary() {
                           </td>
                           {user?.role !== "employee" && (
                             <>
-                              <td className="p-2 text-right">{formatCurrency(order.orderValue || 0)}</td>
-                              <td className="p-2 text-right">{formatCurrency(order.vat || 0)}</td>
-                              <td className="p-2 text-right">{formatCurrency(order.customs || 0)}</td>
+                              <td className="p-2 text-right">{formatCurrency(order.total_cost || 0)}</td>
+                              <td className="p-2 text-right">
+                                {formatCurrency(order.tax_amount || order.total_cost * 0.15 || 0)}
+                              </td>
+                              <td className="p-2 text-right">{formatCurrency(order.customs_duties || 0)}</td>
                             </>
                           )}
                         </tr>
