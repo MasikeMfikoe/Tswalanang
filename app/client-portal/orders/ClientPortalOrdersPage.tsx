@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Package, Search, Filter, ChevronDown, RefreshCcw } from "lucide-react"
+import { Package, Search, Filter, ChevronDown, RefreshCcw, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,14 +18,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "../../../components/ui/pagination"
 import { supabase } from "@/lib/supabaseClient"
 import { formatDate } from "@/lib/utils" // Import the new utility
 
@@ -393,48 +385,65 @@ export default function ClientPortalOrdersPage() {
                     </TableBody>
                   </Table>
                 </div>
-                <Pagination className="mt-6">
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          if (currentPage > 1) handlePageChange(currentPage - 1)
-                        }}
-                        aria-disabled={currentPage === 1}
-                        tabIndex={currentPage === 1 ? -1 : undefined}
-                        className={currentPage === 1 ? "pointer-events-none opacity-50" : undefined}
-                      />
-                    </PaginationItem>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <PaginationItem key={page}>
-                        <PaginationLink
-                          href="#"
-                          isActive={page === currentPage}
-                          onClick={(e) => {
-                            e.preventDefault()
-                            handlePageChange(page)
-                          }}
-                        >
-                          {page}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-                    <PaginationItem>
-                      <PaginationNext
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          if (currentPage < totalPages) handlePageChange(currentPage + 1)
-                        }}
-                        aria-disabled={currentPage === totalPages}
-                        tabIndex={currentPage === totalPages ? -1 : undefined}
-                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : undefined}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-sm text-gray-500">
+                      Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+                      {Math.min(currentPage * itemsPerPage, filteredOrders.length)} of {filteredOrders.length} orders
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="flex items-center gap-1"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                      </Button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum
+                          if (totalPages <= 5) {
+                            pageNum = i + 1
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i
+                          } else {
+                            pageNum = currentPage - 2 + i
+                          }
+
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={pageNum === currentPage ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handlePageChange(pageNum)}
+                              className="w-8 h-8 p-0"
+                            >
+                              {pageNum}
+                            </Button>
+                          )
+                        })}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="flex items-center gap-1"
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </CardContent>
