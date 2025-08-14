@@ -661,7 +661,7 @@ export default function CustomerSummary() {
         </TabsContent>
 
         <TabsContent value="cargo-status">
-          <CargoStatusTab />
+          <CargoStatusTab customerId={selectedCustomer || "all"} startDate={startDate} endDate={endDate} />
         </TabsContent>
       </Tabs>
     </div>
