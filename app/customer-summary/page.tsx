@@ -141,7 +141,7 @@ export default function CustomerSummary() {
       orders.map(async (order) => {
         if (order.tracking_number) {
           const trackingData = await fetchTrackingData(order.tracking_number)
-          return { ...order, trackingData }
+          return { ...order, trackingData: trackingData || undefined }
         }
         return order
       }),
