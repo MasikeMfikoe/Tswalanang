@@ -171,102 +171,117 @@ export default function CustomerReport() {
 
   // Export to CSV
   const exportToCSV = () => {
-    // Define headers
-    const headers = [
-      "Date",
-      "Document No.",
-      "Freight",
-      "CAF",
-      "Customs VAT",
-      "Customs Duty",
-      "Customs EDI S/Charge",
-      "Cartage",
-      "Fuel S/Charge",
-      "Cargo Dues",
-      "S/Line Charges",
-      "Repo Fee",
-      "Turn in Fee",
-      "Customs EDI",
-      "Communication",
-      "Documentation",
-      "Facility Fee",
-      "Agency Fee",
-      "VAT",
-    ]
+    if (typeof window === "undefined") return
 
-    // Format data rows
-    const dataRows = lineItems.map((item) => [
-      format(new Date(item.date), "dd/MM/yyyy"),
-      item.documentNumber,
-      item.freight || "",
-      item.caf || "",
-      item.customsVat || "",
-      item.customsDuty || "",
-      item.customsEdiSurcharge || "",
-      item.cartage || "",
-      item.fuelSurcharge || "",
-      item.cargoDues || "",
-      item.slineCharges || "",
-      item.repoFee || "",
-      item.turnInFee || "",
-      item.customsEdi || "",
-      item.communication || "",
-      item.documentation || "",
-      item.facilityFee || "",
-      item.agencyFee || "",
-      item.vat || "",
-    ])
+    try {
+      // Define headers
+      const headers = [
+        "Date",
+        "Document No.",
+        "Freight",
+        "CAF",
+        "Customs VAT",
+        "Customs Duty",
+        "Customs EDI S/Charge",
+        "Cartage",
+        "Fuel S/Charge",
+        "Cargo Dues",
+        "S/Line Charges",
+        "Repo Fee",
+        "Turn in Fee",
+        "Customs EDI",
+        "Communication",
+        "Documentation",
+        "Facility Fee",
+        "Agency Fee",
+        "VAT",
+      ]
 
-    // Add totals row
-    const totalsRow = [
-      "TOTALS",
-      "",
-      totals.freight,
-      totals.caf,
-      totals.customsVat,
-      totals.customsDuty,
-      totals.customsEdiSurcharge,
-      totals.cartage,
-      totals.fuelSurcharge,
-      totals.cargoDues,
-      totals.slineCharges,
-      totals.repoFee,
-      totals.turnInFee,
-      totals.customsEdi,
-      totals.communication,
-      totals.documentation,
-      totals.facilityFee,
-      totals.agencyFee,
-      totals.vat,
-    ]
+      // Format data rows
+      const dataRows = lineItems.map((item) => [
+        format(new Date(item.date), "dd/MM/yyyy"),
+        item.documentNumber,
+        item.freight || "",
+        item.caf || "",
+        item.customsVat || "",
+        item.customsDuty || "",
+        item.customsEdiSurcharge || "",
+        item.cartage || "",
+        item.fuelSurcharge || "",
+        item.cargoDues || "",
+        item.slineCharges || "",
+        item.repoFee || "",
+        item.turnInFee || "",
+        item.customsEdi || "",
+        item.communication || "",
+        item.documentation || "",
+        item.facilityFee || "",
+        item.agencyFee || "",
+        item.vat || "",
+      ])
 
-    // Combine headers and data
-    const csvContent = [headers.join(","), ...dataRows.map((row) => row.join(",")), totalsRow.join("\n")].join("\n")
+      // Add totals row
+      const totalsRow = [
+        "TOTALS",
+        "",
+        totals.freight,
+        totals.caf,
+        totals.customsVat,
+        totals.customsDuty,
+        totals.customsEdiSurcharge,
+        totals.cartage,
+        totals.fuelSurcharge,
+        totals.cargoDues,
+        totals.slineCharges,
+        totals.repoFee,
+        totals.turnInFee,
+        totals.customsEdi,
+        totals.communication,
+        totals.documentation,
+        totals.facilityFee,
+        totals.agencyFee,
+        totals.vat,
+      ]
 
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.setAttribute("href", url)
-    link.setAttribute(
-      "download",
-      `${customerName.replace(/\s+/g, "_")}_Report_${formattedStartDate.replace(/\//g, "-")}_to_${formattedEndDate.replace(
-        /\//g,
-        "-",
-      )}.csv`,
-    )
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+      // Combine headers and data
+      const csvContent = [headers.join(","), ...dataRows.map((row) => row.join(",")), totalsRow.join("\n")].join("\n")
 
-    toast({
-      title: "Success",
-      description: "Report exported to CSV successfully",
-    })
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.setAttribute("href", url)
+      link.setAttribute(
+        "download",
+        `${customerName.replace(/\s+/g, "_")}_Report_${formattedStartDate.replace(/\//g, "-")}_to_${formattedEndDate.replace(
+          /\//g,
+          "-",
+        )}.csv`,
+      )
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      URL.revokeObjectURL(url)
+
+      toast({
+        title: "Success",
+        description: "Report exported to CSV successfully",
+      })
+    } catch (error) {
+      console.error("Error exporting CSV:", error)
+      toast({
+        title: "Error",
+        description: "Failed to export CSV file",
+        variant: "destructive",
+      })
+    }
   }
 
   // Export to PDF
   const exportToPDF = () => {
+    if (typeof window === "undefined") return
+
     try {
       // Create a hidden div to render the report for PDF export
       const printDiv = document.createElement("div")
@@ -404,6 +419,8 @@ export default function CustomerReport() {
           title: "Success",
           description: "Report prepared for PDF export",
         })
+      } else {
+        throw new Error("Failed to open print window")
       }
 
       // Clean up
@@ -422,7 +439,12 @@ export default function CustomerReport() {
     <div className="min-h-screen bg-background p-6">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <Button variant="outline" size="sm" className="mb-2" onClick={() => router.push("/customer-summary")}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mb-2 bg-transparent"
+            onClick={() => router.push("/customer-summary")}
+          >
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Summary
           </Button>
           <h1 className="text-2xl font-bold">Customer Line Items Report</h1>
@@ -434,7 +456,7 @@ export default function CustomerReport() {
           <Button
             variant="outline"
             size="sm"
-            className="self-start"
+            className="self-start bg-transparent"
             onClick={exportToPDF}
             disabled={isLoading || lineItems.length === 0}
           >
@@ -443,7 +465,7 @@ export default function CustomerReport() {
           <Button
             variant="outline"
             size="sm"
-            className="self-start"
+            className="self-start bg-transparent"
             onClick={exportToCSV}
             disabled={isLoading || lineItems.length === 0}
           >

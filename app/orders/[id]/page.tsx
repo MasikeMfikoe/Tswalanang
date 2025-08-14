@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import DocumentManagement from "@/components/DocumentManagement"
 import PODManagement from "@/components/PODManagement"
 import ClientPackDocuments from "@/components/ClientPackDocuments"
-import { Download, Loader2, Search } from 'lucide-react'
+import { Download, Loader2, Search } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 
@@ -98,7 +98,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         setHasFinancialColumns(false)
         console.warn("Financial columns do NOT exist in orders table or query failed:", error.message)
       }
-      console.log("Final hasFinancialColumns state:", !error);
+      console.log("Final hasFinancialColumns state:", !error)
       // Check for calculated financial columns
       const { data: calculatedData, error: calculatedError } = await supabase
         .from("orders")
@@ -110,7 +110,10 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         console.log("Calculated financial columns exist in orders table.")
       } else {
         setHasCalculatedFinancialColumns(false)
-        console.warn("Calculated financial columns do NOT exist in orders table or query failed:", calculatedError.message)
+        console.warn(
+          "Calculated financial columns do NOT exist in orders table or query failed:",
+          calculatedError.message,
+        )
       }
     } catch (error) {
       setHasFinancialColumns(false)
@@ -239,21 +242,21 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
       }
 
       // Start with a copy of tempOrder to include all fields by default
-      const updateData: Partial<OrderData> = { ...tempOrder };
+      const updateData: Partial<OrderData> = { ...tempOrder }
 
       // Remove properties that should not be updated or are handled separately
-      delete updateData.id; // ID is used in the .eq() clause, not for update
-      delete updateData.created_at; // Creation timestamp should not be updated by client
+      delete updateData.id // ID is used in the .eq() clause, not for update
+      delete updateData.created_at // Creation timestamp should not be updated by client
 
       // Ensure updated_at is always set to now
-      updateData.updated_at = new Date().toISOString();
+      updateData.updated_at = new Date().toISOString()
 
       // Only add financial fields if they exist in the table
       // This block remains the same as it correctly handles conditional inclusion
       // and calculation of derived financial fields.
       if (hasFinancialColumns) {
         // Explicitly ensure financial_notes is included if hasFinancialColumns is true
-        updateData.financial_notes = tempOrder.financial_notes || null;
+        updateData.financial_notes = tempOrder.financial_notes || null
 
         // Calculate derived financial fields and add them if columns exist
         if (hasCalculatedFinancialColumns) {
@@ -283,27 +286,26 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         }
       } else {
         // If financial columns don't exist, ensure these are not sent
-        delete updateData.commercial_value;
-        delete updateData.customs_duties;
-        delete updateData.handling_fees;
-        delete updateData.shipping_cost;
-        delete updateData.documentation_fee;
-        delete updateData.communication_fee;
-        delete updateData.financial_notes;
-        delete updateData.customs_vat;
-        delete updateData.total_disbursements;
-        delete updateData.facility_fee;
-        delete updateData.agency_fee;
-        delete updateData.subtotal_amount;
-        delete updateData.vat_amount;
-        delete updateData.total_amount;
+        delete updateData.commercial_value
+        delete updateData.customs_duties
+        delete updateData.handling_fees
+        delete updateData.shipping_cost
+        delete updateData.documentation_fee
+        delete updateData.communication_fee
+        delete updateData.financial_notes
+        delete updateData.customs_vat
+        delete updateData.total_disbursements
+        delete updateData.facility_fee
+        delete updateData.agency_fee
+        delete updateData.subtotal_amount
+        delete updateData.vat_amount
+        delete updateData.total_amount
       }
-
 
       console.log("Attempting to update order with data:", updateData)
       console.log("hasFinancialColumns:", hasFinancialColumns)
       console.log("hasCalculatedFinancialColumns:", hasCalculatedFinancialColumns)
-      console.log("Update payload for financial_notes:", updateData.financial_notes);
+      console.log("Update payload for financial_notes:", updateData.financial_notes)
 
       // Update order in Supabase - Improved error handling
       const { error: updateError, count } = await supabase
@@ -313,7 +315,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         .select("*", { count: "exact" })
 
       if (updateError) {
-        console.error("Supabase update error details:", updateError); // Log the full error object
+        console.error("Supabase update error details:", updateError) // Log the full error object
         throw updateError
       }
 
@@ -517,30 +519,43 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
   const statuses = ["Pending", "In Progress", "Completed", "Cancelled"]
 
   const exportToExcel = () => {
-    const headers = ["Status", "Comment", "Timestamp", "User"]
-    const csvData = cargoStatusHistory.map((history) => [
-      history.status
-        .split("-")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" "),
-      history.comment || "",
-      new Date(history.timestamp).toLocaleString(),
-      `${history.user.name} ${history.user.surname}`,
-    ])
+    if (typeof window === "undefined") return
 
-    const csvContent = [
-      headers.join(","),
-      ...csvData.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")),
-    ].join("\n")
+    try {
+      const headers = ["Status", "Comment", "Timestamp", "User"]
+      const csvData = cargoStatusHistory.map((history) => [
+        history.status
+          .split("-")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" "),
+        history.comment || "",
+        new Date(history.timestamp).toLocaleString(),
+        `${history.user.name} ${history.user.surname}`,
+      ])
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const link = document.createElement("a")
-    const url = URL.createObjectURL(blob)
-    link.setAttribute("href", url)
-    link.setAttribute("download", `cargo_status_report_${order?.order_number || order?.po_number || params.id}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")),
+      ].join("\n")
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const link = document.createElement("a")
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      link.setAttribute("download", `cargo_status_report_${order?.order_number || order?.po_number || params.id}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error exporting to Excel:", error)
+      toast({
+        title: "Error",
+        description: "Failed to export cargo status report",
+        variant: "destructive",
+      })
+    }
   }
 
   if (isLoading) {
@@ -1015,27 +1030,27 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                                 </div>
                               </td>
                               <td className="p-4 text-muted-foreground">{history.comment || "No comment"}</td>
-                             <td className="p-4 text-muted-foreground">
-                               {history.user.name} {history.user.surname}
-                             </td>
-                             <td className="p-4 text-muted-foreground">
-                               {new Date(history.timestamp).toLocaleString()}
-                             </td>
-                           </tr>
-                         ))
-                       )}
-                     </tbody>
-                   </table>
-                 </div>
-               </CardContent>
-             </Card>
-           </TabsContent>
-           <TabsContent value="client-pack">
-             <ClientPackDocuments orderId={params.id} freightType={order.freight_type || ""} />
-           </TabsContent>
-         </Tabs>
-       </div>
-     </div>
-   </div>
- )
+                              <td className="p-4 text-muted-foreground">
+                                {history.user.name} {history.user.surname}
+                              </td>
+                              <td className="p-4 text-muted-foreground">
+                                {new Date(history.timestamp).toLocaleString()}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="client-pack">
+              <ClientPackDocuments orderId={params.id} freightType={order.freight_type || ""} />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </div>
+  )
 }
