@@ -200,19 +200,19 @@ export default function EstimateDetailsPage() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Customer Name</label>
-                    <p>{estimate.customerName}</p>
+                    <p>{estimate.customer_name}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Customer Email</label>
-                    <p>{estimate.customerEmail}</p>
+                    <p>{estimate.customer_email}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Freight Type</label>
-                    <p>{estimate.freightType}</p>
+                    <p>{estimate.freight_type}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Created Date</label>
-                    <p>{formatDate(estimate.createdAt)}</p>
+                    <p>{formatDate(estimate.created_at)}</p>
                   </div>
                 </div>
                 {estimate.notes && (
@@ -232,43 +232,43 @@ export default function EstimateDetailsPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span>Commercial Value</span>
-                    <span>{formatCurrency(estimate.commercialValue)}</span>
+                    <span>{formatCurrency(estimate.commercial_value)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Customs Duties</span>
-                    <span>{formatCurrency(estimate.customsDuties)}</span>
+                    <span>{formatCurrency(estimate.customs_duties)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Customs VAT</span>
-                    <span>{formatCurrency(estimate.customsVAT)}</span>
+                    <span>{formatCurrency(estimate.customs_vat)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Handling Fees</span>
-                    <span>{formatCurrency(estimate.handlingFees)}</span>
+                    <span>{formatCurrency(estimate.handling_fees)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Shipping Cost</span>
-                    <span>{formatCurrency(estimate.shippingCost)}</span>
+                    <span>{formatCurrency(estimate.shipping_cost)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Documentation Fee</span>
-                    <span>{formatCurrency(estimate.documentationFee)}</span>
+                    <span>{formatCurrency(estimate.documentation_fee)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Communication Fee</span>
-                    <span>{formatCurrency(estimate.communicationFee)}</span>
+                    <span>{formatCurrency(estimate.communication_fee)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Total Disbursements</span>
-                    <span>{formatCurrency(estimate.totalDisbursements)}</span>
+                    <span>{formatCurrency(estimate.total_disbursements)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Facility Fee</span>
-                    <span>{formatCurrency(estimate.facilityFee)}</span>
+                    <span>{formatCurrency(estimate.facility_fee)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Agency Fee</span>
-                    <span>{formatCurrency(estimate.agencyFee)}</span>
+                    <span>{formatCurrency(estimate.agency_fee)}</span>
                   </div>
                   <hr />
                   <div className="flex justify-between">
@@ -282,7 +282,7 @@ export default function EstimateDetailsPage() {
                   <hr />
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total Amount</span>
-                    <span>{formatCurrency(estimate.totalAmount)}</span>
+                    <span>{formatCurrency(estimate.total_amount)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -326,12 +326,12 @@ export default function EstimateDetailsPage() {
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
                     <span>Created</span>
-                    <span>{formatDate(estimate.createdAt)}</span>
+                    <span>{formatDate(estimate.created_at)}</span>
                   </div>
-                  {estimate.updatedAt && (
+                  {estimate.updated_at && (
                     <div className="flex justify-between">
                       <span>Last Updated</span>
-                      <span>{formatDate(estimate.updatedAt)}</span>
+                      <span>{formatDate(estimate.updated_at)}</span>
                     </div>
                   )}
                 </div>
