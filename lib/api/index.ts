@@ -1,12 +1,3 @@
-export * from "./apiClient"
-export * from "./ordersApi"
-export * from "./customersApi"
-export * from "./documentsApi"
-export * from "./deliveriesApi"
-export * from "./courierOrdersApi"
-export * from "./dashboardApi"
-
-// Re-export all API services as a single object
 import { apiClient } from "./apiClient"
 import { ordersApi } from "./ordersApi"
 import { customersApi } from "./customersApi"
@@ -27,6 +18,11 @@ const defaultConfig: ApiConfig = {
   },
 }
 
+// Export individual APIs
+export { apiClient, ordersApi, customersApi, documentsApi, deliveriesApi, courierOrdersApi, dashboardApi }
+export type { ApiConfig }
+
+// Export all API services as a single object
 export const api = {
   client: apiClient,
   orders: ordersApi,
