@@ -616,20 +616,16 @@ export default function CustomerSummary() {
                           <td className="p-2">
                             {order.trackingData?.estimatedArrival
                               ? format(parseISO(order.trackingData.estimatedArrival), "MMM dd, yyyy")
-                              : order.eta
-                                ? format(parseISO(order.eta), "MMM dd, yyyy")
+                              : order.estimated_delivery
+                                ? format(parseISO(order.estimated_delivery), "MMM dd, yyyy")
                                 : "TBD"}
                           </td>
                           <td className="p-2">
                             {order.trackingData?.estimatedDeparture
                               ? format(parseISO(order.trackingData.estimatedDeparture), "MMM dd, yyyy")
-                              : order.etd
-                                ? format(parseISO(order.etd), "MMM dd, yyyy")
-                                : "TBD"}
+                              : "TBD"}
                           </td>
-                          <td className="p-2 text-right">
-                            {order.trackingData?.demurrageDays || order.demurrageDays || 0} days
-                          </td>
+                          <td className="p-2 text-right">{order.trackingData?.demurrageDays || 0} days</td>
                           {user?.role !== "employee" && (
                             <>
                               <td className="p-2 text-right">{formatCurrency(order.total_cost || 0)}</td>
