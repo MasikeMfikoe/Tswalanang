@@ -153,6 +153,7 @@ export interface Estimate {
   display_id: string // A human-readable ID for estimates
   customer_id: string
   customer_name: string
+  customer_email: string // Added customer_email property to match Supabase database schema
   origin: string
   destination: string
   freight_type: string

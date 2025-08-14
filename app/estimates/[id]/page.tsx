@@ -23,12 +23,21 @@ export default function EstimateDetailsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (id === "new") {
+      router.replace("/estimates/new")
+      return
+    }
+
     if (id) {
       fetchEstimate()
     }
-  }, [id])
+  }, [id, router])
 
   const fetchEstimate = async () => {
+    if (!id || id === "new") {
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
