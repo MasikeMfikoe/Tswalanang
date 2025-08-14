@@ -72,13 +72,17 @@ const generateMockEstimate = (id: string) => {
 }
 
 // GET: Fetch a single estimate by ID
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params
+    const { id } = params
     console.log("GET /api/estimates/[id] - Fetching estimate:", id)
 
     if (!id) {
       return NextResponse.json({ error: "Estimate ID is required", success: false }, { status: 400 })
+    }
+
+    if (!id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) && !id.startsWith("est-")) {
+      return NextResponse.json({ error: "Invalid estimate ID format", success: false }, { status: 400 })
     }
 
     // First try to fetch from Supabase
@@ -86,6 +90,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (error) {
       console.log("Supabase error or not found:", error.message)
+
+      const { data: tableCheck, error: tableError } = await supabase.from("estimates").select("id").limit(1)
+
+      if (tableError) {
+        console.error("Estimates table access error:", tableError)
+        return NextResponse.json(
+          {
+            error: "Database table access error. Please check if estimates table exists.",
+            success: false,
+          },
+          { status: 500 },
+        )
+      }
+
+      if (!tableCheck || tableCheck.length === 0) {
+        console.log("Estimates table is empty")
+        return NextResponse.json(
+          {
+            error: "No estimates found in database. Please create an estimate first.",
+            success: false,
+            isEmpty: true,
+          },
+          { status: 404 },
+        )
+      }
 
       // If it's a mock ID (starts with "est-" followed by numbers), return mock data
       if (id.startsWith("est-") && /^est-\d+$/.test(id)) {
@@ -100,7 +129,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
 
       // Return 404 for real IDs that don't exist
-      return NextResponse.json({ error: "Estimate not found", success: false }, { status: 404 })
+      return NextResponse.json(
+        {
+          error: `Estimate with ID "${id}" not found in database`,
+          success: false,
+          availableCount: tableCheck.length,
+        },
+        { status: 404 },
+      )
     }
 
     console.log("Successfully fetched estimate from Supabase:", data)
@@ -125,9 +161,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // PUT: Update an existing estimate
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params
+    const { id } = params
     const estimateData = await request.json()
     const userId = await getUserIdFromRequest(request)
     console.log("PUT /api/estimates/[id] - Updating estimate:", id, estimateData)
@@ -214,9 +250,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // DELETE: Delete an estimate
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params
+    const { id } = params
     const userId = await getUserIdFromRequest(request)
     console.log("DELETE /api/estimates/[id] - Deleting estimate:", id)
 

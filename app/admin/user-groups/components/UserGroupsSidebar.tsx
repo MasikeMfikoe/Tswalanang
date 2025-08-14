@@ -12,11 +12,6 @@ interface UserGroupsSidebarProps {
 }
 
 export default function UserGroupsSidebar({ groups, selectedGroup, onSelectGroup }: UserGroupsSidebarProps) {
-  const isSystemGroup = (group: UserGroup) => {
-    const systemGroups = ["Super Admin", "Admin", "Manager"]
-    return systemGroups.includes(group.name)
-  }
-
   return (
     <div className="space-y-1">
       {groups.map((group) => (
@@ -28,13 +23,13 @@ export default function UserGroupsSidebar({ groups, selectedGroup, onSelectGroup
         >
           {group.name === "Super Admin" ? (
             <ShieldAlert className="mr-2 h-4 w-4" />
-          ) : isSystemGroup(group) ? (
+          ) : group.isDefault ? (
             <Shield className="mr-2 h-4 w-4" />
           ) : (
             <Users className="mr-2 h-4 w-4" />
           )}
           <span className="flex-1 text-left">{group.name}</span>
-          {isSystemGroup(group) && (
+          {group.isDefault && (
             <span className="ml-2 text-xs bg-muted-foreground/20 px-1.5 py-0.5 rounded text-muted-foreground">
               Default
             </span>

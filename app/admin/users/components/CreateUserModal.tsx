@@ -6,17 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import type { User, UserGroup, UserRole } from "@/types/auth"
 import { AlertCircle, Check, RefreshCw, Building2, UserIcon } from "lucide-react"
-
-interface CreateUserFormData extends Partial<User> {
-  password: string
-}
 
 interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreateUser: (userData: Partial<User>, options?: { sendWelcomeEmail?: boolean }) => void
+  onCreateUser: (user: Partial<User>) => void
   userGroups: UserGroup[]
   existingEmails: string[]
   defaultRole?: UserRole
@@ -30,13 +27,13 @@ export default function CreateUserModal({
   existingEmails,
   defaultRole = "employee",
 }: CreateUserModalProps) {
-  const [formData, setFormData] = useState<CreateUserFormData>({
+  const [formData, setFormData] = useState<Partial<User>>({
     name: "",
     surname: "",
     email: "",
     password: "",
     role: defaultRole,
-    department: defaultRole === "client" ? "" : "",
+    department: "",
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -91,7 +88,7 @@ export default function CreateUserModal({
     }, 500)
   }
 
-  const handleInputChange = (field: keyof CreateUserFormData, value: string) => {
+  const handleInputChange = (field: keyof User, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
 
     // Clear error when user types
@@ -153,8 +150,10 @@ export default function CreateUserModal({
 
   const handleSubmit = () => {
     if (validateForm()) {
-      const { password, ...userData } = formData
-      onCreateUser(userData, { sendWelcomeEmail })
+      onCreateUser({
+        ...formData,
+        sendWelcomeEmail,
+      })
     }
   }
 
@@ -330,13 +329,7 @@ export default function CreateUserModal({
           )}
 
           <div className="flex items-center space-x-2 pt-2">
-            <input
-              type="checkbox"
-              id="send-email"
-              checked={sendWelcomeEmail}
-              onChange={(e) => setSendWelcomeEmail(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
+            <Switch id="send-email" checked={sendWelcomeEmail} onCheckedChange={setSendWelcomeEmail} />
             <Label htmlFor="send-email">Send welcome email with login credentials</Label>
           </div>
         </div>

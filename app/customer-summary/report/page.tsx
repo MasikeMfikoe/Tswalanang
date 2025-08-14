@@ -404,8 +404,6 @@ export default function CustomerReport() {
           title: "Success",
           description: "Report prepared for PDF export",
         })
-      } else {
-        throw new Error("Failed to open print window")
       }
 
       // Clean up
@@ -424,12 +422,7 @@ export default function CustomerReport() {
     <div className="min-h-screen bg-background p-6">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mb-2 bg-transparent"
-            onClick={() => router.push("/customer-summary")}
-          >
+          <Button variant="outline" size="sm" className="mb-2" onClick={() => router.push("/customer-summary")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Summary
           </Button>
           <h1 className="text-2xl font-bold">Customer Line Items Report</h1>
@@ -441,7 +434,7 @@ export default function CustomerReport() {
           <Button
             variant="outline"
             size="sm"
-            className="self-start bg-transparent"
+            className="self-start"
             onClick={exportToPDF}
             disabled={isLoading || lineItems.length === 0}
           >
@@ -450,7 +443,7 @@ export default function CustomerReport() {
           <Button
             variant="outline"
             size="sm"
-            className="self-start bg-transparent"
+            className="self-start"
             onClick={exportToCSV}
             disabled={isLoading || lineItems.length === 0}
           >

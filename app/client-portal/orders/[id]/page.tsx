@@ -5,16 +5,15 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Package, Truck, Calendar, MapPin, Ship, Container, FileText, ArrowLeft } from 'lucide-react'
+import { Package, Truck, Calendar, MapPin, Ship, Container, FileText, ArrowLeft } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import type { Order } from "@/types/models"
 import { formatDate } from "@/lib/utils" // Assuming formatDate is in lib/utils
 
-// <CHANGE> Updated interface to use Promise for Next.js 15 compatibility
 interface OrderDetailsPageProps {
-  params: Promise<{
+  params: {
     id: string
-  }>
+  }
 }
 
 const getStatusColor = (status: string) => {
@@ -58,8 +57,7 @@ const formatCargoStatus = (status: string | null | undefined) => {
 }
 
 export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
-  // <CHANGE> Added state to store resolved params
-  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
+  const { id } = params
   const router = useRouter()
   const { user, isLoading: isUserLoading } = useAuth()
 
@@ -67,22 +65,10 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // <CHANGE> Added useEffect to resolve params Promise
-  useEffect(() => {
-    const resolveParams = async () => {
-      const resolved = await params
-      setResolvedParams(resolved)
-    }
-    resolveParams()
-  }, [params])
-
   useEffect(() => {
     const fetchOrderDetails = async () => {
-      // <CHANGE> Wait for params to be resolved before proceeding
-      if (!resolvedParams?.id || !user?.id) {
-        if (!user?.id) {
-          setError("User not authenticated.")
-        }
+      if (!user?.id) {
+        setError("User not authenticated.")
         setIsLoading(false)
         return
       }
@@ -90,7 +76,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
       setIsLoading(true)
       setError(null)
       try {
-        const response = await fetch(`/api/client-portal/orders/${resolvedParams.id}?userId=${user.id}`)
+        const response = await fetch(`/api/client-portal/orders/${id}?userId=${user.id}`)
         const result = await response.json()
 
         if (response.ok && result.data) {
@@ -108,13 +94,12 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
       }
     }
 
-    // <CHANGE> Updated dependency to use resolvedParams instead of params
-    if (!isUserLoading && resolvedParams) {
+    if (!isUserLoading) {
       fetchOrderDetails()
     }
-  }, [resolvedParams, user, isUserLoading])
+  }, [id, user, isUserLoading])
 
-  if (isUserLoading || isLoading || !resolvedParams) {
+  if (isUserLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -152,8 +137,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
           </CardHeader>
           <CardContent>
             <p className="text-center text-gray-600 mb-4">
-              {/* <CHANGE> Updated to use resolvedParams.id */}
-              The order with ID "{resolvedParams.id}" could not be found or you do not have permission to view it.
+              The order with ID "{id}" could not be found or you do not have permission to view it.
             </p>
             <Button className="w-full" onClick={() => router.back()}>
               <ArrowLeft className="h-4 w-4 mr-2" /> Back to Orders

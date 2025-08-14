@@ -14,15 +14,11 @@ export function ApiKeyManager() {
       const response = await fetch("/api/api-keys", { method: "POST" })
       const data = await response.json()
       if (response.ok) {
-        if (data?.apiKey) {
-          setApiKey(data.apiKey)
-          toast({
-            title: "API Key Generated",
-            description: "Your new API key has been created successfully.",
-          })
-        } else {
-          throw new Error("Invalid response format")
-        }
+        setApiKey(data.apiKey)
+        toast({
+          title: "API Key Generated",
+          description: "Your new API key has been created successfully.",
+        })
       } else {
         throw new Error(data.error || "Failed to generate API key")
       }

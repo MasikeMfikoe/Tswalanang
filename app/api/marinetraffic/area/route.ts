@@ -19,8 +19,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.MARINETRAFFIC_API_KEY || ""
-    const marineTrafficService = new MarineTrafficService(apiKey)
+    const marineTrafficService = new MarineTrafficService()
     const result = await marineTrafficService.searchVesselsByArea(
       Number.parseFloat(minLat),
       Number.parseFloat(maxLat),

@@ -3,10 +3,9 @@ import { emailService } from "@/lib/email-service"
 import { generateSecureToken } from "@/lib/qr-code-utils"
 import { courierOrdersApi } from "@/lib/api/courierOrdersApi"
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params
-    const orderId = id
+    const orderId = params.id
     const body = await request.json()
     const { recipientEmail, recipientName, senderEmail, senderName, notificationType } = body
 

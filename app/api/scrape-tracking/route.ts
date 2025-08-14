@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     let result
     if (carrier) {
-      result = await webScrapingService.scrapeContainer(containerNumber, carrier)
+      result = await webScrapingService.scrapeByCarrier(containerNumber, carrier)
     } else {
       result = await webScrapingService.scrapeContainer(containerNumber)
     }
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
   try {
     let result
     if (carrier) {
-      result = await webScrapingService.scrapeContainer(containerNumber, carrier)
+      result = await webScrapingService.scrapeByCarrier(containerNumber, carrier)
     } else {
       result = await webScrapingService.scrapeContainer(containerNumber)
     }

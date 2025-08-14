@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server"
+import { v4 as uuidv4 } from "uuid"
 import { AuditLogger } from "@/lib/audit-logger"
-import { supabase } from "@/lib/supabase"
+
+// Supabase Configuration
+import { createClient } from "@supabase/supabase-js"
+
+const supabaseUrl = process.env.SUPABASE_URL || ""
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || ""
+const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Mock data (Replace with DB calls in real use)
 const customers = [
@@ -57,7 +64,7 @@ const getUserIdFromRequest = async (request: Request): Promise<string | null> =>
   }
 }
 
-// Handle GET Requests
+// 📌 Handle GET Requests
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const customerId = url.searchParams.get("customerId")
@@ -74,7 +81,7 @@ export async function GET(request: Request) {
   return NextResponse.json(orders)
 }
 
-// Handle Order Creation (POST)
+// 📌 Handle Order Creation (POST)
 export async function POST(request: Request) {
   const body = await request.json()
   const userId = await getUserIdFromRequest(request)
@@ -99,7 +106,7 @@ export async function POST(request: Request) {
   return NextResponse.json(newOrder, { status: 201 })
 }
 
-// Handle Order Updates (PUT)
+// 📌 Handle Order Updates (PUT)
 export async function PUT(request: Request) {
   const body = await request.json()
   const userId = await getUserIdFromRequest(request)
@@ -117,4 +124,50 @@ export async function PUT(request: Request) {
     return NextResponse.json(orders[index])
   }
   return NextResponse.json({ error: "Order not found" }, { status: 404 })
+}
+
+// 📌 Handle File Upload (POST)
+export async function POST_upload(request: Request) {
+  try {
+    const formData = await request.formData()
+    const file = formData.get("file") as File
+    const documentType = formData.get("documentType") as string
+    const uploadedBy = formData.get("uploadedBy") as string
+    const orderId = formData.get("orderId") as string
+    const userId = await getUserIdFromRequest(request)
+
+    if (!file || !documentType) {
+      return NextResponse.json({ error: "File and document type are required." }, { status: 400 })
+    }
+
+    // Upload to Supabase Storage
+    const fileBuffer = Buffer.from(await file.arrayBuffer())
+    const fileKey = `uploads/${documentType}/${uuidv4()}-${file.name}`
+
+    const { data, error } = await supabase.storage.from("documents").upload(fileKey, fileBuffer, {
+      contentType: file.type,
+      cacheControl: "3600",
+    })
+
+    if (error) {
+      throw new Error(`Supabase storage error: ${error.message}`)
+    }
+
+    const fileUrl = `${supabaseUrl}/storage/v1/object/public/documents/${fileKey}`
+    const documentId = uuidv4()
+
+    // Log document upload
+    if (userId) {
+      await AuditLogger.logDocumentUploaded(userId, documentId, {
+        fileName: file.name,
+        documentType: documentType,
+        fileSize: file.size,
+        orderId: orderId,
+      })
+    }
+
+    return NextResponse.json({ message: "File uploaded successfully", fileUrl }, { status: 201 })
+  } catch (error) {
+    return NextResponse.json({ error: "File upload failed", details: error }, { status: 500 })
+  }
 }

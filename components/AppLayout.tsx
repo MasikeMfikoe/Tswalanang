@@ -23,7 +23,6 @@ import {
   Settings,
   Menu,
   ChevronRight,
-  Loader2,
 } from "lucide-react"
 
 // TypeScript interface for navigation items
@@ -48,7 +47,7 @@ interface NavigationItem {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout, hasPermission, isLoading } = useAuth()
+  const { user, logout, hasPermission } = useAuth()
   const pathname = usePathname()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -64,38 +63,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-gray-600">Loading TSW SmartLog...</p>
-        </div>
-      </div>
-    )
-  }
-
   if (pathname === "/login" || pathname === "/") {
     return <>{children}</>
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md w-full space-y-6 p-6">
-          <div className="text-center">
-            <img src="/images/TG_Logo-04.png" alt="TSW SmartLog" className="h-16 w-16 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900">Authentication Required</h2>
-            <p className="text-gray-600 mt-2">Please log in to access TSW SmartLog</p>
-          </div>
-          <div className="text-center">
-            <Link href="/login">
-              <Button className="w-full">Go to Login</Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    )
+    return <>{children}</>
   }
 
   const isAdmin = user.role === "admin"

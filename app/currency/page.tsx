@@ -79,12 +79,8 @@ export default function CurrencyConversion() {
 
     try {
       const data = await fetchExchangeRates()
-      if (data?.rates) {
-        setRates(data.rates)
-        setLastUpdated(getFormattedDate())
-      } else {
-        throw new Error("Invalid response format")
-      }
+      setRates(data.rates)
+      setLastUpdated(getFormattedDate())
       setIsLoading(false)
       setRequestCount((prev) => prev + 1)
     } catch (err) {
@@ -125,7 +121,7 @@ export default function CurrencyConversion() {
 
   // Calculate rates against USD for display
   const getExchangeRate = (currency: string) => {
-    if (!rates?.USD || !rates?.[currency]) return "N/A"
+    if (!rates.USD || !rates[currency]) return "N/A"
     return rates[currency].toFixed(6)
   }
 
@@ -335,7 +331,7 @@ export default function CurrencyConversion() {
               </div>
 
               <div className="flex justify-center md:col-span-1">
-                <Button variant="outline" size="icon" onClick={swapCurrencies} className="rounded-full bg-transparent">
+                <Button variant="outline" size="icon" onClick={swapCurrencies} className="rounded-full">
                   <ArrowLeftRight className="h-4 w-4" />
                 </Button>
               </div>

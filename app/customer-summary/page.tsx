@@ -12,7 +12,7 @@ import { Activity, Banknote, Clock, TrendingUp, Ship } from "lucide-react"
 import { BarChart } from "@/components/Charts"
 import { toast } from "@/lib/toast"
 import CargoStatusTab from "@/components/CargoStatusTab"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Customer, Order } from "@/types/models"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -43,10 +43,7 @@ interface OrderWithTracking extends Order {
 export default function CustomerSummary() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = createClientComponentClient()
   const { user } = useAuth()
 
   const [selectedCustomer, setSelectedCustomer] = useState<string>("")
@@ -141,7 +138,7 @@ export default function CustomerSummary() {
       orders.map(async (order) => {
         if (order.tracking_number) {
           const trackingData = await fetchTrackingData(order.tracking_number)
-          return { ...order, trackingData: trackingData || undefined }
+          return { ...order, trackingData }
         }
         return order
       }),
@@ -226,10 +223,9 @@ export default function CustomerSummary() {
       const enrichedOrders = await enrichOrdersWithTracking(orders || [])
       setFilteredOrders(enrichedOrders)
 
-      const totalRevenue = enrichedOrders?.reduce((sum, order) => sum + (order.total_cost || 0), 0) || 0
+      const totalRevenue = enrichedOrders?.reduce((sum, order) => sum + (order.totalValue || 0), 0) || 0
       const totalVAT = totalRevenue * 0.15
       const totalCustomsDuties = totalRevenue * 0.2
-
       const orderCount = enrichedOrders?.length || 0
       const completedOrders = enrichedOrders?.filter((order) => order.status === "Completed").length || 0
       const inProgressOrders = orderCount - completedOrders
@@ -418,7 +414,7 @@ export default function CustomerSummary() {
                   <Banknote className="h-4 w-4 text-muted-foreground" />
                   <div className="space-y-1">
                     <p className="text-sm font-medium leading-none">Total Revenue</p>
-                    <p className="text-2xl font-bold">{formatCurrency(metrics.totalRevenue)}</p>
+                    <p className="text-2xl font-bold">${metrics.totalRevenue.toLocaleString()}</p>
                   </div>
                 </div>
               </CardContent>
@@ -430,7 +426,7 @@ export default function CustomerSummary() {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                   <div className="space-y-1">
                     <p className="text-sm font-medium leading-none">Total VAT</p>
-                    <p className="text-2xl font-bold">{formatCurrency(metrics.totalVAT)}</p>
+                    <p className="text-2xl font-bold">${metrics.totalVAT.toLocaleString()}</p>
                   </div>
                 </div>
               </CardContent>
@@ -558,7 +554,7 @@ export default function CustomerSummary() {
                       </div>
                       {user?.role !== "employee" && (
                         <div className="text-right">
-                          <p className="font-medium">{formatCurrency(order.total_cost || 0)}</p>
+                          <p className="font-medium">${order.totalValue?.toLocaleString() || "0"}</p>
                           <p className="text-sm text-muted-foreground">{order.importer}</p>
                         </div>
                       )}
@@ -599,9 +595,9 @@ export default function CustomerSummary() {
                         <th className="p-2 text-right font-medium">Demurrage/Detention Days</th>
                         {user?.role !== "employee" && (
                           <>
-                            <th className="p-2 text-right font-medium">Total Cost</th>
-                            <th className="p-2 text-right font-medium">Tax Amount</th>
-                            <th className="p-2 text-right font-medium">Customs Duties</th>
+                            <th className="p-2 text-right font-medium">Order Value</th>
+                            <th className="p-2 text-right font-medium">VAT</th>
+                            <th className="p-2 text-right font-medium">Customs</th>
                           </>
                         )}
                       </tr>
@@ -616,23 +612,25 @@ export default function CustomerSummary() {
                           <td className="p-2">
                             {order.trackingData?.estimatedArrival
                               ? format(parseISO(order.trackingData.estimatedArrival), "MMM dd, yyyy")
-                              : order.estimated_delivery
-                                ? format(parseISO(order.estimated_delivery), "MMM dd, yyyy")
+                              : order.eta
+                                ? format(parseISO(order.eta), "MMM dd, yyyy")
                                 : "TBD"}
                           </td>
                           <td className="p-2">
                             {order.trackingData?.estimatedDeparture
                               ? format(parseISO(order.trackingData.estimatedDeparture), "MMM dd, yyyy")
-                              : "TBD"}
+                              : order.etd
+                                ? format(parseISO(order.etd), "MMM dd, yyyy")
+                                : "TBD"}
                           </td>
-                          <td className="p-2 text-right">{order.trackingData?.demurrageDays || 0} days</td>
+                          <td className="p-2 text-right">
+                            {order.trackingData?.demurrageDays || order.demurrageDays || 0} days
+                          </td>
                           {user?.role !== "employee" && (
                             <>
-                              <td className="p-2 text-right">{formatCurrency(order.total_cost || 0)}</td>
-                              <td className="p-2 text-right">
-                                {formatCurrency(order.tax_amount || order.total_cost * 0.15 || 0)}
-                              </td>
-                              <td className="p-2 text-right">{formatCurrency(order.customs_duties || 0)}</td>
+                              <td className="p-2 text-right">${order.orderValue?.toLocaleString() || "0"}</td>
+                              <td className="p-2 text-right">${order.vat?.toLocaleString() || "0"}</td>
+                              <td className="p-2 text-right">${order.customs?.toLocaleString() || "0"}</td>
                             </>
                           )}
                         </tr>
@@ -661,7 +659,7 @@ export default function CustomerSummary() {
         </TabsContent>
 
         <TabsContent value="cargo-status">
-          <CargoStatusTab customerId={selectedCustomer || "all"} startDate={startDate} endDate={endDate} />
+          <CargoStatusTab />
         </TabsContent>
       </Tabs>
     </div>

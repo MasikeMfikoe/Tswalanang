@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr"
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
 import { AuditLogger } from "@/lib/audit-logger"
@@ -6,22 +6,7 @@ import { AuditLogger } from "@/lib/audit-logger"
 // Helper function to get user ID from request
 const getUserIdFromRequest = async (request: NextRequest): Promise<string | null> => {
   try {
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-          },
-        },
-      },
-    )
-
+    const supabase = createRouteHandlerClient({ cookies })
     const {
       data: { user },
       error,
@@ -48,21 +33,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "created_at"
     const sortOrder = searchParams.get("sortOrder") || "desc"
 
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-          },
-        },
-      },
-    )
+    const supabase = createRouteHandlerClient({ cookies })
 
     // Start building the query
     let query = supabase.from("customers").select("*", { count: "exact" })
@@ -110,22 +81,7 @@ export async function GET(request: NextRequest) {
 // POST: Create a new customer
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-          },
-        },
-      },
-    )
-
+    const supabase = createRouteHandlerClient({ cookies })
     const customerData = await request.json()
     const userId = await getUserIdFromRequest(request)
 

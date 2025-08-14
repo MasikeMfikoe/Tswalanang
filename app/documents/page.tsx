@@ -15,9 +15,9 @@ export default function DocumentsPage() {
 
   const filteredDocuments = documents.filter((doc) => {
     return (
-      (typeFilter === "All" || doc.document_type === typeFilter) &&
-      (doc.file_name.toLowerCase().includes(search.toLowerCase()) ||
-        doc.order_id.toLowerCase().includes(search.toLowerCase()))
+      (typeFilter === "All" || doc.type === typeFilter) &&
+      (doc.name.toLowerCase().includes(search.toLowerCase()) ||
+        doc.poNumber.toLowerCase().includes(search.toLowerCase()))
     )
   })
 
@@ -33,7 +33,7 @@ export default function DocumentsPage() {
 
         <div className="flex space-x-4 mb-6">
           <Input
-            placeholder="Search by Document Name or Order ID"
+            placeholder="Search by Document Name or PO Number"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-1/2"
@@ -55,11 +55,11 @@ export default function DocumentsPage() {
           {filteredDocuments.map((doc) => (
             <div key={doc.id} className="flex justify-between items-center p-4 border rounded-lg">
               <div>
-                <p className="font-semibold">{doc.file_name}</p>
-                <p className="text-sm text-gray-600">Type: {doc.document_type}</p>
-                <p className="text-sm text-gray-500">Upload Date: {doc.uploaded_at}</p>
-                <Link href={`/orders/${doc.order_id}`} className="text-blue-600 hover:underline">
-                  Order ID: {doc.order_id}
+                <p className="font-semibold">{doc.name}</p>
+                <p className="text-sm text-gray-600">Type: {doc.type}</p>
+                <p className="text-sm text-gray-500">Upload Date: {doc.uploadDate}</p>
+                <Link href={`/orders/${doc.poNumber}`} className="text-blue-600 hover:underline">
+                  PO Number: {doc.poNumber}
                 </Link>
               </div>
               <Button onClick={() => router.push(`/documents/${doc.id}`)}>View Document</Button>

@@ -15,17 +15,12 @@ import { ArrowLeft, ExternalLink, Ship, Package, Calendar, MapPin, AlertCircle }
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "@/lib/toast"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
-export default function CargoStatusDetails({ params }: { params: Promise<{ id: string }> }) {
+export default function CargoStatusDetails({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { user } = useAuth()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
-
-  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
+  const supabase = createClientComponentClient()
   const [order, setOrder] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -40,25 +35,17 @@ export default function CargoStatusDetails({ params }: { params: Promise<{ id: s
   const [statusHistory, setStatusHistory] = useState<any[]>([])
 
   useEffect(() => {
-    params.then(setResolvedParams)
-  }, [params])
-
-  useEffect(() => {
-    if (resolvedParams?.id) {
-      fetchOrderDetails()
-    }
-  }, [resolvedParams?.id])
+    fetchOrderDetails()
+  }, [params.id])
 
   const fetchOrderDetails = async () => {
-    if (!resolvedParams?.id) return
-
     setIsLoading(true)
     try {
       // Fetch order details
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .select("*")
-        .eq("id", resolvedParams.id)
+        .eq("id", params.id)
         .single()
 
       if (orderError) {
@@ -76,7 +63,7 @@ export default function CargoStatusDetails({ params }: { params: Promise<{ id: s
       const { data: historyData, error: historyError } = await supabase
         .from("cargo_status_history")
         .select("*")
-        .eq("order_id", resolvedParams.id)
+        .eq("order_id", params.id)
         .order("timestamp", { ascending: false })
 
       if (historyError) {
@@ -163,8 +150,6 @@ export default function CargoStatusDetails({ params }: { params: Promise<{ id: s
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!resolvedParams?.id) return
-
     setIsSubmitting(true)
 
     try {
@@ -176,7 +161,7 @@ export default function CargoStatusDetails({ params }: { params: Promise<{ id: s
           cargoStatusComment: formData.comments,
           updatedAt: new Date().toISOString(),
         })
-        .eq("id", resolvedParams.id)
+        .eq("id", params.id)
 
       if (updateError) {
         throw new Error(`Failed to update order: ${updateError.message}`)
@@ -188,7 +173,7 @@ export default function CargoStatusDetails({ params }: { params: Promise<{ id: s
       // If the table exists, add to history
       if (!tableCheckError) {
         const { error: historyError } = await supabase.from("cargo_status_history").insert({
-          order_id: resolvedParams.id,
+          order_id: params.id,
           status: formData.cargoStatus,
           comments: formData.comments,
           location: formData.location,
@@ -236,16 +221,6 @@ export default function CargoStatusDetails({ params }: { params: Promise<{ id: s
     const { color, label } = statusMap[status] || { color: "bg-gray-100 text-gray-800", label: status }
 
     return <Badge className={color}>{label}</Badge>
-  }
-
-  if (!resolvedParams) {
-    return (
-      <div className="p-6">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-        </div>
-      </div>
-    )
   }
 
   if (isLoading) {

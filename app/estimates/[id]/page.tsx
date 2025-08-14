@@ -47,11 +47,21 @@ export default function EstimateDetailsPage() {
       if (response.success && response.data) {
         setEstimate(response.data)
       } else {
-        setError(response.message || "Failed to load estimate")
+        let errorMessage = response.message || "Failed to load estimate"
+
+        if (response.message?.includes("not found in database")) {
+          errorMessage = `Estimate "${id}" does not exist. It may have been deleted or the ID is incorrect.`
+        } else if (response.message?.includes("No estimates found")) {
+          errorMessage = "No estimates exist in the database yet. Please create an estimate first."
+        } else if (response.message?.includes("Invalid estimate ID")) {
+          errorMessage = "The estimate ID format is invalid. Please check the URL."
+        }
+
+        setError(errorMessage)
       }
     } catch (err: any) {
       console.error("Failed to fetch estimate:", err)
-      setError("Failed to load estimate. Please try again.")
+      setError("Failed to load estimate. Please check your connection and try again.")
       toast({
         title: "Error",
         description: err.message || "Failed to load estimate",
@@ -108,7 +118,7 @@ export default function EstimateDetailsPage() {
     if (element) {
       html2pdf()
         .from(element)
-        .save(`Estimate-${estimate?.display_id || estimate?.id}.pdf`)
+        .save(`Estimate-${estimate?.displayId || estimate?.id}.pdf`)
       toast({
         title: "Downloading PDF",
         description: "Your estimate PDF is being generated.",
@@ -136,17 +146,25 @@ export default function EstimateDetailsPage() {
   if (error || !estimate) {
     return (
       <div className="container mx-auto py-6">
-        <div className="text-center py-8 text-red-500">
-          <p>{error || "Estimate not found"}</p>
-          <Button variant="outline" onClick={fetchEstimate} className="mt-4 bg-transparent">
-            Try Again
-          </Button>
-          <Link href="/estimates" className="ml-2">
-            <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Estimates
+        <div className="text-center py-8">
+          <div className="text-red-500 mb-4">
+            <p className="text-lg font-semibold">Estimate Not Found</p>
+            <p className="text-sm">{error || "Estimate not found"}</p>
+          </div>
+          <div className="flex justify-center gap-2">
+            <Button variant="outline" onClick={fetchEstimate} className="bg-transparent">
+              Try Again
             </Button>
-          </Link>
+            <Link href="/estimates">
+              <Button variant="outline">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Estimates
+              </Button>
+            </Link>
+            <Link href="/estimates/new">
+              <Button>Create New Estimate</Button>
+            </Link>
+          </div>
         </div>
       </div>
     )
@@ -156,7 +174,7 @@ export default function EstimateDetailsPage() {
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Estimate {estimate.display_id || estimate.id}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Estimate {estimate.displayId || estimate.id}</h1>
           <p className="text-muted-foreground">View and manage estimate details</p>
         </div>
         <div className="flex gap-2">
@@ -197,7 +215,7 @@ export default function EstimateDetailsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-500">Estimate ID</label>
-                    <p className="font-mono">{estimate.display_id || estimate.id}</p>
+                    <p className="font-mono">{estimate.displayId || estimate.id}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Status</label>
@@ -209,19 +227,19 @@ export default function EstimateDetailsPage() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Customer Name</label>
-                    <p>{estimate.customer_name}</p>
+                    <p>{estimate.customerName}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Customer Email</label>
-                    <p>{estimate.customer_email}</p>
+                    <p>{estimate.customerEmail}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Freight Type</label>
-                    <p>{estimate.freight_type}</p>
+                    <p>{estimate.freightType}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Created Date</label>
-                    <p>{formatDate(estimate.created_at)}</p>
+                    <p>{formatDate(estimate.createdAt)}</p>
                   </div>
                 </div>
                 {estimate.notes && (
@@ -241,43 +259,43 @@ export default function EstimateDetailsPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span>Commercial Value</span>
-                    <span>{formatCurrency(estimate.commercial_value)}</span>
+                    <span>{formatCurrency(estimate.commercialValue)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Customs Duties</span>
-                    <span>{formatCurrency(estimate.customs_duties)}</span>
+                    <span>{formatCurrency(estimate.customsDuties)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Customs VAT</span>
-                    <span>{formatCurrency(estimate.customs_vat)}</span>
+                    <span>{formatCurrency(estimate.customsVAT)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Handling Fees</span>
-                    <span>{formatCurrency(estimate.handling_fees)}</span>
+                    <span>{formatCurrency(estimate.handlingFees)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Shipping Cost</span>
-                    <span>{formatCurrency(estimate.shipping_cost)}</span>
+                    <span>{formatCurrency(estimate.shippingCost)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Documentation Fee</span>
-                    <span>{formatCurrency(estimate.documentation_fee)}</span>
+                    <span>{formatCurrency(estimate.documentationFee)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Communication Fee</span>
-                    <span>{formatCurrency(estimate.communication_fee)}</span>
+                    <span>{formatCurrency(estimate.communicationFee)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Total Disbursements</span>
-                    <span>{formatCurrency(estimate.total_disbursements)}</span>
+                    <span>{formatCurrency(estimate.totalDisbursements)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Facility Fee</span>
-                    <span>{formatCurrency(estimate.facility_fee)}</span>
+                    <span>{formatCurrency(estimate.facilityFee)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Agency Fee</span>
-                    <span>{formatCurrency(estimate.agency_fee)}</span>
+                    <span>{formatCurrency(estimate.agencyFee)}</span>
                   </div>
                   <hr />
                   <div className="flex justify-between">
@@ -291,7 +309,7 @@ export default function EstimateDetailsPage() {
                   <hr />
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total Amount</span>
-                    <span>{formatCurrency(estimate.total_amount)}</span>
+                    <span>{formatCurrency(estimate.totalAmount)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -335,12 +353,12 @@ export default function EstimateDetailsPage() {
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
                     <span>Created</span>
-                    <span>{formatDate(estimate.created_at)}</span>
+                    <span>{formatDate(estimate.createdAt)}</span>
                   </div>
-                  {estimate.updated_at && (
+                  {estimate.updatedAt && (
                     <div className="flex justify-between">
                       <span>Last Updated</span>
-                      <span>{formatDate(estimate.updated_at)}</span>
+                      <span>{formatDate(estimate.updatedAt)}</span>
                     </div>
                   )}
                 </div>

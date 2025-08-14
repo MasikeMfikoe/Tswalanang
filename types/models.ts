@@ -147,31 +147,23 @@ export interface Contact {
   email: string
 }
 
+// Estimate model
 export interface Estimate {
   id: string
   display_id: string // A human-readable ID for estimates
   customer_id: string
   customer_name: string
-  customer_email: string // Customer email field that exists in database
-  status: EstimateStatus // Use proper EstimateStatus type instead of string literals
+  origin: string
+  destination: string
   freight_type: string
-  // Financial fields that exist in the database
-  commercial_value: number
-  customs_duties: number
-  customs_vat: number
-  handling_fees: number
-  shipping_cost: number
-  documentation_fee: number
-  communication_fee: number
-  total_disbursements: number
-  facility_fee: number
-  agency_fee: number
-  subtotal: number
-  vat: number
-  total_amount: number
-  notes: string
-  created_at: string
-  updated_at?: string
+  weight_kg?: number
+  volume_cbm?: number
+  status: "pending" | "approved" | "rejected"
+  estimated_cost: number
+  currency: string
+  valid_until: string
+  createdAt: string
+  updatedAt?: string
 }
 
 // Document model

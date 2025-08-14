@@ -24,7 +24,6 @@ export default function EstimatesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalEstimates, setTotalEstimates] = useState(0)
   const [statusFilter, setStatusFilter] = useState<string>("")
-  const [debugInfo, setDebugInfo] = useState<any>(null)
   const pageSize = 10
 
   // Fetch estimates from API
@@ -42,7 +41,6 @@ export default function EstimatesPage() {
       })
 
       console.log("Estimates API response:", response)
-      setDebugInfo(response)
 
       if (response && response.data) {
         setEstimates(response.data)
@@ -84,9 +82,9 @@ export default function EstimatesPage() {
 
     const filtered = estimates.filter(
       (estimate) =>
-        estimate.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        estimate.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         estimate.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (estimate.display_id && estimate.display_id.toLowerCase().includes(searchTerm.toLowerCase())),
+        (estimate.displayId && estimate.displayId.toLowerCase().includes(searchTerm.toLowerCase())),
     )
     setFilteredEstimates(filtered)
   }, [searchTerm, estimates])
@@ -143,11 +141,6 @@ export default function EstimatesPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Estimates</h1>
           <p className="text-muted-foreground">Manage customer estimates and quotes</p>
-          {debugInfo && (
-            <p className="text-xs text-gray-500 mt-1">
-              Debug: Found {debugInfo.total} records, showing {debugInfo.data?.length || 0}
-            </p>
-          )}
         </div>
         <div className="flex gap-2">
           <Link href="/estimates/new">
@@ -238,16 +231,16 @@ export default function EstimatesPage() {
                   ) : (
                     filteredEstimates.map((estimate) => (
                       <TableRow key={estimate.id}>
-                        <TableCell className="font-mono text-sm">{estimate.display_id || estimate.id}</TableCell>
-                        <TableCell>{estimate.customer_name || "N/A"}</TableCell>
-                        <TableCell>{formatDate(estimate.created_at)}</TableCell>
+                        <TableCell className="font-mono text-sm">{estimate.displayId || estimate.id}</TableCell>
+                        <TableCell>{estimate.customerName || "N/A"}</TableCell>
+                        <TableCell>{formatDate(estimate.createdAt)}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className={getStatusColor(estimate.status)}>
                             {estimate.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>{formatCurrency(estimate.total_amount)}</TableCell>
-                        <TableCell>{estimate.freight_type || "N/A"}</TableCell>
+                        <TableCell>{formatCurrency(estimate.totalAmount)}</TableCell>
+                        <TableCell>{estimate.freightType || "N/A"}</TableCell>
                         <TableCell className="text-right">
                           <Link href={`/estimates/${estimate.id}`}>
                             <Button variant="ghost" size="sm">
@@ -267,11 +260,6 @@ export default function EstimatesPage() {
           <div className="mt-4 flex justify-between items-center text-sm text-muted-foreground">
             <div>
               Showing {filteredEstimates.length} of {totalEstimates} estimates
-              {debugInfo && (
-                <span className="ml-2 text-xs">
-                  (Page {currentPage}, API returned {debugInfo.data?.length || 0} records)
-                </span>
-              )}
             </div>
             <div className="flex gap-2">
               <Button

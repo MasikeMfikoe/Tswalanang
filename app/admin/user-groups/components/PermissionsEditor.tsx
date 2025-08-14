@@ -77,21 +77,17 @@ export default function PermissionsEditor({
 }: PermissionsEditorProps) {
   const [activeTab, setActiveTab] = useState("permissions")
 
-  const isSystemGroup = (groupName: string) => {
-    return groupName === "Super Admin" || groupName === "Admin" || groupName === "Default"
-  }
-
-  const handlePermissionChange = (module: string, view: boolean) => {
-    const updatedPermissions = permissions.map((p) => (p.module === module ? { ...p, view } : p))
+  const handlePermissionChange = (pagePath: string, allowed: boolean) => {
+    const updatedPermissions = permissions.map((p) => (p.pagePath === pagePath ? { ...p, allowed } : p))
 
     // If this is a parent path, update all children
-    const childPaths = permissions.filter((p) => p.module.startsWith(module + "/")).map((p) => p.module)
+    const childPaths = permissions.filter((p) => p.pagePath.startsWith(pagePath + "/")).map((p) => p.pagePath)
 
     if (childPaths.length > 0) {
       childPaths.forEach((childPath) => {
-        const childIndex = updatedPermissions.findIndex((p) => p.module === childPath)
+        const childIndex = updatedPermissions.findIndex((p) => p.pagePath === childPath)
         if (childIndex !== -1) {
-          updatedPermissions[childIndex] = { ...updatedPermissions[childIndex], view }
+          updatedPermissions[childIndex] = { ...updatedPermissions[childIndex], allowed }
         }
       })
     }
@@ -100,8 +96,8 @@ export default function PermissionsEditor({
   }
 
   const isPathAllowed = (path: string) => {
-    const permission = permissions.find((p) => p.module === path)
-    return permission?.view || false
+    const permission = permissions.find((p) => p.pagePath === path)
+    return permission?.allowed || false
   }
 
   const renderNavigationItem = (item: any, depth = 0) => {
@@ -115,7 +111,7 @@ export default function PermissionsEditor({
             id={item.path}
             checked={isAllowed}
             onCheckedChange={(checked) => handlePermissionChange(item.path, !!checked)}
-            disabled={isSystemGroup(group.name)} // Super Admin always has all permissions
+            disabled={group.name === "Super Admin"} // Super Admin always has all permissions
           />
           <Label htmlFor={item.path} className="ml-2 font-medium">
             {item.name}
@@ -135,7 +131,7 @@ export default function PermissionsEditor({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">
-          {isSystemGroup(group.name) ? (
+          {group.isDefault ? (
             group.name
           ) : (
             <Input
@@ -147,11 +143,11 @@ export default function PermissionsEditor({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {isSystemGroup(group.name) && (
+        {group.name === "Super Admin" && (
           <Alert className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              {group.name} group has full access to all features and cannot be modified.
+              Super Admin group has full access to all features and cannot be modified.
             </AlertDescription>
           </Alert>
         )}
@@ -168,7 +164,7 @@ export default function PermissionsEditor({
           </TabsContent>
 
           <TabsContent value="users">
-            <UserAssignmentSection groupId={group.id} isDefaultGroup={isSystemGroup(group.name)} />
+            <UserAssignmentSection groupId={group.id} isDefaultGroup={group.isDefault} />
           </TabsContent>
 
           <TabsContent value="preview">

@@ -16,18 +16,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.MARINETRAFFIC_API_KEY
-    if (!apiKey) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "MarineTraffic API key not configured",
-        },
-        { status: 500 },
-      )
-    }
-
-    const marineTrafficService = new MarineTrafficService(apiKey)
+    const marineTrafficService = new MarineTrafficService()
     const result = await marineTrafficService.getVesselsInPort(Number.parseInt(portId))
 
     return NextResponse.json(result)

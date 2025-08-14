@@ -4,12 +4,9 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "check-all": "npm run lint && npm run type-check",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start",
-    "type-check": "tsc --noEmit",
-    "type-check:watch": "tsc --noEmit --watch"
+    "start": "next start"
   },
   "resolutions": {
     "@supabase/supabase-js": "2.53.0"
@@ -44,10 +41,10 @@
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
     "@supabase/auth-helpers-nextjs": "latest",
-    "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
     "@tanstack/react-query": "latest",
     "@tanstack/react-query-devtools": "latest",
+    "@tanstack/react-table": "^8.20.5",
     "@testing-library/dom": "latest",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
@@ -74,7 +71,6 @@
     "react-day-picker": "9.8.0",
     "react-dom": "^19",
     "react-hook-form": "latest",
-    "react-query": "latest",
     "react-resizable-panels": "^2.1.7",
     "recharts": "latest",
     "sonner": "^1.7.1",

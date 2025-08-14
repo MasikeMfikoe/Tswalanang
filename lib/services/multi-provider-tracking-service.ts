@@ -1,4 +1,4 @@
-import type { TrackingResult, ShipmentType } from "@/types/tracking"
+import type { TrackingResult, ShipmentType, DetectedShipmentInfo } from "@/types/tracking"
 import { SeaRatesService } from "./searates-service"
 import { GocometService } from "./gocomet-service"
 
@@ -67,12 +67,12 @@ export class MultiProviderTrackingService {
     }
   }
 
-  async trackShipment(trackingNumber: string, options?: TrackingOptions): Promise<TrackingResult> {
+  async trackShipment(
+    trackingNumber: string,
+    options?: TrackingOptions
+  ): Promise<TrackingResult> {
     console.log(`Starting multi-provider tracking for: ${trackingNumber}`)
-    console.log(
-      `Available providers (in priority order):`,
-      this.providers.map((p) => `${p.name} (priority: ${p.priority})`),
-    )
+    console.log(`Available providers (in priority order):`, this.providers.map(p => `${p.name} (priority: ${p.priority})`))
 
     const errors: string[] = []
 
@@ -80,7 +80,7 @@ export class MultiProviderTrackingService {
       try {
         console.log(`Attempting tracking with ${provider.name}...`)
         const result = await provider.track(trackingNumber, options)
-
+        
         if (result.success) {
           console.log(`✅ Successfully tracked with ${provider.name}`)
           return result
@@ -100,25 +100,16 @@ export class MultiProviderTrackingService {
       success: false,
       error: `All tracking providers failed. Errors: ${errors.join("; ")}`,
       source: "MultiProviderTrackingService",
-      fallbackOptions: this.providers.map((p) => p.name),
+      fallbackOptions: this.providers.map(p => p.name),
     }
   }
 
   getAvailableProviders(): string[] {
-    return this.providers.map((p) => p.name)
-  }
-
-  getProviderStatus() {
-    return this.providers.map((provider) => ({
-      name: provider.name,
-      priority: provider.priority,
-      available: true, // Assume all registered providers are available
-      service: provider.service.constructor.name,
-    }))
+    return this.providers.map(p => p.name)
   }
 
   getProviderPriority(providerName: string): number | null {
-    const provider = this.providers.find((p) => p.name === providerName)
+    const provider = this.providers.find(p => p.name === providerName)
     return provider ? provider.priority : null
   }
 }

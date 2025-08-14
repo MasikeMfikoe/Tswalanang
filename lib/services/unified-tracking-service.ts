@@ -1,13 +1,20 @@
+import { TrackShipService } from "./trackship-service"
 import { trackContainerExternal } from "./external-tracking-service"
 import { detectContainerInfo } from "./container-detection-service"
 
 export class UnifiedTrackingService {
-  constructor() {}
+  private trackShipService: TrackShipService
+
+  constructor() {
+    this.trackShipService = new TrackShipService()
+  }
 
   async trackShipment(trackingNumber: string) {
     const cleanTrackingNumber = trackingNumber.trim().toUpperCase().replace(/[\s-]/g, "")
 
+    // Try multiple tracking sources in order of preference
     const trackingMethods = [
+      () => this.tryTrackShip(cleanTrackingNumber),
       () => this.tryDirectAPI(cleanTrackingNumber),
       () => this.tryFallbackMethods(cleanTrackingNumber),
     ]
@@ -29,6 +36,22 @@ export class UnifiedTrackingService {
       error: "Unable to track shipment with any available method",
       trackingNumber: cleanTrackingNumber,
     }
+  }
+
+  private async tryTrackShip(trackingNumber: string) {
+    console.log("Trying TrackShip for:", trackingNumber)
+    const result = await this.trackShipService.trackShipment(trackingNumber)
+
+    if (result.success && result.data) {
+      return {
+        success: true,
+        data: this.transformToStandardFormat(result.data, "trackship"),
+        source: "trackship",
+        isLiveData: true,
+      }
+    }
+
+    return { success: false, error: result.error }
   }
 
   private async tryDirectAPI(trackingNumber: string) {

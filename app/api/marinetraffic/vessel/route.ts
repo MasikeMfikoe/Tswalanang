@@ -18,18 +18,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.MARINETRAFFIC_API_KEY
-    if (!apiKey) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "MarineTraffic API key not configured",
-        },
-        { status: 500 },
-      )
-    }
-
-    const marineTrafficService = new MarineTrafficService(apiKey)
+    const marineTrafficService = new MarineTrafficService()
     let result
 
     if (imo) {
@@ -84,18 +73,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.MARINETRAFFIC_API_KEY
-    if (!apiKey) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "MarineTraffic API key not configured",
-        },
-        { status: 500 },
-      )
-    }
-
-    const marineTrafficService = new MarineTrafficService(apiKey)
+    const marineTrafficService = new MarineTrafficService()
     const results = []
 
     for (const vessel of vessels) {

@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     console.log("[API/Tracking] MultiProviderTrackingService initialized.")
 
     const result = await multiProviderTrackingService.trackShipment(trackingNumber, {
+      preferredProvider: bookingType === "ocean" || bookingType === "lcl" ? "TrackShip" : undefined, // Prefer TrackShip for ocean/lcl
       carrierHint,
       shipmentType: bookingType,
       preferScraping, // Pass preferScraping option to the service

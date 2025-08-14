@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
 
     const trackingService = new MultiProviderTrackingService()
     const result = await trackingService.trackShipment(trackingNumber, {
+      preferredProvider,
       carrierHint,
       shipmentType,
     })

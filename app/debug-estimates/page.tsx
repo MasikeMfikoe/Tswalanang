@@ -9,12 +9,6 @@ export default function DebugEstimatesPage() {
   const [results, setResults] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
-  const getErrorMessage = (error: unknown): string => {
-    if (error instanceof Error) return error.message
-    if (typeof error === "string") return error
-    return "An unknown error occurred"
-  }
-
   const testDirectSupabase = async () => {
     setLoading(true)
     try {
@@ -49,7 +43,7 @@ export default function DebugEstimatesPage() {
       })
     } catch (error) {
       console.error("Debug error:", error)
-      setResults({ error: getErrorMessage(error), timestamp: new Date().toISOString() })
+      setResults({ error: error.message, timestamp: new Date().toISOString() })
     } finally {
       setLoading(false)
     }
@@ -66,7 +60,7 @@ export default function DebugEstimatesPage() {
       setResults({ estimatesApiResult: result, timestamp: new Date().toISOString() })
     } catch (error) {
       console.error("EstimatesApi error:", error)
-      setResults({ estimatesApiError: getErrorMessage(error), timestamp: new Date().toISOString() })
+      setResults({ estimatesApiError: error.message, timestamp: new Date().toISOString() })
     } finally {
       setLoading(false)
     }

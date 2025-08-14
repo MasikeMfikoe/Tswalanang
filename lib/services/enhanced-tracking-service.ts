@@ -1,4 +1,5 @@
 import { webScrapingService } from "./web-scraping-service"
+import { TrackShipService } from "./trackship-service"
 import { trackContainerExternal } from "./external-tracking-service"
 import { detectContainerInfo } from "./container-detection-service"
 
@@ -17,7 +18,11 @@ export interface EnhancedTrackingResult {
 }
 
 export class EnhancedTrackingService {
-  constructor() {}
+  private trackShipService: TrackShipService
+
+  constructor() {
+    this.trackShipService = new TrackShipService()
+  }
 
   async trackContainer(
     containerNumber: string,
@@ -33,6 +38,7 @@ export class EnhancedTrackingService {
     console.log(`🔍 Enhanced tracking for: ${cleanContainer}`)
     console.log(`📦 Container info:`, containerInfo)
 
+    // Define tracking methods in order of preference
     const trackingMethods = []
 
     // If user prefers scraping or we have a specific carrier hint, try scraping first
@@ -42,6 +48,12 @@ export class EnhancedTrackingService {
         method: () => this.tryWebScraping(cleanContainer, options.carrierHint),
       })
     }
+
+    // Add TrackShip API
+    trackingMethods.push({
+      name: "TrackShip API",
+      method: () => this.tryTrackShip(cleanContainer),
+    })
 
     // Add direct carrier APIs
     trackingMethods.push({
@@ -93,7 +105,12 @@ export class EnhancedTrackingService {
 
   private async tryWebScraping(containerNumber: string, carrierHint?: string): Promise<EnhancedTrackingResult> {
     try {
-      const result = await webScrapingService.scrapeContainer(containerNumber, carrierHint)
+      let result
+      if (carrierHint) {
+        result = await webScrapingService.scrapeByCarrier(containerNumber, carrierHint)
+      } else {
+        result = await webScrapingService.scrapeContainer(containerNumber)
+      }
 
       if (result.success && result.data) {
         return {
@@ -116,6 +133,35 @@ export class EnhancedTrackingService {
         success: false,
         error: `Web scraping error: ${error instanceof Error ? error.message : "Unknown error"}`,
         source: "Web Scraping Service",
+        isLiveData: false,
+      }
+    }
+  }
+
+  private async tryTrackShip(containerNumber: string): Promise<EnhancedTrackingResult> {
+    try {
+      const result = await this.trackShipService.trackShipment(containerNumber)
+
+      if (result.success && result.data) {
+        return {
+          success: true,
+          data: this.transformTrackShipData(result.data),
+          source: "TrackShip API",
+          isLiveData: true,
+        }
+      } else {
+        return {
+          success: false,
+          error: result.error || "TrackShip API failed",
+          source: "TrackShip API",
+          isLiveData: false,
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `TrackShip error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        source: "TrackShip API",
         isLiveData: false,
       }
     }
@@ -193,6 +239,55 @@ export class EnhancedTrackingService {
         timestamp: `${event.date} ${event.time}`,
         date: event.date,
         time: event.time,
+        description: event.description,
+      })
+    })
+
+    return Object.values(groupedEvents)
+  }
+
+  private transformTrackShipData(trackShipData: any) {
+    return {
+      shipmentNumber: trackShipData.tracking_number,
+      status: trackShipData.status,
+      containerNumber: trackShipData.tracking_number,
+      containerType: trackShipData.shipment_info?.service_type || "Container",
+      weight: trackShipData.shipment_info?.weight || "Unknown",
+      origin: trackShipData.shipment_info?.origin || "Unknown",
+      destination: trackShipData.shipment_info?.destination || "Unknown",
+      pol: trackShipData.shipment_info?.origin || "Unknown",
+      pod: trackShipData.shipment_info?.destination || "Unknown",
+      estimatedArrival: trackShipData.estimated_delivery || "Unknown",
+      lastLocation: trackShipData.location || "Unknown",
+      timeline: this.transformTrackShipEvents(trackShipData.events || []),
+      documents: [],
+      details: {
+        packages: "Unknown",
+        specialInstructions: trackShipData.status_detail || "",
+        dimensions: trackShipData.shipment_info?.dimensions || "Unknown",
+        shipmentType: trackShipData.shipment_info?.service_type || "Container Freight",
+      },
+    }
+  }
+
+  private transformTrackShipEvents(events: any[]) {
+    const groupedEvents: Record<string, any> = {}
+
+    events.forEach((event) => {
+      const location = event.location || "Unknown"
+      if (!groupedEvents[location]) {
+        groupedEvents[location] = {
+          location,
+          events: [],
+        }
+      }
+
+      groupedEvents[location].events.push({
+        type: "event",
+        status: event.description || event.status,
+        timestamp: event.timestamp,
+        date: new Date(event.timestamp).toLocaleDateString(),
+        time: new Date(event.timestamp).toLocaleTimeString(),
         description: event.description,
       })
     })

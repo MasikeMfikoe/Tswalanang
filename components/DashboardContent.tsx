@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader"
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs"
 import { ErrorDisplay } from "@/components/ErrorDisplay"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { toast } from "@/lib/toast"
 
 type DateRange = {
@@ -21,10 +21,7 @@ type PeriodOption = {
 }
 
 export default function DashboardContent() {
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = createClientComponentClient()
 
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
@@ -249,7 +246,7 @@ export default function DashboardContent() {
       setIsLoading(true)
       setTimeout(() => {
         const filtered = allOrders.filter((order) => {
-          const orderDate = new Date(order.created_at)
+          const orderDate = new Date(order.createdAt || order.created_at)
           return orderDate >= new Date(startDate) && orderDate <= new Date(endDate)
         })
         setFilteredOrders(filtered)
@@ -274,7 +271,9 @@ export default function DashboardContent() {
   const recentOrders = useMemo(
     () =>
       [...filteredOrders]
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .sort(
+          (a, b) => new Date(b.createdAt || b.created_at).getTime() - new Date(a.createdAt || a.created_at).getTime(),
+        )
         .slice(0, 5),
     [filteredOrders],
   )
@@ -320,7 +319,7 @@ export default function DashboardContent() {
     }
 
     allOrders.forEach((order) => {
-      const orderDate = new Date(order.created_at)
+      const orderDate = new Date(order.created_at || order.createdAt)
       if (orderDate >= oneYearAgo) {
         const month = format(orderDate, "MMM")
         monthlyCounts[month]++
@@ -401,7 +400,7 @@ export default function DashboardContent() {
     }
 
     customers.forEach((customer) => {
-      const customerDate = new Date(customer.created_at)
+      const customerDate = new Date(customer.created_at || customer.createdAt)
       if (customerDate >= oneYearAgo) {
         const month = format(customerDate, "MMM")
         monthlyCounts[month]++
@@ -528,7 +527,7 @@ export default function DashboardContent() {
     }
 
     allOrders.forEach((order) => {
-      const orderDate = new Date(order.created_at)
+      const orderDate = new Date(order.created_at || order.createdAt)
       if (orderDate >= oneYearAgo && (order.status === "Completed" || order.status === "completed")) {
         const month = format(orderDate, "MMM")
         monthlyData[month].total++
@@ -559,7 +558,7 @@ export default function DashboardContent() {
     }
 
     allOrders.forEach((order) => {
-      const orderDate = new Date(order.created_at)
+      const orderDate = new Date(order.created_at || order.createdAt)
       if (orderDate >= oneYearAgo) {
         const month = format(orderDate, "MMM")
         monthlyData[month].totalValue += order.total_value || order.totalValue || 0

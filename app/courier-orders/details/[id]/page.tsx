@@ -7,48 +7,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { supabase } from "@/lib/supabase"
 
-export default function CourierOrderDetails({ params }: { params: Promise<{ id: string }> }) {
+export default function CourierOrderDetails({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [order, setOrder] = useState<any>(null)
   const [items, setItems] = useState<any[]>([])
   const [trackingEvents, setTrackingEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
 
   useEffect(() => {
-    const resolveParams = async () => {
-      try {
-        const resolved = await params
-        setResolvedParams(resolved)
-      } catch (error) {
-        console.error("Error resolving params:", error)
-        setError("Failed to load page parameters")
-      }
-    }
-    resolveParams()
-  }, [params])
-
-  useEffect(() => {
-    if (resolvedParams?.id) {
-      fetchCourierOrderDetails()
-    }
-  }, [resolvedParams?.id])
+    fetchCourierOrderDetails()
+  }, [params.id])
 
   const fetchCourierOrderDetails = async () => {
-    if (!resolvedParams?.id) return
-
     try {
       setLoading(true)
       setError(null)
 
-      console.log("Fetching courier order with ID:", resolvedParams.id)
+      console.log("Fetching courier order with ID:", params.id)
 
       // Fetch the main courier order
       const { data: orderData, error: orderError } = await supabase
         .from("courier_orders")
         .select("*")
-        .eq("id", resolvedParams.id)
+        .eq("id", params.id)
         .single()
 
       if (orderError) {
@@ -68,7 +50,7 @@ export default function CourierOrderDetails({ params }: { params: Promise<{ id: 
       const { data: itemsData, error: itemsError } = await supabase
         .from("courier_order_items")
         .select("*")
-        .eq("courier_order_id", resolvedParams.id)
+        .eq("courier_order_id", params.id)
         .order("created_at", { ascending: true })
 
       if (itemsError) {
@@ -82,7 +64,7 @@ export default function CourierOrderDetails({ params }: { params: Promise<{ id: 
       const { data: trackingData, error: trackingError } = await supabase
         .from("tracking_events")
         .select("*")
-        .eq("courier_order_id", resolvedParams.id)
+        .eq("courier_order_id", params.id)
         .order("timestamp", { ascending: false })
 
       if (trackingError) {
@@ -138,19 +120,6 @@ export default function CourierOrderDetails({ params }: { params: Promise<{ id: 
     } catch {
       return {}
     }
-  }
-
-  if (!resolvedParams) {
-    return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading...</p>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   if (loading) {

@@ -14,46 +14,11 @@ import type { UserGroup, GroupPermission } from "@/types/auth"
 
 // Mock data for initial development
 const initialGroups: UserGroup[] = [
-  {
-    id: "1",
-    name: "Super Admin",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    permissions: [],
-    users: [],
-  },
-  {
-    id: "2",
-    name: "Sales",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    permissions: [],
-    users: [],
-  },
-  {
-    id: "3",
-    name: "HR",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    permissions: [],
-    users: [],
-  },
-  {
-    id: "4",
-    name: "Support",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    permissions: [],
-    users: [],
-  },
-  {
-    id: "5",
-    name: "Guest",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    permissions: [],
-    users: [],
-  },
+  { id: "1", name: "Super Admin", isDefault: true, createdAt: new Date().toISOString() },
+  { id: "2", name: "Sales", isDefault: false, createdAt: new Date().toISOString() },
+  { id: "3", name: "HR", isDefault: false, createdAt: new Date().toISOString() },
+  { id: "4", name: "Support", isDefault: false, createdAt: new Date().toISOString() },
+  { id: "5", name: "Guest", isDefault: true, createdAt: new Date().toISOString() },
 ]
 
 export default function AdminUserGroupsPage() {
@@ -88,115 +53,20 @@ export default function AdminUserGroupsPage() {
       // In a real app, this would fetch from API
       // For now, we'll use mock data
       const mockPermissions: GroupPermission[] = [
-        {
-          id: "1",
-          group_id: selectedGroup.id,
-          module: "/dashboard",
-          view: true,
-          create: false,
-          edit: false,
-          delete: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "2",
-          group_id: selectedGroup.id,
-          module: "/orders",
-          view: selectedGroup.id !== "5",
-          create: selectedGroup.id !== "5",
-          edit: selectedGroup.id !== "5",
-          delete: selectedGroup.id === "1",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "3",
-          group_id: selectedGroup.id,
-          module: "/orders/new",
-          view: selectedGroup.id !== "5",
-          create: selectedGroup.id !== "5",
-          edit: selectedGroup.id !== "5",
-          delete: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "4",
-          group_id: selectedGroup.id,
-          module: "/documents",
-          view: true,
-          create: selectedGroup.id !== "5",
-          edit: selectedGroup.id !== "5",
-          delete: selectedGroup.id === "1",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "5",
-          group_id: selectedGroup.id,
-          module: "/settings",
-          view: selectedGroup.id === "1",
-          create: selectedGroup.id === "1",
-          edit: selectedGroup.id === "1",
-          delete: selectedGroup.id === "1",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "6",
-          group_id: selectedGroup.id,
-          module: "/settings/users",
-          view: selectedGroup.id === "1",
-          create: selectedGroup.id === "1",
-          edit: selectedGroup.id === "1",
-          delete: selectedGroup.id === "1",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "7",
-          group_id: selectedGroup.id,
-          module: "/settings/billing",
-          view: selectedGroup.id === "1",
-          create: selectedGroup.id === "1",
-          edit: selectedGroup.id === "1",
-          delete: selectedGroup.id === "1",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "8",
-          group_id: selectedGroup.id,
-          module: "/analytics",
-          view: selectedGroup.id !== "5",
-          create: false,
-          edit: false,
-          delete: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: "9",
-          group_id: selectedGroup.id,
-          module: "/analytics/reports",
-          view: selectedGroup.id !== "5",
-          create: selectedGroup.id !== "5",
-          edit: selectedGroup.id !== "5",
-          delete: selectedGroup.id === "1",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+        { id: "1", groupId: selectedGroup.id, pagePath: "/dashboard", allowed: true },
+        { id: "2", groupId: selectedGroup.id, pagePath: "/orders", allowed: selectedGroup.id !== "5" },
+        { id: "3", groupId: selectedGroup.id, pagePath: "/orders/new", allowed: selectedGroup.id !== "5" },
+        { id: "4", groupId: selectedGroup.id, pagePath: "/documents", allowed: true },
+        { id: "5", groupId: selectedGroup.id, pagePath: "/settings", allowed: selectedGroup.id === "1" },
+        { id: "6", groupId: selectedGroup.id, pagePath: "/settings/users", allowed: selectedGroup.id === "1" },
+        { id: "7", groupId: selectedGroup.id, pagePath: "/settings/billing", allowed: selectedGroup.id === "1" },
+        { id: "8", groupId: selectedGroup.id, pagePath: "/analytics", allowed: selectedGroup.id !== "5" },
+        { id: "9", groupId: selectedGroup.id, pagePath: "/analytics/reports", allowed: selectedGroup.id !== "5" },
         {
           id: "10",
-          group_id: selectedGroup.id,
-          module: "/analytics/reports/monthly",
-          view: selectedGroup.id !== "5",
-          create: selectedGroup.id !== "5",
-          edit: selectedGroup.id !== "5",
-          delete: selectedGroup.id === "1",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          groupId: selectedGroup.id,
+          pagePath: "/analytics/reports/monthly",
+          allowed: selectedGroup.id !== "5",
         },
       ]
       setPermissions(mockPermissions)
@@ -207,10 +77,8 @@ export default function AdminUserGroupsPage() {
     const newGroup: UserGroup = {
       id: `group-${Date.now()}`,
       name: "New Group",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      permissions: [],
-      users: [],
+      isDefault: false,
+      createdAt: new Date().toISOString(),
     }
     setGroups([...groups, newGroup])
     setSelectedGroup(newGroup)
@@ -230,11 +98,7 @@ export default function AdminUserGroupsPage() {
   }
 
   const handleUpdateGroupName = (name: string) => {
-    const isSystemGroup = (groupName: string) => {
-      return ["Super Admin", "Admin", "Manager"].includes(groupName)
-    }
-
-    if (selectedGroup && !isSystemGroup(selectedGroup.name)) {
+    if (selectedGroup && !selectedGroup.isDefault) {
       setSelectedGroup({ ...selectedGroup, name })
       setGroups(groups.map((g) => (g.id === selectedGroup.id ? { ...g, name } : g)))
       setHasChanges(true)

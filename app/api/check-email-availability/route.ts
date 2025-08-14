@@ -18,12 +18,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check in Supabase auth users
-    const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1,
-    })
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserByEmail(email)
 
-    if (authError) {
+    if (authError && !authError.message.includes("User not found")) {
       console.error("Error checking email in auth:", authError)
       return NextResponse.json(
         {
@@ -34,10 +31,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if any user has this email
-    const existingUser = authUsers?.users?.find((user) => user.email === email)
-
-    if (existingUser) {
+    if (authUser?.user) {
       return NextResponse.json({
         isAvailable: false,
         error: "Email already exists",
