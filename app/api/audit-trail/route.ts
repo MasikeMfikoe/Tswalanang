@@ -38,21 +38,25 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { userId, userEmail, action, module, recordId, details, ipAddress } = await request.json()
+  try {
+    const { userId, userEmail, action, module, recordId, details, ipAddress } = await request.json()
 
-  // Create service role client to bypass RLS policies for audit logging
-  const supabaseServiceRole = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("❌ Missing Supabase environment variables for audit logging")
+      return NextResponse.json({ success: false, message: "Audit logging not configured" }, { status: 503 })
+    }
+
+    // Create service role client to bypass RLS policies for audit logging
+    const supabaseServiceRole = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
-    },
-  )
+    })
 
-  try {
     const { data, error } = await supabaseServiceRole
       .from("audit_trail")
       .insert({

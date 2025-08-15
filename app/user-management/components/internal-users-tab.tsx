@@ -12,6 +12,101 @@ import { useToast } from "@/components/ui/use-toast"
 import CreateUserModal from "./create-user-modal"
 import EditUserModal from "./edit-user-modal"
 
+function SafeUserRenderer({
+  user,
+  onEdit,
+  onDelete,
+}: { user: User; onEdit: (user: User) => void; onDelete: (id: string, name: string) => void }) {
+  try {
+    if (!user || typeof user !== "object" || !user.id) {
+      return null
+    }
+
+    const safeFirstName = String(user.first_name || user.name || "")
+    const safeSurname = String(user.surname || "")
+    const safeEmail = String(user.email || "No email")
+    const safeUsername = String(user.username || "no-username")
+    const safeRole = String(user.role || "employee")
+    const safeDepartment = String(user.department || "No department")
+
+    let safePageAccess: string[] = []
+    try {
+      if (Array.isArray(user.pageAccess)) {
+        safePageAccess = user.pageAccess.filter((page) => typeof page === "string" && page.length > 0)
+      }
+    } catch {
+      safePageAccess = []
+    }
+
+    const getRoleBadgeVariant = (role: string) => {
+      switch (role) {
+        case "admin":
+          return "default"
+        case "manager":
+          return "secondary"
+        case "employee":
+          return "outline"
+        default:
+          return "outline"
+      }
+    }
+
+    return (
+      <div className="flex items-center justify-between p-4 border rounded-lg">
+        <div className="flex-1">
+          <div className="flex items-center space-x-4">
+            <div>
+              <h3 className="font-medium">{`${safeFirstName} ${safeSurname}`.trim() || "Unnamed User"}</h3>
+              <p className="text-sm text-muted-foreground">{safeEmail}</p>
+              <p className="text-xs text-muted-foreground">@{safeUsername}</p>
+            </div>
+            <Badge variant={getRoleBadgeVariant(safeRole)}>
+              {safeRole.charAt(0).toUpperCase() + safeRole.slice(1)}
+            </Badge>
+            <div className="text-sm text-muted-foreground">{safeDepartment}</div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            {safePageAccess.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {safePageAccess.slice(0, 3).map((page, index) => (
+                  <Badge key={`${page}-${index}`} variant="outline" className="text-xs">
+                    {page}
+                  </Badge>
+                ))}
+                {safePageAccess.length > 3 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{safePageAccess.length - 3} more
+                  </Badge>
+                )}
+              </div>
+            ) : (
+              <span className="text-muted-foreground text-sm">No access</span>
+            )}
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" size="sm" onClick={() => onEdit(user)}>
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onDelete(user.id, `${safeFirstName} ${safeSurname}`.trim() || "Unnamed User")}
+              className="text-red-500 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  } catch (error) {
+    console.error("[v0] Error rendering user:", user?.id || "unknown", error)
+    return null
+  }
+}
+
 export function InternalUsersTab() {
   const { getUsers, createUser, deleteUser, updateUser } = useAuth()
   const { toast } = useToast()
@@ -30,24 +125,25 @@ export function InternalUsersTab() {
   const fetchUsers = async () => {
     setIsLoading(true)
     try {
-      console.log("🔄 Fetching users for internal users tab...")
       const fetchedUsers = await getUsers()
-      console.log("📋 All users fetched:", fetchedUsers.length)
 
-      // Filter out client users (role === "client")
-      const internalUsers = fetchedUsers.filter((user) => user.role !== "client")
-      console.log("👥 Internal users:", internalUsers.length)
-
-      setUsers(internalUsers)
-
-      if (internalUsers.length === 0) {
-        console.log("⚠️ No internal users found")
+      if (!Array.isArray(fetchedUsers)) {
+        console.error("❌ Invalid users data received:", fetchedUsers)
+        setUsers([])
+        return
       }
+
+      const validUsers = fetchedUsers.filter(
+        (user) => user && typeof user === "object" && user.id && user.role !== "client",
+      )
+
+      setUsers(validUsers)
     } catch (error) {
       console.error("❌ Error fetching users:", error)
+      setUsers([])
       toast({
         title: "Error",
-        description: "Failed to load users. Please try again.",
+        description: "Failed to load users from Supabase.",
         variant: "destructive",
       })
     } finally {
@@ -76,13 +172,8 @@ export function InternalUsersTab() {
 
   const handleCreateUser = async (userData: Partial<User> & { password?: string; sendWelcomeEmail?: boolean }) => {
     try {
-      console.log("🚀 Creating user with data:", {
-        ...userData,
-        password: userData.password ? "[REDACTED]" : "not provided",
-      })
-
       const success = await createUser({
-        name: userData.name!,
+        first_name: userData.first_name || userData.name!,
         surname: userData.surname!,
         email: userData.email!,
         role: userData.role!,
@@ -98,23 +189,13 @@ export function InternalUsersTab() {
           description: `User ${userData.email} created successfully!`,
         })
         setIsCreateModalOpen(false)
-
-        // Refresh the list after a short delay to ensure data is saved
-        setTimeout(() => {
-          fetchUsers()
-        }, 1000)
+        setTimeout(() => fetchUsers(), 1000)
       }
     } catch (error) {
       console.error("❌ Error creating user:", error)
-
-      let errorMessage = "Failed to create user. Please try again."
-      if (error instanceof Error) {
-        errorMessage = error.message
-      }
-
       toast({
         title: "Error",
-        description: errorMessage,
+        description: "Failed to create user. Please try again.",
         variant: "destructive",
       })
     }
@@ -129,7 +210,7 @@ export function InternalUsersTab() {
             title: "Success",
             description: `User ${userName} deleted successfully!`,
           })
-          fetchUsers() // Refresh the list
+          fetchUsers()
         } else {
           toast({
             title: "Error",
@@ -161,11 +242,11 @@ export function InternalUsersTab() {
       if (success) {
         toast({
           title: "Success",
-          description: `User ${userData.email || selectedUser.email} updated successfully!`,
+          description: `User updated successfully!`,
         })
         setIsEditModalOpen(false)
         setSelectedUser(null)
-        fetchUsers() // Refresh the list
+        fetchUsers()
       } else {
         toast({
           title: "Error",
@@ -205,31 +286,33 @@ export function InternalUsersTab() {
     }
   }
 
-  const handleSearch = (term: string) => {
-    setSearchTerm(term)
-  }
+  const getFilteredUsers = () => {
+    try {
+      if (!Array.isArray(users)) return []
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.surname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.username?.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      return users.filter((user) => {
+        if (!user || typeof user !== "object" || !user.id) return false
 
-  const getRoleBadgeVariant = (role: string) => {
-    switch (role) {
-      case "admin":
-        return "default"
-      case "manager":
-        return "secondary"
-      case "employee":
-        return "outline"
-      default:
-        return "outline"
+        const searchLower = String(searchTerm || "").toLowerCase()
+        if (!searchLower) return true
+
+        const searchableFields = [
+          String(user.first_name || user.name || ""),
+          String(user.surname || ""),
+          String(user.email || ""),
+          String(user.department || ""),
+          String(user.username || ""),
+        ]
+
+        return searchableFields.some((field) => field.toLowerCase().includes(searchLower))
+      })
+    } catch (error) {
+      console.error("[v0] Error filtering users:", error)
+      return []
     }
   }
+
+  const filteredUsers = getFilteredUsers()
 
   if (isLoading) {
     return (
@@ -253,7 +336,7 @@ export function InternalUsersTab() {
         <div className="flex justify-between items-center">
           <div>
             <CardTitle>Internal Users</CardTitle>
-            <CardDescription>Manage users within your organization ({users.length} users found)</CardDescription>
+            <CardDescription>Manage users within your organization ({users.length} users)</CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
@@ -270,7 +353,7 @@ export function InternalUsersTab() {
               placeholder="Search users..."
               className="pl-8"
               value={searchTerm}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <Button onClick={() => setIsCreateModalOpen(true)}>
@@ -286,67 +369,21 @@ export function InternalUsersTab() {
                 {searchTerm ? "No users found matching your search" : "No internal users found"}
               </p>
               {!searchTerm && (
-                <Button onClick={() => setIsCreateModalOpen(true)} className="mt-4">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Your First User
-                </Button>
+                <div className="mt-4">
+                  <Button onClick={() => setIsCreateModalOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Your First User
+                  </Button>
+                </div>
               )}
             </div>
           ) : (
             filteredUsers.map((user) => (
-              <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-4">
-                    <div>
-                      <h3 className="font-medium">{`${user.name} ${user.surname}`}</h3>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                      <p className="text-xs text-muted-foreground">@{user.username}</p>
-                    </div>
-                    <Badge variant={getRoleBadgeVariant(user.role)}>
-                      {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                    </Badge>
-                    <div className="text-sm text-muted-foreground">{user.department}</div>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    {user.pageAccess && user.pageAccess.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {user.pageAccess.slice(0, 3).map((page) => (
-                          <Badge key={page} variant="outline" className="text-xs">
-                            {page}
-                          </Badge>
-                        ))}
-                        {user.pageAccess.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{user.pageAccess.length - 3} more
-                          </Badge>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">No access</span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteUser(user.id, `${user.name} ${user.surname}`)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              <SafeUserRenderer key={user.id} user={user} onEdit={handleEditUser} onDelete={handleDeleteUser} />
             ))
           )}
         </div>
 
-        {/* Create User Modal */}
         <CreateUserModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
@@ -354,7 +391,6 @@ export function InternalUsersTab() {
           userType="internal"
         />
 
-        {/* Edit User Modal */}
         <EditUserModal
           isOpen={isEditModalOpen}
           onClose={() => {

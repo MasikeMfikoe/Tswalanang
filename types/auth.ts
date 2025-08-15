@@ -1,17 +1,21 @@
 export type UserRole = "admin" | "manager" | "employee" | "client" | "guest" | "tracking"
 
 export interface User {
-  id: string
-  username?: string
-  name?: string
-  surname?: string
-  email: string
-  role: UserRole
-  department?: string
-  pageAccess?: string[]
-  customer_id?: string
-  created_at?: string
-  updated_at?: string
+  id: string // Maps to user_profiles.id (uuid)
+  user_id?: string // Maps to user_profiles.user_id (uuid) - foreign key to auth.users
+  customer_id?: string // Maps to user_profiles.customer_id (uuid) - foreign key to customers
+  username?: string // Generated from first_name.surname
+  name?: string // Maps to user_profiles.first_name for compatibility
+  first_name?: string // Maps to user_profiles.first_name (text)
+  surname?: string // Maps to user_profiles.surname (text)
+  full_name?: string // Maps to user_profiles.full_name (text)
+  email: string // Maps to user_profiles.email (text)
+  role: UserRole // Maps to user_profiles.role (text)
+  department?: string // Maps to user_profiles.department (text)
+  pageAccess?: string[] // Maps to user_profiles.page_access (text) - parsed as array
+  page_access?: string // Raw page_access from database
+  created_at?: string // Maps to user_profiles.created_at (timestamp)
+  updated_at?: string // Maps to user_profiles.updated_at (timestamp)
 }
 
 // Role permissions mapping

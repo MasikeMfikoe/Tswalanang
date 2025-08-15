@@ -1,76 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { validatePassword } from "@/utils/passwordValidator"
 
-// Create a Supabase client with service role key for admin operations
+console.log("[v0] API route loaded, checking environment variables...")
+console.log("[v0] SUPABASE_URL exists:", !!process.env.NEXT_PUBLIC_SUPABASE_URL)
+console.log("[v0] SERVICE_ROLE_KEY exists:", !!process.env.SUPABASE_SERVICE_ROLE_KEY)
+
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // This key has admin privileges
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  },
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "",
 )
 
-// Password validation function
-function validatePassword(password: string): { isValid: boolean; message?: string } {
-  if (!password || password.length < 8) {
-    return { isValid: false, message: "Password must be at least 8 characters long" }
-  }
-
-  // Check for at least one uppercase letter
-  if (!/[A-Z]/.test(password)) {
-    return { isValid: false, message: "Password must contain at least one uppercase letter" }
-  }
-
-  // Check for at least one lowercase letter
-  if (!/[a-z]/.test(password)) {
-    return { isValid: false, message: "Password must contain at least one lowercase letter" }
-  }
-
-  // Check for at least one number
-  if (!/\d/.test(password)) {
-    return { isValid: false, message: "Password must contain at least one number" }
-  }
-
-  // Check for at least one special character
-  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
-    return { isValid: false, message: "Password must contain at least one special character" }
-  }
-
-  return { isValid: true }
-}
-
-// Generate a secure password
-function generateSecurePassword(): string {
-  const lowercase = "abcdefghijklmnopqrstuvwxyz"
-  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-  const numbers = "0123456789"
-  const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?"
-
-  let password = ""
-
-  // Ensure at least one character from each category
-  password += lowercase[Math.floor(Math.random() * lowercase.length)]
-  password += uppercase[Math.floor(Math.random() * uppercase.length)]
-  password += numbers[Math.floor(Math.random() * numbers.length)]
-  password += symbols[Math.floor(Math.random() * symbols.length)]
-
-  // Fill the rest with random characters
-  const allChars = lowercase + uppercase + numbers + symbols
-  for (let i = 4; i < 12; i++) {
-    password += allChars[Math.floor(Math.random() * allChars.length)]
-  }
-
-  // Shuffle the password
-  return password
-    .split("")
-    .sort(() => Math.random() - 0.5)
-    .join("")
-}
-
 export async function PUT(request: NextRequest) {
+  console.log("[v0] PUT request received")
+
   try {
     console.log("🔄 Starting user update process...")
 
@@ -86,7 +29,11 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const { userId, userData } = await request.json()
+    console.log("[v0] About to parse JSON from request...")
+    const requestBody = await request.json()
+    console.log("[v0] JSON parsed successfully:", Object.keys(requestBody))
+
+    const { userId, userData } = requestBody
 
     console.log("📝 Update request data:")
     console.log("User ID:", userId)
@@ -94,94 +41,122 @@ export async function PUT(request: NextRequest) {
 
     // Validate required fields
     if (!userId) {
+      console.log("[v0] Missing user ID")
       return NextResponse.json({ error: "Missing user ID", details: "User ID is required" }, { status: 400 })
     }
 
     if (!userData || Object.keys(userData).length === 0) {
+      console.log("[v0] Missing update data")
       return NextResponse.json(
         { error: "Missing update data", details: "No data provided for update" },
         { status: 400 },
       )
     }
 
-    // Handle password update with validation
-    let processedPassword = null
-    if (userData.password && userData.password.trim()) {
-      const passwordValidation = validatePassword(userData.password)
+    console.log("🔍 Looking up user profile...")
+    const { data: userProfile, error: profileLookupError } = await supabaseAdmin
+      .from("user_profiles")
+      .select("user_id, id, first_name, surname, email")
+      .eq("id", userId)
+      .single()
 
-      if (!passwordValidation.isValid) {
-        console.error("❌ Password validation failed:", passwordValidation.message)
+    if (profileLookupError) {
+      console.error("❌ User profile lookup error:", profileLookupError)
+
+      if (profileLookupError.code === "PGRST116") {
         return NextResponse.json(
           {
-            error: "Password validation failed",
-            details: passwordValidation.message,
+            error: "User not found",
+            details: `No user profile found with ID: ${userId}`,
           },
-          { status: 422 },
+          { status: 404 },
         )
       }
 
-      processedPassword = userData.password.trim()
-      console.log("✅ Password validation passed")
+      return NextResponse.json(
+        {
+          error: "Database error",
+          details: profileLookupError.message || "Failed to lookup user profile",
+        },
+        { status: 500 },
+      )
     }
 
-    // Update auth.users table if email or password is being changed
-    if (userData.email || processedPassword) {
-      console.log("🔐 Updating auth user...")
+    if (!userProfile) {
+      console.error("❌ User profile not found for ID:", userId)
+      return NextResponse.json(
+        {
+          error: "User not found",
+          details: `User profile does not exist for ID: ${userId}`,
+        },
+        { status: 404 },
+      )
+    }
 
-      const authUpdateData: any = {}
+    console.log("✅ Found user profile:", {
+      profileId: userProfile.id,
+      authUserId: userProfile.user_id,
+      currentName: userProfile.first_name,
+      currentSurname: userProfile.surname,
+      currentEmail: userProfile.email,
+    })
 
-      if (userData.email) {
-        authUpdateData.email = userData.email
-        authUpdateData.email_confirm = true // Auto-confirm new email
-        console.log("📧 Email will be updated to:", userData.email)
+    const emailChanged = userData.email && userData.email.trim() !== userProfile.email
+    const passwordProvided = userData.password && userData.password.trim()
+
+    console.log("[v0] Auth update needed?", { emailChanged, passwordProvided })
+
+    if (emailChanged || passwordProvided) {
+      console.log("🔐 Auth update required - processing...")
+
+      // Handle password validation if provided
+      if (passwordProvided) {
+        console.log("[v0] Validating password...")
+        const passwordValidation = validatePassword(userData.password)
+
+        if (!passwordValidation.isValid) {
+          console.error("❌ Password validation failed:", passwordValidation.message)
+          return NextResponse.json(
+            {
+              error: "Password validation failed",
+              details: passwordValidation.message,
+            },
+            { status: 422 },
+          )
+        }
+        console.log("✅ Password validation passed")
       }
 
-      if (processedPassword) {
-        authUpdateData.password = processedPassword
+      const authUpdateData: any = {}
+      if (emailChanged) {
+        authUpdateData.email = userData.email.trim()
+        authUpdateData.email_confirm = true
+        console.log("📧 Email will be updated to:", userData.email)
+      }
+      if (passwordProvided) {
+        authUpdateData.password = userData.password.trim()
         console.log("🔑 Password will be updated")
       }
 
       try {
+        console.log("[v0] Updating auth user with ID:", userProfile.user_id)
         const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-          userId,
+          userProfile.user_id,
           authUpdateData,
         )
 
         if (authError) {
           console.error("❌ Auth user update failed:", authError)
-
-          // Handle specific Supabase auth errors
-          if (authError.message?.includes("weak_password")) {
-            return NextResponse.json(
-              {
-                error: "Password too weak",
-                details:
-                  "Password must be at least 8 characters with uppercase, lowercase, number, and special character",
-              },
-              { status: 422 },
-            )
-          }
-
-          if (authError.message?.includes("email_address_invalid")) {
-            return NextResponse.json(
-              {
-                error: "Invalid email address",
-                details: authError.message,
-              },
-              { status: 422 },
-            )
-          }
-
           return NextResponse.json(
             {
-              error: "Failed to update auth user",
-              details: authError.message || "Unknown auth error",
+              error: "Failed to update authentication",
+              details: authError.message || "Auth update failed",
             },
             { status: 400 },
           )
         }
 
-        console.log("✅ Auth user updated successfully:", authUser.user.id)
+        console.log("✅ Auth user updated successfully")
       } catch (authException) {
         console.error("❌ Auth update exception:", authException)
         return NextResponse.json(
@@ -192,21 +167,50 @@ export async function PUT(request: NextRequest) {
           { status: 500 },
         )
       }
+    } else {
+      console.log("ℹ️ Skipping auth update - no email/password changes")
     }
 
-    // Update user_profiles table
     console.log("👤 Updating user profile...")
+
+    const { data: tableInfo, error: tableError } = await supabaseAdmin.from("user_profiles").select("*").limit(1)
+
+    let availableColumns: string[] = []
+    if (!tableError && tableInfo && tableInfo.length > 0) {
+      availableColumns = Object.keys(tableInfo[0])
+      console.log("📋 Available columns in user_profiles:", availableColumns)
+    }
 
     const profileData: any = {}
 
-    if (userData.name) profileData.name = userData.name.trim()
-    if (userData.surname) profileData.surname = userData.surname.trim()
-    if (userData.email) profileData.email = userData.email.trim()
-    if (userData.role) profileData.role = userData.role
-    if (userData.department) profileData.department = userData.department.trim()
-    if (userData.pageAccess) profileData.page_access = userData.pageAccess
+    // Only add fields if the corresponding columns exist in the database
+    if (userData.name && availableColumns.includes("first_name")) {
+      profileData.first_name = userData.name.trim()
+    }
+    if (userData.surname && availableColumns.includes("surname")) {
+      profileData.surname = userData.surname.trim()
+    }
+    if (userData.email && availableColumns.includes("email")) {
+      profileData.email = userData.email.trim()
+    }
+    if (userData.role && availableColumns.includes("role")) {
+      profileData.role = userData.role
+    }
+    if (userData.department && availableColumns.includes("department")) {
+      profileData.department = userData.department.trim()
+      console.log("✅ Department field will be updated")
+    } else if (userData.department) {
+      console.log("⚠️ Department field skipped - column doesn't exist in database")
+    }
+    if (userData.pageAccess && availableColumns.includes("page_access")) {
+      profileData.page_access = userData.pageAccess
+      console.log("✅ Page access field will be updated")
+    } else if (userData.pageAccess) {
+      console.log("⚠️ Page access field skipped - column doesn't exist in database")
+    }
 
-    // Only update if there's profile data to update
+    console.log("[v0] Profile data to update:", Object.keys(profileData))
+
     if (Object.keys(profileData).length > 0) {
       try {
         const { data: profile, error: profileError } = await supabaseAdmin
@@ -221,13 +225,13 @@ export async function PUT(request: NextRequest) {
           return NextResponse.json(
             {
               error: "Failed to update user profile",
-              details: profileError.message || "Unknown profile error",
+              details: profileError.message || "Profile update failed",
             },
             { status: 400 },
           )
         }
 
-        console.log("✅ User profile updated successfully:", profile.id)
+        console.log("✅ User profile updated successfully")
       } catch (profileException) {
         console.error("❌ Profile update exception:", profileException)
         return NextResponse.json(
@@ -238,41 +242,8 @@ export async function PUT(request: NextRequest) {
           { status: 500 },
         )
       }
-    }
-
-    // Send welcome email if requested
-    if (userData.sendWelcomeEmail) {
-      console.log("📧 Sending welcome email...")
-
-      try {
-        const emailResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/send-welcome-email`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              userEmail: userData.email,
-              userName: userData.name,
-              userSurname: userData.surname,
-              temporaryPassword: processedPassword || "Password updated - please check with admin",
-              companyName: userData.department,
-              isClientUser: userData.role === "client",
-              isUpdate: true,
-            }),
-          },
-        )
-
-        if (emailResponse.ok) {
-          console.log("✅ Welcome email sent successfully")
-        } else {
-          const emailError = await emailResponse.text()
-          console.warn("⚠️ Welcome email failed to send:", emailError)
-        }
-      } catch (emailError) {
-        console.warn("⚠️ Error sending welcome email:", emailError)
-      }
+    } else {
+      console.log("ℹ️ No profile data to update")
     }
 
     console.log("🎉 User update completed successfully!")
@@ -286,8 +257,8 @@ export async function PUT(request: NextRequest) {
     console.error("❌ API route error:", error)
     return NextResponse.json(
       {
-        error: "Internal server error",
-        details: error instanceof Error ? error.message : "Unknown error occurred",
+        error: "Failed to update user",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },
     )

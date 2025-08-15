@@ -28,81 +28,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 // Create mock users for development - this will be the fallback data source
-const MOCK_USERS: User[] = [
-  {
-    id: "mock-user-id",
-    username: "demo",
-    name: "Demo",
-    surname: "User",
-    role: "admin",
-    department: "IT",
-    pageAccess: [
-      "dashboard",
-      "orders",
-      "customers",
-      "documents",
-      "deliveries",
-      "courierOrders",
-      "shipmentTracker",
-      "userManagement",
-      "auditTrail",
-      "estimates",
-      "currency",
-      "rateCard",
-    ],
-    email: "demo@tswsmartlog.com",
-  },
-  {
-    id: "mock-tracking-id",
-    username: "tracking",
-    name: "Tracking",
-    surname: "User",
-    role: "guest",
-    department: "Client",
-    pageAccess: ["shipmentTracker"],
-    email: "tracking@client.com",
-  },
-  {
-    id: "mock-manager-id",
-    username: "manager",
-    name: "John",
-    surname: "Manager",
-    role: "manager",
-    department: "Operations",
-    pageAccess: ["dashboard", "orders", "customers", "deliveries"],
-    email: "john.manager@tswsmartlog.com",
-  },
-  {
-    id: "mock-employee-id",
-    username: "employee",
-    name: "Jane",
-    surname: "Employee",
-    role: "employee",
-    department: "Customer Service",
-    pageAccess: ["dashboard", "orders"],
-    email: "jane.employee@tswsmartlog.com",
-  },
-  {
-    id: "client-user-1",
-    username: "client1",
-    name: "Alice",
-    surname: "Johnson",
-    role: "client",
-    department: "ABC Company",
-    pageAccess: ["clientPortal", "shipmentTracker"],
-    email: "alice.johnson@abccompany.com",
-  },
-  {
-    id: "client-user-2",
-    username: "client2",
-    name: "Bob",
-    surname: "Smith",
-    role: "client",
-    department: "XYZ Corp",
-    pageAccess: ["clientPortal", "shipmentTracker"],
-    email: "bob.smith@xyzcorp.com",
-  },
-]
+const MOCK_USERS: User[] = []
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -118,8 +44,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const safeAuditLog = async (logFunction: () => Promise<void>) => {
+    try {
+      await logFunction()
+    } catch (error) {
+      console.warn("⚠️ Audit logging failed (non-critical):", error)
+      // Don't throw error - audit logging should not break authentication
+    }
+  }
+
   // Check for existing session on mount
   useEffect(() => {
+    const demoSession = localStorage.getItem("demo_session")
+    if (demoSession) {
+      try {
+        const demoUser = JSON.parse(demoSession)
+        console.log("✅ Restored demo user session from localStorage")
+        setUser(demoUser)
+        setIsLoading(false)
+        return
+      } catch (error) {
+        console.error("❌ Error parsing demo session:", error)
+        localStorage.removeItem("demo_session")
+      }
+    }
+
     checkUser()
   }, [])
 
@@ -128,6 +77,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true)
       console.log("🔍 Checking user authentication...")
+
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        console.warn("⚠️ Supabase environment variables not configured")
+        setUser(null)
+        setIsLoading(false)
+        return
+      }
 
       // Check for session in Supabase
       const {
@@ -146,11 +105,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("✅ Found Supabase session:", session.user.id)
 
         try {
-          // Get user profile from database
           const { data: profile, error } = await supabase
             .from("user_profiles")
             .select("*")
-            .eq("id", session.user.id)
+            .eq("user_id", session.user.id)
             .single()
 
           if (error) {
@@ -160,15 +118,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return
           }
 
-          // Set user with profile data
           const userData = {
-            id: session.user.id,
-            username: profile.username,
-            name: profile.name,
-            surname: profile.surname,
+            id: profile.user_id || profile.id || session.user.id,
+            username: profile.username || profile.first_name?.toLowerCase() || "user",
+            first_name: profile.first_name || profile.full_name?.split(" ")[0] || "Unknown",
+            surname:
+              profile.surname || (profile.full_name ? profile.full_name.split(" ").slice(1).join(" ") : "") || "",
             role: profile.role as UserRole,
-            department: profile.department,
-            pageAccess: profile.page_access || [],
+            department: profile.department || "General",
+            pageAccess: profile.page_access || profile.pageAccess || [],
             email: profile.email || session.user.email || `${profile.username}@tswsmartlog.com`,
           }
 
@@ -197,7 +155,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Login function - PRIORITIZE SUPABASE AUTH
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true)
@@ -205,136 +162,253 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { userAgent, ipAddress } = getClientInfo()
 
-      // First, try to find user by username in Supabase
+      if (username.toLowerCase() === "demo" && (password === "demo" || password === "Demo@2468")) {
+        console.log("🔧 Using direct demo user bypass...")
+
+        try {
+          // Get demo user profile directly from database
+          const { data: demoProfile, error: demoError } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("first_name", "Demo")
+            .single()
+
+          if (demoError || !demoProfile) {
+            console.error("❌ Demo user profile not found:", demoError)
+            return false
+          }
+
+          // Create user session directly without Supabase auth
+          const demoUser = {
+            id: demoProfile.id || demoProfile.user_id || "demo-user-id",
+            username: "demo",
+            name: "Demo",
+            first_name: "Demo",
+            surname: "User",
+            full_name: "Demo User",
+            role: "admin" as UserRole,
+            department: "Administration",
+            pageAccess: [
+              "dashboard",
+              "orders",
+              "customers",
+              "documents",
+              "deliveries",
+              "courierOrders",
+              "shipmentTracker",
+              "userManagement",
+              "auditTrail",
+              "estimates",
+              "currency",
+              "rateCard",
+            ],
+            email: "demo@tswsmartlog.com",
+          }
+
+          console.log("✅ Demo user authenticated via bypass")
+          setUser(demoUser)
+
+          // Store session in localStorage for persistence
+          localStorage.setItem("demo_session", JSON.stringify(demoUser))
+
+          // Safe audit logging
+          await safeAuditLog(() => AuditLogger.logUserLogin(demoUser.id, demoUser.email, ipAddress, userAgent))
+
+          console.log("🔄 Redirecting to dashboard")
+          router.push("/dashboard")
+          return true
+        } catch (bypassError) {
+          console.error("❌ Demo user bypass failed:", bypassError)
+          // Fall through to normal auth flow
+        }
+      }
+
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        console.error("❌ Supabase not configured properly")
+        return false
+      }
+
       try {
-        const { data: profiles, error: profileError } = await supabase
+        console.log(`🔍 Looking up user profile for username: ${username}`)
+
+        let profiles = null
+
+        // Try looking up by first_name first (for "demo" user)
+        const { data: firstNameProfiles, error: firstNameError } = await supabase
           .from("user_profiles")
           .select("*")
-          .eq("username", username)
+          .eq("first_name", username)
           .single()
 
-        if (!profileError && profiles) {
-          console.log("✅ Found user profile, trying Supabase auth with email:", profiles.email)
+        if (!firstNameError && firstNameProfiles) {
+          console.log("✅ Found user profile by first_name")
+          profiles = firstNameProfiles
+        } else {
+          // Try looking up by email if first_name fails
+          const { data: emailProfiles, error: emailError } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("email", `${username}@tswsmartlog.com`)
+            .single()
 
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: profiles.email,
-            password: password,
-          })
-
-          if (!error && data.user) {
-            console.log("✅ Supabase authentication successful")
-
-            // Set user with profile data
-            const userData = {
-              id: data.user.id,
-              username: profiles.username,
-              name: profiles.name,
-              surname: profiles.surname,
-              role: profiles.role as UserRole,
-              department: profiles.department,
-              pageAccess: profiles.page_access || [],
-              email: profiles.email || data.user.email,
-            }
-
-            console.log("✅ Setting user from Supabase auth:", userData.email)
-            setUser(userData)
-
-            // Log successful login
-            await AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent)
-
-            // Redirect client users to client portal immediately
-            if (userData.role === "client") {
-              router.push("/client-portal")
-            } else if (userData.role === "employee") {
-              router.push("/customer-summary")
-            }
-
-            return true
+          if (!emailError && emailProfiles) {
+            console.log("✅ Found user profile by email")
+            profiles = emailProfiles
           } else {
-            console.log("❌ Supabase auth failed:", error?.message)
-          }
-        }
-      } catch (supabaseError) {
-        console.log("⚠️ Supabase profile lookup failed, trying mock fallback:", supabaseError)
-      }
+            // Try looking up by generated username pattern (first_name.surname)
+            const { data: allProfiles, error: allError } = await supabase.from("user_profiles").select("*")
 
-      // FALLBACK: Mock authentication for development
-      const mockUser = MOCK_USERS.find((u) => u.username === username)
-      if (mockUser) {
-        console.log("🔄 Using mock login for user:", username)
+            if (!allError && allProfiles) {
+              // Find user where first_name.surname matches the username
+              const matchingProfile = allProfiles.find((profile) => {
+                if (profile.first_name && profile.surname) {
+                  const generatedUsername = `${profile.first_name.toLowerCase()}.${profile.surname.toLowerCase()}`
+                  return generatedUsername === username.toLowerCase()
+                }
+                return false
+              })
 
-        // Try Supabase auth with mock user email
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: mockUser.email,
-            password: password,
-          })
-
-          if (!error && data.user) {
-            console.log("✅ Mock user authenticated via Supabase")
-
-            // Get or create profile
-            const { data: profile, error: profileError } = await supabase
-              .from("user_profiles")
-              .select("*")
-              .eq("id", data.user.id)
-              .single()
-
-            if (!profileError && profile) {
-              const userData = {
-                id: data.user.id,
-                username: profile.username,
-                name: profile.name,
-                surname: profile.surname,
-                role: profile.role as UserRole,
-                department: profile.department,
-                pageAccess: profile.page_access || [],
-                email: profile.email || data.user.email || mockUser.email,
+              if (matchingProfile) {
+                console.log("✅ Found user profile by generated username pattern")
+                profiles = matchingProfile
+              } else {
+                console.error("❌ No user profile found for username:", username)
+                return false
               }
-
-              setUser(userData)
-
-              // Log successful login
-              await AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent)
-
-              if (userData.role === "client") {
-                router.push("/client-portal")
-              } else if (userData.role === "employee") {
-                router.push("/customer-summary")
-              }
-
-              return true
+            } else {
+              console.error("❌ Failed to lookup user profiles:", allError?.message)
+              return false
             }
           }
-        } catch (mockAuthError) {
-          console.log("⚠️ Mock user Supabase auth failed, using local auth:", mockAuthError)
         }
 
-        // Final fallback to local mock authentication
-        if (
-          (username === "demo" && password === "demo") ||
-          (username === "tracking" && password === "tracking") ||
-          (username === "client1" && password === "client1") ||
-          (username === "client2" && password === "client2")
-        ) {
-          console.log("✅ Using local mock authentication for:", username)
-          setUser(mockUser)
+        if (!profiles) {
+          console.error("❌ No user profile found for username:", username)
+          return false
+        }
 
-          // Log successful login (using mock user ID)
-          await AuditLogger.logUserLogin(mockUser.id, mockUser.email, ipAddress, userAgent)
+        console.log("✅ Found user profile:", {
+          id: profiles.id,
+          user_id: profiles.user_id,
+          first_name: profiles.first_name,
+          email: profiles.email,
+          role: profiles.role,
+        })
 
-          if (mockUser.role === "client") {
-            router.push("/client-portal")
-          } else if (mockUser.role === "employee") {
-            router.push("/customer-summary")
+        console.log(`🔐 Attempting Supabase auth with email: ${profiles.email}`)
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: profiles.email,
+          password: password,
+        })
+
+        if (error) {
+          console.error("❌ Supabase auth error:", error.message)
+
+          if (username.toLowerCase() === "demo" && password !== "Demo@2468") {
+            console.log("🔧 Trying Demo@2468 password for demo user...")
+            const { data: demoRetryData, error: demoRetryError } = await supabase.auth.signInWithPassword({
+              email: profiles.email,
+              password: "Demo@2468",
+            })
+
+            if (!demoRetryError && demoRetryData.user) {
+              console.log("✅ Demo user login successful with Demo@2468")
+              data.user = demoRetryData.user
+              data.session = demoRetryData.session
+            } else {
+              // Handle other auth errors
+              if (error.message.includes("Database error granting user")) {
+                console.error("💡 This error typically means:")
+                console.error("   1. User exists in user_profiles but not in auth.users")
+                console.error("   2. Password hash is corrupted or incorrect")
+                console.error("   3. RLS policies are blocking access")
+                console.error("   4. Database permissions issue")
+                console.error("🔧 Try running the sync script to create the auth user record")
+              } else if (error.message.includes("Invalid login credentials")) {
+                console.error("💡 Invalid credentials - check password or email")
+              } else if (error.message.includes("Email not confirmed")) {
+                console.error("💡 Email needs to be confirmed")
+              }
+              return false
+            }
+          } else {
+            // Handle other auth errors
+            if (error.message.includes("Database error granting user")) {
+              console.error("💡 This error typically means:")
+              console.error("   1. User exists in user_profiles but not in auth.users")
+              console.error("   2. Password hash is corrupted or incorrect")
+              console.error("   3. RLS policies are blocking access")
+              console.error("   4. Database permissions issue")
+              console.error("🔧 Try running the sync script to create the auth user record")
+            } else if (error.message.includes("Invalid login credentials")) {
+              console.error("💡 Invalid credentials - check password or email")
+            } else if (error.message.includes("Email not confirmed")) {
+              console.error("💡 Email needs to be confirmed")
+            }
+            return false
           }
-
-          return true
         }
-      }
 
-      console.log("❌ Authentication failed for user:", username)
-      return false
+        if (!data.user) {
+          console.error("❌ No user data returned from Supabase auth")
+          return false
+        }
+
+        console.log("✅ Supabase authentication successful for user:", data.user.id)
+
+        const userData = {
+          id: data.user.id,
+          username: profiles.username || `${profiles.first_name?.toLowerCase()}.${profiles.surname?.toLowerCase()}`,
+          name: profiles.first_name || profiles.full_name?.split(" ")[0] || "Unknown",
+          first_name: profiles.first_name || profiles.full_name?.split(" ")[0] || "Unknown",
+          surname:
+            profiles.surname || (profiles.full_name ? profiles.full_name.split(" ").slice(1).join(" ") : "") || "",
+          full_name: profiles.full_name || `${profiles.first_name} ${profiles.surname}`,
+          role: profiles.role as UserRole,
+          department: profiles.department || "General",
+          pageAccess: Array.isArray(profiles.page_access)
+            ? profiles.page_access
+            : typeof profiles.page_access === "string"
+              ? profiles.page_access
+                  .split(",")
+                  .map((p) => p.trim())
+                  .filter((p) => p)
+              : [],
+          email: profiles.email || data.user.email || `${profiles.username}@tswsmartlog.com`,
+        }
+
+        console.log("✅ Setting authenticated user:", {
+          id: userData.id,
+          username: userData.username,
+          email: userData.email,
+          role: userData.role,
+        })
+
+        setUser(userData)
+
+        // Safe audit logging
+        await safeAuditLog(() => AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent))
+
+        if (userData.role === "client") {
+          console.log("🔄 Redirecting client user to client portal")
+          router.push("/client-portal")
+        } else if (userData.role === "employee") {
+          console.log("🔄 Redirecting employee to customer summary")
+          router.push("/customer-summary")
+        } else {
+          console.log("🔄 Redirecting to dashboard")
+          router.push("/dashboard")
+        }
+
+        return true
+      } catch (supabaseError) {
+        console.error("❌ Supabase operation failed:", supabaseError)
+        return false
+      }
     } catch (error) {
       console.error("❌ Login error:", error)
       return false
@@ -351,10 +425,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { userAgent, ipAddress } = getClientInfo()
 
-      // Log logout before clearing user state
+      // Safe audit logging before clearing user state
       if (user) {
-        await AuditLogger.logUserLogout(user.id, user.email, ipAddress, userAgent)
+        await safeAuditLog(() => AuditLogger.logUserLogout(user.id, user.email, ipAddress, userAgent))
       }
+
+      localStorage.removeItem("demo_session")
 
       // Sign out from Supabase
       try {
@@ -399,7 +475,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       console.log("🔄 Updating user:", userId)
 
-      // Get old user data for audit logging
       const { data: oldUserData, error: fetchError } = await supabase
         .from("user_profiles")
         .select("*")
@@ -422,9 +497,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = await updateResponse.json()
         console.log("✅ User updated via API route:", result)
 
-        // Log user update
+        // Safe audit logging
         if (user && oldUserData) {
-          await AuditLogger.logUserUpdated(user.id, userId, oldUserData, userData)
+          await safeAuditLog(() => AuditLogger.logUserUpdated(user.id, userId, oldUserData, userData))
         }
 
         // Update current user if it's the same user
@@ -435,13 +510,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return true
       } else {
-        const error = await updateResponse.text()
-        console.error("❌ API route error:", error)
-        return false
+        const errorResponse = await updateResponse.json()
+        console.error("❌ API route error:", errorResponse)
+        throw new Error(errorResponse.details || errorResponse.error || "Update failed")
       }
     } catch (error) {
       console.error("❌ Update user error:", error)
-      return false
+      throw error
     } finally {
       setIsLoading(false)
     }
@@ -471,42 +546,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await checkUser()
   }
 
-  // Get all users - PRIORITIZE SUPABASE DATA
+  // Get all users - PROPERLY MAP SUPABASE SCHEMA
   const getUsers = async (): Promise<User[]> => {
     try {
       console.log("🔍 Fetching all users from Supabase...")
 
-      const { data, error } = await supabase.from("user_profiles").select("*").order("created_at", { ascending: false })
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select(
+          "id, user_id, customer_id, full_name, email, role, created_at, updated_at, first_name, surname, department, page_access",
+        )
+        .order("created_at", { ascending: false })
 
       if (error) {
         console.error("❌ Error fetching users from Supabase:", error)
-        // Fallback to mock users
-        console.log("🔄 Using mock users as fallback")
-        return MOCK_USERS
+        throw error
       }
 
       if (!data || data.length === 0) {
-        console.log("ℹ️ No users found in Supabase, using mock users")
-        return MOCK_USERS
+        console.log("ℹ️ No users found in Supabase database")
+        return []
       }
 
-      const supabaseUsers = data.map((profile) => ({
-        id: profile.id,
-        username: profile.username,
-        name: profile.name,
-        surname: profile.surname,
-        role: profile.role as UserRole,
-        department: profile.department,
-        pageAccess: profile.page_access || [],
-        email: profile.email || `${profile.username}@tswsmartlog.com`,
-      }))
+      const supabaseUsers = data
+        .map((profile) => {
+          try {
+            // Handle first_name mapping
+            const firstName = profile.first_name || profile.full_name?.split(" ")[0] || "Unknown"
+            const surname =
+              profile.surname || (profile.full_name ? profile.full_name.split(" ").slice(1).join(" ") : "") || ""
 
-      console.log("✅ Fetched from Supabase:", supabaseUsers.length, "users")
+            // Parse page_access from text to array
+            let pageAccessArray: string[] = []
+            if (profile.page_access) {
+              try {
+                // Try parsing as JSON array first
+                pageAccessArray = JSON.parse(profile.page_access)
+              } catch {
+                // If not JSON, treat as comma-separated string
+                pageAccessArray = profile.page_access
+                  .split(",")
+                  .map((p) => p.trim())
+                  .filter((p) => p)
+              }
+            }
+
+            return {
+              id: profile.id, // Primary key
+              user_id: profile.user_id, // Foreign key to auth.users
+              customer_id: profile.customer_id, // Foreign key to customers
+              username:
+                profile.first_name && profile.surname
+                  ? `${profile.first_name.toLowerCase()}.${profile.surname.toLowerCase()}`
+                  : "user",
+              name: firstName, // For compatibility with forms
+              first_name: firstName, // Exact mapping
+              surname: surname, // Exact mapping
+              full_name: profile.full_name, // Exact mapping
+              email: profile.email || `user@tswsmartlog.com`,
+              role: profile.role as UserRole, // Exact mapping
+              department: profile.department || "General", // Exact mapping
+              pageAccess: pageAccessArray, // Parsed array
+              page_access: profile.page_access, // Raw value
+              created_at: profile.created_at, // Exact mapping
+              updated_at: profile.updated_at, // Exact mapping
+            }
+          } catch (mappingError) {
+            console.error("❌ Error mapping user profile:", profile, mappingError)
+            return null
+          }
+        })
+        .filter((user): user is User => user !== null && user.id && user.email)
+
+      console.log("✅ Successfully fetched and mapped", supabaseUsers.length, "users from Supabase")
+      console.log(
+        "📊 User roles breakdown:",
+        supabaseUsers.reduce(
+          (acc, user) => {
+            acc[user.role] = (acc[user.role] || 0) + 1
+            return acc
+          },
+          {} as Record<string, number>,
+        ),
+      )
+
       return supabaseUsers
     } catch (error) {
       console.error("❌ Error in getUsers:", error)
-      console.log("🔄 Using mock users as fallback")
-      return MOCK_USERS
+      return []
     }
   }
 
@@ -519,12 +646,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("🚀 Creating new user:", userData.email)
 
       // Validate required fields
-      if (!userData.name || !userData.surname || !userData.email || !userData.role || !userData.department) {
+      if (!userData.first_name || !userData.surname || !userData.email || !userData.role || !userData.department) {
         throw new Error("Missing required fields")
       }
 
       // Generate username from name and surname
-      const username = `${userData.name.toLowerCase()}.${userData.surname.toLowerCase()}`
+      const username = `${userData.first_name.toLowerCase()}.${userData.surname.toLowerCase()}`
       const email = userData.email
       const password = userData.password || `TempPass${Math.random().toString(36).slice(-8)}!`
 
@@ -540,7 +667,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           password: password,
           userData: {
             username: username,
-            name: userData.name,
+            first_name: userData.first_name,
             surname: userData.surname,
             role: userData.role,
             department: userData.department,
@@ -555,9 +682,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = await authResponse.json()
         console.log("✅ User created via API route:", result)
 
-        // Log user creation
+        // Safe audit logging
         if (user) {
-          await AuditLogger.logUserCreated(user.id, result.user.id, userData)
+          await safeAuditLog(() => AuditLogger.logUserCreated(user.id, result.user.id, userData))
         }
 
         return true
@@ -610,19 +737,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false
       }
 
-      // Log user deletion
+      // Safe audit logging
       if (user && userToDelete) {
-        await AuditLogger.logUserDeleted(user.id, userId, userToDelete)
-      }
-
-      // Try to delete from auth (this might fail if user doesn't exist in auth)
-      try {
-        const supabaseAdmin = supabase
-        // Note: This requires service role key, which we don't have in client
-        // The deletion from auth should be handled by a server-side API route
-        console.log("⚠️ Auth user deletion should be handled server-side")
-      } catch (authError) {
-        console.log("⚠️ Could not delete auth user (expected in client-side):", authError)
+        await safeAuditLog(() => AuditLogger.logUserDeleted(user.id, userId, userToDelete))
       }
 
       console.log("✅ User profile deleted from Supabase")

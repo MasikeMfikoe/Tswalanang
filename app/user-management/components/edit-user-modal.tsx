@@ -60,15 +60,28 @@ export default function EditUserModal({ isOpen, onClose, onUpdateUser, user, use
 
   useEffect(() => {
     if (user) {
-      setFormData({
+      console.log("[v0] Edit modal - user data:", {
+        id: user.id,
         name: user.name,
         surname: user.surname,
+        email: user.email,
+        role: user.role,
+      })
+
+      setFormData({
+        name: user.name || "",
+        surname: user.surname || "",
         email: user.email || "",
-        role: user.role, // Role is populated from the existing user data
-        department: user.department,
+        role: user.role,
+        department: user.department || "",
         password: "",
         sendWelcomeEmail: false,
         pageAccess: user.pageAccess || [],
+      })
+
+      console.log("[v0] Edit modal - form data set:", {
+        name: user.name || "",
+        surname: user.surname || "",
       })
     }
   }, [user])

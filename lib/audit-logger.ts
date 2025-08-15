@@ -11,19 +11,32 @@ interface AuditLogEntry {
 export class AuditLogger {
   private static async logEvent(entry: AuditLogEntry): Promise<void> {
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
       const response = await fetch("/api/audit-trail", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(entry),
+        signal: controller.signal,
       })
 
+      clearTimeout(timeoutId)
+
       if (!response.ok) {
-        console.error("Failed to log audit event:", await response.text())
+        const errorText = await response.text()
+        console.warn("⚠️ Audit logging failed (non-critical):", errorText)
+        return // Don't throw error - audit logging is optional
       }
     } catch (error) {
-      console.error("Error logging audit event:", error)
+      if (error instanceof Error && error.name === "AbortError") {
+        console.warn("⚠️ Audit logging timed out (non-critical)")
+      } else {
+        console.warn("⚠️ Audit logging error (non-critical):", error)
+      }
+      // Don't throw error - audit logging should not break the main functionality
     }
   }
 

@@ -24,30 +24,59 @@ export function ClientUsersTab() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
 
   useEffect(() => {
+    console.log("[v0] ClientUsersTab component mounted")
     fetchUsers()
   }, [])
 
   const fetchUsers = async () => {
     setIsLoading(true)
     try {
-      console.log("🔄 Fetching users for client users tab...")
+      console.log("[v0] 🔄 Fetching users for client users tab...")
       const fetchedUsers = await getUsers()
-      console.log("📋 All users fetched:", fetchedUsers.length)
+      console.log("[v0] 📋 All users fetched:", fetchedUsers?.length || 0)
 
-      // Filter only client users
-      const clientUsers = fetchedUsers.filter((user) => user.role === "client")
-      console.log("👥 Client users:", clientUsers.length)
+      if (fetchedUsers && Array.isArray(fetchedUsers)) {
+        console.log(
+          "[v0] 🔍 All user roles:",
+          fetchedUsers.map((u) => ({ name: u.first_name || u.name, role: u.role })),
+        )
+      }
+
+      if (!fetchedUsers || !Array.isArray(fetchedUsers)) {
+        console.error("[v0] ❌ Invalid users data received:", fetchedUsers)
+        setUsers([])
+        return
+      }
+
+      const clientUsers = fetchedUsers.filter((user) => {
+        if (!user || typeof user !== "object") return false
+        const isClient = user.role === "client"
+        console.log("[v0] 👤 User:", user.first_name || user.name, "Role:", user.role, "Is Client:", isClient)
+        return isClient
+      })
+
+      console.log("[v0] 👥 Client users found:", clientUsers.length)
+      console.log(
+        "[v0] 📊 Client users breakdown:",
+        clientUsers.map((u) => ({
+          first_name: u.first_name,
+          surname: u.surname,
+          email: u.email,
+          department: u.department,
+        })),
+      )
 
       setUsers(clientUsers)
 
       if (clientUsers.length === 0) {
-        console.log("⚠️ No client users found")
+        console.log("[v0] ⚠️ No client users found in Supabase")
       }
     } catch (error) {
-      console.error("❌ Error fetching users:", error)
+      console.error("[v0] ❌ Error fetching client users:", error)
+      setUsers([]) // Set empty array instead of keeping old data
       toast({
         title: "Error",
-        description: "Failed to load client users. Please try again.",
+        description: "Failed to load client users from Supabase. Please check your database connection.",
         variant: "destructive",
       })
     } finally {
@@ -61,12 +90,12 @@ export function ClientUsersTab() {
       await fetchUsers()
       toast({
         title: "Success",
-        description: "Client user list refreshed successfully!",
+        description: "Client user list refreshed from Supabase successfully!",
       })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to refresh client user list.",
+        description: "Failed to refresh client user list from Supabase.",
         variant: "destructive",
       })
     } finally {
@@ -79,7 +108,7 @@ export function ClientUsersTab() {
       console.log("🚀 Creating client user:", userData)
 
       const success = await createUser({
-        name: userData.name!,
+        first_name: userData.first_name || userData.name!,
         surname: userData.surname!,
         email: userData.email!,
         role: "client",
@@ -92,7 +121,7 @@ export function ClientUsersTab() {
       if (success) {
         toast({
           title: "Success",
-          description: `Client user ${userData.email} created successfully!`,
+          description: `Client user ${userData.email} created successfully in Supabase!`,
         })
         setIsCreateModalOpen(false)
 
@@ -104,7 +133,7 @@ export function ClientUsersTab() {
     } catch (error) {
       console.error("❌ Error creating client user:", error)
 
-      let errorMessage = "Failed to create client user. Please try again."
+      let errorMessage = "Failed to create client user in Supabase. Please try again."
       if (error instanceof Error) {
         errorMessage = error.message
       }
@@ -118,19 +147,19 @@ export function ClientUsersTab() {
   }
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    if (confirm(`Are you sure you want to delete client user ${userName}?`)) {
+    if (confirm(`Are you sure you want to delete client user ${userName} from Supabase?`)) {
       try {
         const success = await deleteUser(userId)
         if (success) {
           toast({
             title: "Success",
-            description: `Client user ${userName} deleted successfully!`,
+            description: `Client user ${userName} deleted from Supabase successfully!`,
           })
           fetchUsers() // Refresh the list
         } else {
           toast({
             title: "Error",
-            description: "Failed to delete client user. Please try again.",
+            description: "Failed to delete client user from Supabase. Please try again.",
             variant: "destructive",
           })
         }
@@ -138,7 +167,7 @@ export function ClientUsersTab() {
         console.error("❌ Error deleting client user:", error)
         toast({
           title: "Error",
-          description: "Failed to delete client user. Please try again.",
+          description: "Failed to delete client user from Supabase. Please try again.",
           variant: "destructive",
         })
       }
@@ -158,7 +187,7 @@ export function ClientUsersTab() {
       if (success) {
         toast({
           title: "Success",
-          description: `Client user ${userData.email || selectedUser.email} updated successfully!`,
+          description: `Client user ${userData.email || selectedUser.email} updated in Supabase successfully!`,
         })
         setIsEditModalOpen(false)
         setSelectedUser(null)
@@ -166,7 +195,7 @@ export function ClientUsersTab() {
       } else {
         toast({
           title: "Error",
-          description: "Failed to update client user. Please try again.",
+          description: "Failed to update client user in Supabase. Please try again.",
           variant: "destructive",
         })
       }
@@ -174,7 +203,7 @@ export function ClientUsersTab() {
       console.error("❌ Error updating client user:", error)
       toast({
         title: "Error",
-        description: "Failed to update client user. Please try again.",
+        description: "Failed to update client user in Supabase. Please try again.",
         variant: "destructive",
       })
     }
@@ -184,21 +213,31 @@ export function ClientUsersTab() {
     setSearchTerm(term)
   }
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.surname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.username?.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const filteredUsers = users.filter((user) => {
+    if (!user || typeof user !== "object" || !user.id) return false
+
+    const searchLower = searchTerm.toLowerCase()
+    const firstName = user.first_name || user.name || ""
+    const surname = user.surname || ""
+    const email = user.email || ""
+    const department = user.department || ""
+    const username = user.username || ""
+
+    return (
+      firstName.toLowerCase().includes(searchLower) ||
+      surname.toLowerCase().includes(searchLower) ||
+      email.toLowerCase().includes(searchLower) ||
+      department.toLowerCase().includes(searchLower) ||
+      username.toLowerCase().includes(searchLower)
+    )
+  })
 
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Client Users</CardTitle>
-          <CardDescription>Loading client users from database...</CardDescription>
+          <CardDescription>Loading client users from Supabase database...</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-center py-8">
@@ -216,12 +255,12 @@ export function ClientUsersTab() {
           <div>
             <CardTitle>Client Users</CardTitle>
             <CardDescription>
-              Manage external client users with limited access ({users.length} users found)
+              Manage external client users with limited access ({users.length} users from Supabase)
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            Refresh
+            Refresh from Supabase
           </Button>
         </div>
       </CardHeader>
@@ -247,66 +286,86 @@ export function ClientUsersTab() {
           {filteredUsers.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-muted-foreground">
-                {searchTerm ? "No client users found matching your search" : "No client users found"}
+                {searchTerm ? "No client users found matching your search" : "No client users found in Supabase"}
               </p>
               <p className="text-sm text-muted-foreground mt-2">
                 Client users have restricted access to tracking only their orders
               </p>
               {!searchTerm && (
-                <Button onClick={() => setIsCreateModalOpen(true)} className="mt-4 bg-purple-600 hover:bg-purple-700">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Your First Client User
-                </Button>
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Your client users should be stored in the 'user_profiles' table in Supabase
+                  </p>
+                  <Button onClick={() => setIsCreateModalOpen(true)} className="bg-purple-600 hover:bg-purple-700">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Your First Client User
+                  </Button>
+                </div>
               )}
             </div>
           ) : (
-            filteredUsers.map((user) => (
-              <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-4">
-                    <div>
-                      <h3 className="font-medium">{`${user.name} ${user.surname}`}</h3>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                      <p className="text-xs text-muted-foreground">
-                        @{user.username} • {user.department}
-                      </p>
+            filteredUsers
+              .map((user) => {
+                if (!user || typeof user !== "object" || !user.id) {
+                  return null
+                }
+
+                const userName = `${user.first_name || user.name || ""} ${user.surname || ""}`.trim()
+                const userEmail = user.email || "No email"
+                const userUsername = user.username || "no-username"
+                const userDepartment = user.department || "No company"
+
+                const orderCount = Array.isArray(user.associatedOrders) ? user.associatedOrders.length : 0
+
+                return (
+                  <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-4">
+                        <div>
+                          <h3 className="font-medium">{userName || "Unknown User"}</h3>
+                          <p className="text-sm text-muted-foreground">{userEmail}</p>
+                          <p className="text-xs text-muted-foreground">
+                            @{userUsername} • {userDepartment}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                          Client
+                        </Badge>
+                      </div>
                     </div>
-                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                      Client
-                    </Badge>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <div className="text-sm">
-                    <div className="flex gap-1">
-                      <Badge variant="secondary" className="text-xs">
-                        Client Portal
-                      </Badge>
-                      <Badge variant="secondary" className="text-xs">
-                        Shipment Tracker
-                      </Badge>
+                    <div className="flex items-center space-x-4">
+                      <div className="text-sm">
+                        <div className="flex gap-1">
+                          <Badge variant="secondary" className="text-xs">
+                            Client Portal
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            Shipment Tracker
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-sm text-muted-foreground">{orderCount} orders</div>
+                      <div className="flex items-center space-x-2">
+                        <Button variant="outline" size="sm" title="View Client Portal">
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteUser(user.id, userName)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">{user.associatedOrders?.length || 0} orders</div>
-                  <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm" title="View Client Portal">
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteUser(user.id, `${user.name} ${user.surname}`)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))
+                )
+              })
+              .filter(Boolean)
           )}
         </div>
 

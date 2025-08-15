@@ -1,24 +1,26 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl =
-  typeof window !== "undefined" ? process.env.NEXT_PUBLIC_SUPABASE_URL! : "https://placeholder.supabase.co"
-const supabaseAnonKey = typeof window !== "undefined" ? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! : "placeholder-key"
+// Get environment variables with validation
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (typeof window !== "undefined" && (!supabaseUrl || !supabaseAnonKey)) {
-  console.warn("Missing Supabase environment variables")
+// Validate required environment variables
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error("❌ Missing required Supabase environment variables:")
+  console.error("- NEXT_PUBLIC_SUPABASE_URL:", supabaseUrl ? "✅" : "❌")
+  console.error("- NEXT_PUBLIC_SUPABASE_ANON_KEY:", supabaseAnonKey ? "✅" : "❌")
+
+  // Don't create client with invalid credentials
+  throw new Error("Missing required Supabase environment variables. Please check your .env file.")
 }
 
-export const supabase = createClient(
-  supabaseUrl || "https://placeholder.supabase.co",
-  supabaseAnonKey || "placeholder-key",
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
   },
-)
+})
 
 // Helper functions that work with the real Supabase client
 export async function fetchData<T>(table: string, query?: any): Promise<T[]> {
