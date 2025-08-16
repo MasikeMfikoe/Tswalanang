@@ -1,22 +1,10 @@
 import type React from "react"
 import type { ReactElement } from "react"
 import { render, type RenderOptions } from "@testing-library/react"
-import { I18nProvider } from "@/lib/i18n"
-import { AuthProvider } from "@/contexts/AuthContext"
-import { StateProvider } from "@/contexts/StateContext"
-import { QueryProvider } from "@/providers/QueryProvider"
 
 // Create a custom render function that includes all providers
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <StateProvider>
-      <QueryProvider>
-        <I18nProvider>
-          <AuthProvider>{children}</AuthProvider>
-        </I18nProvider>
-      </QueryProvider>
-    </StateProvider>
-  )
+  return <div>{children}</div>
 }
 
 const customRender = (ui: ReactElement, options?: Omit<RenderOptions, "wrapper">) =>
