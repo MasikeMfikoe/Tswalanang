@@ -92,7 +92,9 @@ export function useAnnounce() {
 
     // Clear the message after a delay
     const timer = setTimeout(() => {
-      liveRegion.textContent = ""
+      if (liveRegion) {
+        liveRegion.textContent = ""
+      }
     }, 1000)
 
     return () => {

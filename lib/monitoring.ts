@@ -138,13 +138,16 @@ export function useErrorTracking(componentName: string) {
 }
 
 // Performance tracking HOC
-export function withPerformanceTracking<P>(Component: React.ComponentType<P>, name: string): React.FC<P> {
+export function withPerformanceTracking<P extends Record<string, any>>(
+  Component: React.ComponentType<P>,
+  name: string,
+): React.FC<P> {
   return function WrappedComponent(props: P) {
     const endTimer = monitoring.startTimer(`render_${name}`)
 
     useEffect(() => {
       endTimer()
-    }, [])
+    }, [endTimer])
 
     return <Component {...props} />
   }

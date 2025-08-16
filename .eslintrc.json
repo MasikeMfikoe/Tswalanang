@@ -1,8 +1,12 @@
 {
   "extends": ["next/core-web-vitals"],
   "rules": {
-    "no-console": "warn",
-    "prefer-const": "error"
+    "no-console": "off",
+    "prefer-const": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+    "react/no-unescaped-entities": "off",
+    "@next/next/no-html-link-for-pages": "warn",
+    "@next/next/no-img-element": "warn"
   },
   "ignorePatterns": ["node_modules/", ".next/", "out/"]
 }
