@@ -88,6 +88,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
+      if (!supabase || !supabase.auth) {
+        console.warn("⚠️ Supabase client not properly initialized")
+        setUser(null)
+        setIsLoading(false)
+        return
+      }
+
       // Check for session in Supabase
       const {
         data: { session },
@@ -166,6 +173,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("🔧 Using direct demo user bypass...")
 
         try {
+          if (!supabase || !supabase.from) {
+            console.warn("⚠️ Supabase client not available, using fallback demo user")
+
+            const demoUser = {
+              id: "demo-user-id",
+              username: "demo",
+              name: "Demo",
+              first_name: "Demo",
+              surname: "User",
+              full_name: "Demo User",
+              role: "admin" as UserRole,
+              department: "Administration",
+              pageAccess: [
+                "dashboard",
+                "orders",
+                "customers",
+                "documents",
+                "deliveries",
+                "courierOrders",
+                "shipmentTracker",
+                "userManagement",
+                "auditTrail",
+                "estimates",
+                "currency",
+                "rateCard",
+              ],
+              email: "demo@tswsmartlog.com",
+            }
+
+            console.log("✅ Demo user authenticated via fallback")
+            setUser(demoUser)
+            localStorage.setItem("demo_session", JSON.stringify(demoUser))
+            router.push("/dashboard")
+            return true
+          }
+
           // Get demo user profile directly from database
           const { data: demoProfile, error: demoError } = await supabase
             .from("user_profiles")
@@ -228,6 +271,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!supabaseUrl || !supabaseAnonKey) {
         console.error("❌ Supabase not configured properly")
+        return false
+      }
+
+      if (!supabase || !supabase.from || !supabase.auth) {
+        console.error("❌ Supabase client not properly initialized")
         return false
       }
 
@@ -308,43 +356,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) {
           console.error("❌ Supabase auth error:", error.message)
 
-          if (username.toLowerCase() === "demo" && password !== "Demo@2468") {
-            console.log("🔧 Trying Demo@2468 password for demo user...")
-            const { data: demoRetryData, error: demoRetryError } = await supabase.auth.signInWithPassword({
-              email: profiles.email,
-              password: "Demo@2468",
-            })
+          if (error.message.includes("Database error granting user")) {
+            console.log("🔧 Attempting to sync user auth records...")
 
-            if (!demoRetryError && demoRetryData.user) {
-              console.log("✅ Demo user login successful with Demo@2468")
-              data.user = demoRetryData.user
-              data.session = demoRetryData.session
-            } else {
-              // Handle other auth errors
-              if (error.message.includes("Database error granting user")) {
-                console.error("💡 This error typically means:")
-                console.error("   1. User exists in user_profiles but not in auth.users")
-                console.error("   2. Password hash is corrupted or incorrect")
-                console.error("   3. RLS policies are blocking access")
-                console.error("   4. Database permissions issue")
-                console.error("🔧 Try running the sync script to create the auth user record")
-              } else if (error.message.includes("Invalid login credentials")) {
-                console.error("💡 Invalid credentials - check password or email")
-              } else if (error.message.includes("Email not confirmed")) {
-                console.error("💡 Email needs to be confirmed")
+            try {
+              const syncResponse = await fetch("/api/sync-user-auth", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  email: profiles.email,
+                  password: password,
+                  userId: profiles.id,
+                }),
+              })
+
+              if (syncResponse.ok) {
+                console.log("✅ User auth sync successful, retrying login...")
+
+                // Retry login after sync
+                const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
+                  email: profiles.email,
+                  password: password,
+                })
+
+                if (!retryError && retryData.user) {
+                  console.log("✅ Login successful after auth sync")
+                  data.user = retryData.user
+                  data.session = retryData.session
+                } else {
+                  console.error("❌ Login still failed after sync:", retryError?.message)
+                  return false
+                }
+              } else {
+                const syncError = await syncResponse.json()
+                console.error("❌ User auth sync failed:", syncError)
+                return false
               }
+            } catch (syncError) {
+              console.error("❌ Error during user auth sync:", syncError)
               return false
             }
           } else {
             // Handle other auth errors
-            if (error.message.includes("Database error granting user")) {
-              console.error("💡 This error typically means:")
-              console.error("   1. User exists in user_profiles but not in auth.users")
-              console.error("   2. Password hash is corrupted or incorrect")
-              console.error("   3. RLS policies are blocking access")
-              console.error("   4. Database permissions issue")
-              console.error("🔧 Try running the sync script to create the auth user record")
-            } else if (error.message.includes("Invalid login credentials")) {
+            if (error.message.includes("Invalid login credentials")) {
               console.error("💡 Invalid credentials - check password or email")
             } else if (error.message.includes("Email not confirmed")) {
               console.error("💡 Email needs to be confirmed")
@@ -550,6 +606,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const getUsers = async (): Promise<User[]> => {
     try {
       console.log("🔍 Fetching all users from Supabase...")
+
+      if (!supabase || !supabase.from) {
+        console.warn("⚠️ Supabase client not available, returning empty user list")
+        return []
+      }
 
       const { data, error } = await supabase
         .from("user_profiles")

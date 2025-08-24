@@ -4,23 +4,57 @@ import { createClient } from "@supabase/supabase-js"
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// Validate required environment variables
+let supabase: any
+
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error("❌ Missing required Supabase environment variables:")
   console.error("- NEXT_PUBLIC_SUPABASE_URL:", supabaseUrl ? "✅" : "❌")
   console.error("- NEXT_PUBLIC_SUPABASE_ANON_KEY:", supabaseAnonKey ? "✅" : "❌")
 
-  // Don't create client with invalid credentials
-  throw new Error("Missing required Supabase environment variables. Please check your .env file.")
+  // Create a mock client that prevents constructor errors
+  supabase = {
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      signInWithPassword: () =>
+        Promise.resolve({ data: { user: null, session: null }, error: { message: "Supabase not configured" } }),
+      signOut: () => Promise.resolve({ error: null }),
+      signUp: () =>
+        Promise.resolve({ data: { user: null, session: null }, error: { message: "Supabase not configured" } }),
+    },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
+          limit: () => Promise.resolve({ data: [], error: { message: "Supabase not configured" } }),
+        }),
+        order: () => Promise.resolve({ data: [], error: { message: "Supabase not configured" } }),
+        limit: () => Promise.resolve({ data: [], error: { message: "Supabase not configured" } }),
+      }),
+      insert: () => ({
+        select: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
+      }),
+      update: () => ({
+        eq: () => ({
+          select: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
+        }),
+      }),
+      delete: () => ({
+        eq: () => Promise.resolve({ error: { message: "Supabase not configured" } }),
+      }),
+    }),
+  }
+} else {
+  // Create real Supabase client when environment variables are available
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+  })
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-})
+export { supabase }
 
 // Helper functions that work with the real Supabase client
 export async function fetchData<T>(table: string, query?: any): Promise<T[]> {
