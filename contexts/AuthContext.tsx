@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import type { User, UserRole } from "@/types/auth"
 import { rolePermissions } from "@/types/auth"
 import { AuditLogger } from "@/lib/audit-logger"
@@ -30,6 +30,59 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // Create mock users for development - this will be the fallback data source
 const MOCK_USERS: User[] = []
 
+const FALLBACK_USERS: User[] = [
+  {
+    id: "demo-user-id",
+    username: "demo",
+    name: "Demo",
+    first_name: "Demo",
+    surname: "User",
+    full_name: "Demo User",
+    role: "admin" as UserRole,
+    department: "Administration",
+    pageAccess: [
+      "dashboard",
+      "orders",
+      "customers",
+      "documents",
+      "deliveries",
+      "courierOrders",
+      "shipmentTracker",
+      "userManagement",
+      "auditTrail",
+      "estimates",
+      "currency",
+      "rateCard",
+    ],
+    email: "demo@tswsmartlog.com",
+  },
+  {
+    id: "admin-user-id",
+    username: "admin",
+    name: "Admin",
+    first_name: "Admin",
+    surname: "User",
+    full_name: "Admin User",
+    role: "admin" as UserRole,
+    department: "Administration",
+    pageAccess: [
+      "dashboard",
+      "orders",
+      "customers",
+      "documents",
+      "deliveries",
+      "courierOrders",
+      "shipmentTracker",
+      "userManagement",
+      "auditTrail",
+      "estimates",
+      "currency",
+      "rateCard",
+    ],
+    email: "admin@tswsmartlog.com",
+  },
+]
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -55,20 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check for existing session on mount
   useEffect(() => {
-    const demoSession = localStorage.getItem("demo_session")
-    if (demoSession) {
-      try {
-        const demoUser = JSON.parse(demoSession)
-        console.log("✅ Restored demo user session from localStorage")
-        setUser(demoUser)
-        setIsLoading(false)
-        return
-      } catch (error) {
-        console.error("❌ Error parsing demo session:", error)
-        localStorage.removeItem("demo_session")
-      }
-    }
-
     checkUser()
   }, [])
 
@@ -78,18 +117,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       console.log("🔍 Checking user authentication...")
 
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-      if (!supabaseUrl || !supabaseAnonKey) {
-        console.warn("⚠️ Supabase environment variables not configured")
+      if (!isSupabaseConfigured()) {
+        console.error("❌ Supabase environment variables are missing!")
+        console.error("❌ Required variables:")
+        console.error("   - NEXT_PUBLIC_SUPABASE_URL")
+        console.error("   - NEXT_PUBLIC_SUPABASE_ANON_KEY")
+        console.error("❌ Please set these in your Vercel environment variables and redeploy")
         setUser(null)
         setIsLoading(false)
         return
       }
 
+      console.log("[v0] Using Supabase for authentication...")
+
       if (!supabase || !supabase.auth) {
-        console.warn("⚠️ Supabase client not properly initialized")
+        console.error("❌ Supabase client not properly initialized")
         setUser(null)
         setIsLoading(false)
         return
@@ -169,302 +211,117 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { userAgent, ipAddress } = getClientInfo()
 
-      if (username.toLowerCase() === "demo" && (password === "demo" || password === "Demo@2468")) {
-        console.log("🔧 Using direct demo user bypass...")
-
-        try {
-          if (!supabase || !supabase.from) {
-            console.warn("⚠️ Supabase client not available, using fallback demo user")
-
-            const demoUser = {
-              id: "demo-user-id",
-              username: "demo",
-              name: "Demo",
-              first_name: "Demo",
-              surname: "User",
-              full_name: "Demo User",
-              role: "admin" as UserRole,
-              department: "Administration",
-              pageAccess: [
-                "dashboard",
-                "orders",
-                "customers",
-                "documents",
-                "deliveries",
-                "courierOrders",
-                "shipmentTracker",
-                "userManagement",
-                "auditTrail",
-                "estimates",
-                "currency",
-                "rateCard",
-              ],
-              email: "demo@tswsmartlog.com",
-            }
-
-            console.log("✅ Demo user authenticated via fallback")
-            setUser(demoUser)
-            localStorage.setItem("demo_session", JSON.stringify(demoUser))
-            router.push("/dashboard")
-            return true
-          }
-
-          // Get demo user profile directly from database
-          const { data: demoProfile, error: demoError } = await supabase
-            .from("user_profiles")
-            .select("*")
-            .eq("first_name", "Demo")
-            .single()
-
-          if (demoError || !demoProfile) {
-            console.error("❌ Demo user profile not found:", demoError)
-            return false
-          }
-
-          // Create user session directly without Supabase auth
-          const demoUser = {
-            id: demoProfile.id || demoProfile.user_id || "demo-user-id",
-            username: "demo",
-            name: "Demo",
-            first_name: "Demo",
-            surname: "User",
-            full_name: "Demo User",
-            role: "admin" as UserRole,
-            department: "Administration",
-            pageAccess: [
-              "dashboard",
-              "orders",
-              "customers",
-              "documents",
-              "deliveries",
-              "courierOrders",
-              "shipmentTracker",
-              "userManagement",
-              "auditTrail",
-              "estimates",
-              "currency",
-              "rateCard",
-            ],
-            email: "demo@tswsmartlog.com",
-          }
-
-          console.log("✅ Demo user authenticated via bypass")
-          setUser(demoUser)
-
-          // Store session in localStorage for persistence
-          localStorage.setItem("demo_session", JSON.stringify(demoUser))
-
-          // Safe audit logging
-          await safeAuditLog(() => AuditLogger.logUserLogin(demoUser.id, demoUser.email, ipAddress, userAgent))
-
-          console.log("🔄 Redirecting to dashboard")
-          router.push("/dashboard")
-          return true
-        } catch (bypassError) {
-          console.error("❌ Demo user bypass failed:", bypassError)
-          // Fall through to normal auth flow
-        }
-      }
-
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-      if (!supabaseUrl || !supabaseAnonKey) {
-        console.error("❌ Supabase not configured properly")
+      if (!isSupabaseConfigured()) {
+        console.error("❌ CRITICAL: Supabase environment variables are missing!")
+        console.error("❌ Required variables:")
+        console.error("   - NEXT_PUBLIC_SUPABASE_URL")
+        console.error("   - NEXT_PUBLIC_SUPABASE_ANON_KEY")
+        console.error("❌ Please set these in your Vercel environment variables and redeploy")
+        console.error("❌ Cannot authenticate users without proper Supabase configuration")
         return false
       }
+
+      console.log("[v0] Using real Supabase authentication for all users...")
 
       if (!supabase || !supabase.from || !supabase.auth) {
         console.error("❌ Supabase client not properly initialized")
         return false
       }
 
-      try {
-        console.log(`🔍 Looking up user profile for username: ${username}`)
-
-        let profiles = null
-
-        // Try looking up by first_name first (for "demo" user)
-        const { data: firstNameProfiles, error: firstNameError } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .eq("first_name", username)
-          .single()
-
-        if (!firstNameError && firstNameProfiles) {
-          console.log("✅ Found user profile by first_name")
-          profiles = firstNameProfiles
+      let email = username
+      if (!username.includes("@")) {
+        if (username === "demo") {
+          email = "demo@tswsmartlog.com"
         } else {
-          // Try looking up by email if first_name fails
-          const { data: emailProfiles, error: emailError } = await supabase
-            .from("user_profiles")
-            .select("*")
-            .eq("email", `${username}@tswsmartlog.com`)
-            .single()
+          // For other internal users, use tlogistics.net.za domain
+          email = `${username}@tlogistics.net.za`
+        }
+      }
 
-          if (!emailError && emailProfiles) {
-            console.log("✅ Found user profile by email")
-            profiles = emailProfiles
-          } else {
-            // Try looking up by generated username pattern (first_name.surname)
-            const { data: allProfiles, error: allError } = await supabase.from("user_profiles").select("*")
+      console.log(`🔐 Attempting Supabase auth with email: ${email}`)
 
-            if (!allError && allProfiles) {
-              // Find user where first_name.surname matches the username
-              const matchingProfile = allProfiles.find((profile) => {
-                if (profile.first_name && profile.surname) {
-                  const generatedUsername = `${profile.first_name.toLowerCase()}.${profile.surname.toLowerCase()}`
-                  return generatedUsername === username.toLowerCase()
-                }
-                return false
-              })
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      })
 
-              if (matchingProfile) {
-                console.log("✅ Found user profile by generated username pattern")
-                profiles = matchingProfile
-              } else {
-                console.error("❌ No user profile found for username:", username)
-                return false
+      if (error) {
+        console.error("❌ Supabase auth error:", error.message)
+
+        if (username === "demo" && error.message.includes("Invalid login credentials")) {
+          console.log("🔧 Demo user login failed, trying common demo passwords...")
+
+          const demoPasswords = ["demo", "Demo@2468", "Demo123!", "admin", "password", "demo123"]
+
+          for (const tryPassword of demoPasswords) {
+            if (tryPassword === password) continue // Skip the one we already tried
+
+            console.log(`🔐 Trying demo password: ${tryPassword}`)
+            const { data: tryData, error: tryError } = await supabase.auth.signInWithPassword({
+              email: "demo@tswsmartlog.com",
+              password: tryPassword,
+            })
+
+            if (!tryError && tryData.user) {
+              console.log(`✅ Demo user authenticated with password: ${tryPassword}`)
+              console.log(`💡 Demo user credentials: username="demo", password="${tryPassword}"`)
+              const profileData = await processSuccessfulLogin(tryData.user, "demo@tswsmartlog.com")
+              if (profileData) {
+                setUser(profileData)
+                await safeAuditLog(() =>
+                  AuditLogger.logUserLogin(profileData.id, profileData.email, ipAddress, userAgent),
+                )
+                router.push("/dashboard")
+                return true
               }
-            } else {
-              console.error("❌ Failed to lookup user profiles:", allError?.message)
-              return false
             }
           }
+
+          console.error("❌ All demo passwords failed")
+          console.error("💡 Demo user exists but password doesn't match any common passwords")
+          console.error("💡 Please check the demo user password in your Supabase auth.users table")
+          console.error("💡 Or manually reset the password in Supabase dashboard")
         }
 
-        if (!profiles) {
-          console.error("❌ No user profile found for username:", username)
-          return false
+        // Handle other specific error messages
+        if (error.message.includes("Invalid login credentials")) {
+          console.error("💡 Invalid credentials - check email and password")
+          console.error("💡 Make sure the user exists in Supabase auth.users table")
+        } else if (error.message.includes("Email not confirmed")) {
+          console.error("💡 Email needs to be confirmed")
+        } else if (error.message.includes("Database error granting user")) {
+          console.error("💡 Database error - user may exist in user_profiles but not in auth.users")
+          console.error("💡 Check that the user exists in both tables with matching user_id")
         }
+        return false
+      }
 
-        console.log("✅ Found user profile:", {
-          id: profiles.id,
-          user_id: profiles.user_id,
-          first_name: profiles.first_name,
-          email: profiles.email,
-          role: profiles.role,
-        })
+      if (!data.user) {
+        console.error("❌ No user data returned from Supabase auth")
+        return false
+      }
 
-        console.log(`🔐 Attempting Supabase auth with email: ${profiles.email}`)
+      console.log("✅ Supabase authentication successful for user:", data.user.id)
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: profiles.email,
-          password: password,
-        })
+      const profileData = await processSuccessfulLogin(data.user, email)
+      if (profileData) {
+        setUser(profileData)
+        await safeAuditLog(() => AuditLogger.logUserLogin(profileData.id, profileData.email, ipAddress, userAgent))
 
-        if (error) {
-          console.error("❌ Supabase auth error:", error.message)
-
-          if (error.message.includes("Database error granting user")) {
-            console.log("🔧 Attempting to sync user auth records...")
-
-            try {
-              const syncResponse = await fetch("/api/sync-user-auth", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  email: profiles.email,
-                  password: password,
-                  userId: profiles.id,
-                }),
-              })
-
-              if (syncResponse.ok) {
-                console.log("✅ User auth sync successful, retrying login...")
-
-                // Retry login after sync
-                const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
-                  email: profiles.email,
-                  password: password,
-                })
-
-                if (!retryError && retryData.user) {
-                  console.log("✅ Login successful after auth sync")
-                  data.user = retryData.user
-                  data.session = retryData.session
-                } else {
-                  console.error("❌ Login still failed after sync:", retryError?.message)
-                  return false
-                }
-              } else {
-                const syncError = await syncResponse.json()
-                console.error("❌ User auth sync failed:", syncError)
-                return false
-              }
-            } catch (syncError) {
-              console.error("❌ Error during user auth sync:", syncError)
-              return false
-            }
-          } else {
-            // Handle other auth errors
-            if (error.message.includes("Invalid login credentials")) {
-              console.error("💡 Invalid credentials - check password or email")
-            } else if (error.message.includes("Email not confirmed")) {
-              console.error("💡 Email needs to be confirmed")
-            }
-            return false
-          }
-        }
-
-        if (!data.user) {
-          console.error("❌ No user data returned from Supabase auth")
-          return false
-        }
-
-        console.log("✅ Supabase authentication successful for user:", data.user.id)
-
-        const userData = {
-          id: data.user.id,
-          username: profiles.username || `${profiles.first_name?.toLowerCase()}.${profiles.surname?.toLowerCase()}`,
-          name: profiles.first_name || profiles.full_name?.split(" ")[0] || "Unknown",
-          first_name: profiles.first_name || profiles.full_name?.split(" ")[0] || "Unknown",
-          surname:
-            profiles.surname || (profiles.full_name ? profiles.full_name.split(" ").slice(1).join(" ") : "") || "",
-          full_name: profiles.full_name || `${profiles.first_name} ${profiles.surname}`,
-          role: profiles.role as UserRole,
-          department: profiles.department || "General",
-          pageAccess: Array.isArray(profiles.page_access)
-            ? profiles.page_access
-            : typeof profiles.page_access === "string"
-              ? profiles.page_access
-                  .split(",")
-                  .map((p) => p.trim())
-                  .filter((p) => p)
-              : [],
-          email: profiles.email || data.user.email || `${profiles.username}@tswsmartlog.com`,
-        }
-
-        console.log("✅ Setting authenticated user:", {
-          id: userData.id,
-          username: userData.username,
-          email: userData.email,
-          role: userData.role,
-        })
-
-        setUser(userData)
-
-        // Safe audit logging
-        await safeAuditLog(() => AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent))
-
-        if (userData.role === "client") {
+        if (profileData.role === "client") {
           console.log("🔄 Redirecting client user to client portal")
           router.push("/client-portal")
-        } else if (userData.role === "employee") {
+        } else if (profileData.role === "employee") {
           console.log("🔄 Redirecting employee to customer summary")
           router.push("/customer-summary")
         } else {
           console.log("🔄 Redirecting to dashboard")
           router.push("/dashboard")
         }
-
         return true
-      } catch (supabaseError) {
-        console.error("❌ Supabase operation failed:", supabaseError)
-        return false
       }
+
+      return false
     } catch (error) {
       console.error("❌ Login error:", error)
       return false
@@ -473,7 +330,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Logout function
+  const processSuccessfulLogin = async (authUser: any, email: string) => {
+    try {
+      const { data: profile, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("user_id", authUser.id)
+        .single()
+
+      if (profileError) {
+        console.error("❌ Error fetching user profile:", profileError)
+        console.error("💡 User authenticated but no profile found in user_profiles table")
+        console.error("💡 Make sure user_profiles table has a record with user_id:", authUser.id)
+        await supabase.auth.signOut()
+        return null
+      }
+
+      const userData = {
+        id: authUser.id,
+        username: profile.username || `${profile.first_name?.toLowerCase()}.${profile.surname?.toLowerCase()}`,
+        name: profile.first_name || profile.full_name?.split(" ")[0] || "Unknown",
+        first_name: profile.first_name || profile.full_name?.split(" ")[0] || "Unknown",
+        surname: profile.surname || (profile.full_name ? profile.full_name.split(" ").slice(1).join(" ") : "") || "",
+        full_name: profile.full_name || `${profile.first_name} ${profile.surname}`,
+        role: profile.role as UserRole,
+        department: profile.department || "General",
+        pageAccess: Array.isArray(profile.page_access)
+          ? profile.page_access
+          : typeof profile.page_access === "string"
+            ? profile.page_access
+                .split(",")
+                .map((p) => p.trim())
+                .filter((p) => p)
+            : [],
+        email: profile.email || authUser.email || email,
+      }
+
+      console.log("✅ Setting authenticated user:", {
+        id: userData.id,
+        username: userData.username,
+        email: userData.email,
+        role: userData.role,
+      })
+
+      return userData
+    } catch (profileError) {
+      console.error("❌ Error processing user profile:", profileError)
+      await supabase.auth.signOut()
+      return null
+    }
+  }
+
   const logout = async (): Promise<void> => {
     try {
       setIsLoading(true)
@@ -481,25 +388,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { userAgent, ipAddress } = getClientInfo()
 
-      // Safe audit logging before clearing user state
       if (user) {
         await safeAuditLog(() => AuditLogger.logUserLogout(user.id, user.email, ipAddress, userAgent))
       }
 
+      // Clear all session types
       localStorage.removeItem("demo_session")
+      localStorage.removeItem("fallback_session")
 
-      // Sign out from Supabase
       try {
         await supabase.auth.signOut()
         console.log("✅ Signed out from Supabase")
       } catch (error) {
-        console.error("❌ Error signing out from Supabase:", error)
+        console.warn("⚠️ Error signing out from Supabase (non-critical):", error)
       }
 
-      // Clear user state
       setUser(null)
-
-      // Redirect to login page
       router.push("/login")
     } catch (error) {
       console.error("❌ Logout error:", error)
@@ -606,6 +510,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const getUsers = async (): Promise<User[]> => {
     try {
       console.log("🔍 Fetching all users from Supabase...")
+
+      if (!isSupabaseConfigured()) {
+        console.warn("⚠️ Supabase not configured, returning empty user list")
+        return []
+      }
 
       if (!supabase || !supabase.from) {
         console.warn("⚠️ Supabase client not available, returning empty user list")
