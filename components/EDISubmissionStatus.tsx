@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus } from 'lucide-react'
 
 interface EDIStatus {
   id: string
@@ -26,6 +26,15 @@ interface EDINote {
   note_text: string
   created_by: string
   created_at: string
+}
+
+interface EDIOption {
+  id: string
+  category: string
+  value: string
+  label: string
+  display_order: number
+  is_active: boolean
 }
 
 interface EDISubmissionStatusProps {
@@ -47,6 +56,11 @@ export default function EDISubmissionStatus({
   const [newNote, setNewNote] = useState("")
   const [addingNote, setAddingNote] = useState(false)
 
+  const [submissionOptions, setSubmissionOptions] = useState<EDIOption[]>([])
+  const [statusOptions, setStatusOptions] = useState<EDIOption[]>([])
+  const [fileOptions, setFileOptions] = useState<EDIOption[]>([])
+  const [optionsLoading, setOptionsLoading] = useState(true)
+
   // Form state for editing
   const [formData, setFormData] = useState({
     edi_submission_status: "",
@@ -55,8 +69,46 @@ export default function EDISubmissionStatus({
   })
 
   useEffect(() => {
+    fetchEDIOptions()
     fetchEDIData()
   }, [orderId])
+
+  const fetchEDIOptions = async () => {
+    try {
+      setOptionsLoading(true)
+      
+      // Fetch all three categories of options
+      const [submissionRes, statusRes, fileRes] = await Promise.all([
+        fetch('/api/edi-options?category=edi_submission_type'),
+        fetch('/api/edi-options?category=edi_status_type'),
+        fetch('/api/edi-options?category=file_status_type'),
+      ])
+
+      if (submissionRes.ok) {
+        const submissionData = await submissionRes.json()
+        setSubmissionOptions(submissionData.options || [])
+      }
+
+      if (statusRes.ok) {
+        const statusData = await statusRes.json()
+        setStatusOptions(statusData.options || [])
+      }
+
+      if (fileRes.ok) {
+        const fileData = await fileRes.json()
+        setFileOptions(fileData.options || [])
+      }
+    } catch (error) {
+      console.error('Error fetching EDI options:', error)
+      toast({
+        title: "Warning",
+        description: "Failed to load dropdown options, using defaults",
+        variant: "destructive",
+      })
+    } finally {
+      setOptionsLoading(false)
+    }
+  }
 
   const fetchEDIData = async () => {
     try {
@@ -198,7 +250,7 @@ export default function EDISubmissionStatus({
     }
   }
 
-  if (loading) {
+  if (loading || optionsLoading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
@@ -229,12 +281,11 @@ export default function EDISubmissionStatus({
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="submitted">Submitted</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
+                  {submissionOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -250,14 +301,11 @@ export default function EDISubmissionStatus({
                   <SelectValue placeholder="Select EDI status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="not_started">Not Started</SelectItem>
-                  <SelectItem value="data_preparation">Data Preparation</SelectItem>
-                  <SelectItem value="validation">Validation</SelectItem>
-                  <SelectItem value="transmission">Transmission</SelectItem>
-                  <SelectItem value="acknowledgment_pending">Acknowledgment Pending</SelectItem>
-                  <SelectItem value="acknowledged">Acknowledged</SelectItem>
-                  <SelectItem value="error">Error</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -273,12 +321,11 @@ export default function EDISubmissionStatus({
                   <SelectValue placeholder="Select file status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="not_uploaded">Not Uploaded</SelectItem>
-                  <SelectItem value="uploaded">Uploaded</SelectItem>
-                  <SelectItem value="processing">Processing</SelectItem>
-                  <SelectItem value="validated">Validated</SelectItem>
-                  <SelectItem value="error">Error</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
+                  {fileOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
