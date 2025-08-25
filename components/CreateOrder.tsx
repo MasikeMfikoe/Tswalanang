@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { NewOrderDocumentUpload } from "@/components/NewOrderDocumentUpload"
+import EDISubmissionStatus from "@/components/EDISubmissionStatus"
 import { supabase } from "@/lib/supabase"
 import type { Order, Customer, Status, CargoStatus, FreightType } from "@/types/models"
 import { Textarea } from "@/components/ui/textarea"
@@ -61,6 +62,7 @@ export default function CreateOrder() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
   const [customersFetchError, setCustomersFetchError] = useState<string | null>(null)
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null)
 
   // Fetch customers on component mount
   React.useEffect(() => {
@@ -314,6 +316,8 @@ export default function CreateOrder() {
         return
       }
 
+      setCreatedOrderId(data.id)
+
       toast({
         title: "Success",
         description: `Order ${orderData.order_number} created successfully!`,
@@ -354,10 +358,13 @@ export default function CreateOrder() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="information" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="information">Order Information</TabsTrigger>
                   <TabsTrigger value="financials">Order Financials</TabsTrigger>
                   <TabsTrigger value="documents">Documents</TabsTrigger>
+                  <TabsTrigger value="edi-submission" disabled={!createdOrderId}>
+                    EDI Submission Status
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="information" className="mt-6">
@@ -673,6 +680,23 @@ export default function CreateOrder() {
 
                 <TabsContent value="documents" className="mt-6">
                   <NewOrderDocumentUpload />
+                </TabsContent>
+
+                {/* EDI Submission Status tab */}
+                <TabsContent value="edi-submission" className="mt-6">
+                  {createdOrderId ? (
+                    <EDISubmissionStatus
+                      orderId={createdOrderId}
+                      isEditing={true}
+                      currentUser="Current User" // Replace with actual user context
+                    />
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">
+                        Please save the order first to access EDI submission status.
+                      </p>
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </CardContent>

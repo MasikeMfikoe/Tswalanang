@@ -1,80 +1,26 @@
 import { createClient } from "@supabase/supabase-js"
 
+// Get environment variables with validation
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// Only log in development or when explicitly debugging
-const isDev = process.env.NODE_ENV === "development"
-const isDebugging = process.env.DEBUG_SUPABASE === "true"
-
-if (isDev || isDebugging) {
-  console.log("[v0] Environment variables check:")
-  console.log("[v0] NEXT_PUBLIC_SUPABASE_URL:", supabaseUrl ? "✅ Set" : "❌ Missing")
-  console.log("[v0] NEXT_PUBLIC_SUPABASE_ANON_KEY:", supabaseAnonKey ? "✅ Set" : "❌ Missing")
-}
-
-let supabase: any
-
+// Validate required environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  if (isDev) {
-    console.error("❌ CRITICAL: Supabase environment variables are missing!")
-    console.error("❌ Required variables:")
-    console.error("   - NEXT_PUBLIC_SUPABASE_URL")
-    console.error("   - NEXT_PUBLIC_SUPABASE_ANON_KEY")
-    console.error("❌ Please set these in your Vercel environment variables and redeploy")
-  }
+  console.error("❌ Missing required Supabase environment variables:")
+  console.error("- NEXT_PUBLIC_SUPABASE_URL:", supabaseUrl ? "✅" : "❌")
+  console.error("- NEXT_PUBLIC_SUPABASE_ANON_KEY:", supabaseAnonKey ? "✅" : "❌")
 
-  supabase = {
-    auth: {
-      signInWithPassword: () => Promise.resolve({ data: null, error: { message: "Supabase not configured" } }),
-      signOut: () => Promise.resolve({ error: null }),
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-    },
-    from: () => ({
-      select: () => Promise.resolve({ data: [], error: { message: "Supabase not configured" } }),
-      insert: () => Promise.resolve({ data: [], error: { message: "Supabase not configured" } }),
-      update: () => Promise.resolve({ data: [], error: { message: "Supabase not configured" } }),
-      delete: () => Promise.resolve({ error: { message: "Supabase not configured" } }),
-      eq: function () {
-        return this
-      },
-      limit: function () {
-        return this
-      },
-      order: function () {
-        return this
-      },
-    }),
-  }
-
-  if (isDev) {
-    console.log("⚠️ Using mock Supabase client - authentication will not work")
-  }
-} else {
-  if (isDev || isDebugging) {
-    console.log("✅ Supabase environment variables found, creating client...")
-  }
-
-  supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-  })
-
-  if (isDev || isDebugging) {
-    console.log("✅ Supabase client created successfully")
-  }
+  // Don't create client with invalid credentials
+  throw new Error("Missing required Supabase environment variables. Please check your .env file.")
 }
 
-export { supabase }
-
-export function isSupabaseConfigured(): boolean {
-  return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-}
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+})
 
 // Helper functions that work with the real Supabase client
 export async function fetchData<T>(table: string, query?: any): Promise<T[]> {

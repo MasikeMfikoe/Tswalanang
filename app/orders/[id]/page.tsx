@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import DocumentManagement from "@/components/DocumentManagement"
 import PODManagement from "@/components/PODManagement"
 import ClientPackDocuments from "@/components/ClientPackDocuments"
+import EDISubmissionStatus from "@/components/EDISubmissionStatus"
 import { Download, Loader2, Search } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
@@ -768,6 +769,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
               <TabsTrigger value="financials">Order Financials</TabsTrigger>
               <TabsTrigger value="pod">Proof of Delivery</TabsTrigger>
               <TabsTrigger value="cargo-history">Cargo Status Report</TabsTrigger>
+              <TabsTrigger value="edi-submission">EDI Submission Status</TabsTrigger>
               <TabsTrigger
                 value="client-pack"
                 disabled={isEditing}
@@ -777,6 +779,14 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
               </TabsTrigger>
             </TabsList>
 
+            <TabsContent value="documents">
+              <DocumentManagement orderId={order.id} isEditing={false} />
+            </TabsContent>
+            {isEditing && (
+              <TabsContent value="upload">
+                <DocumentManagement orderId={order.id} isEditing={true} />
+              </TabsContent>
+            )}
             <TabsContent value="financials">
               <Card>
                 <CardHeader>
@@ -963,14 +973,6 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                 </CardContent>
               </Card>
             </TabsContent>
-            <TabsContent value="documents">
-              <DocumentManagement orderId={order.id} isEditing={false} />
-            </TabsContent>
-            {isEditing && (
-              <TabsContent value="upload">
-                <DocumentManagement orderId={order.id} isEditing={true} />
-              </TabsContent>
-            )}
             <TabsContent value="pod">
               <PODManagement orderId={params.id} />
             </TabsContent>
@@ -1044,6 +1046,13 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+            <TabsContent value="edi-submission">
+              <EDISubmissionStatus
+                orderId={params.id}
+                isEditing={isEditing}
+                currentUser="Current User" // Replace with actual user context
+              />
             </TabsContent>
             <TabsContent value="client-pack">
               <ClientPackDocuments orderId={params.id} freightType={order.freight_type || ""} />

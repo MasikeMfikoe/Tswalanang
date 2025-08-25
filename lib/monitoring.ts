@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+
 import type React from "react"
 
 // Simple monitoring and error tracking system
@@ -58,6 +59,8 @@ class Monitoring {
 
     this.errors.push(errorData)
     this.sendErrorToServer(errorData)
+
+    console.error(`[Monitoring] Error in ${componentName || "unknown"}:`, error)
   }
 
   // Track performance
@@ -98,23 +101,27 @@ class Monitoring {
   // Handle unhandled promise rejections
   private handlePromiseRejection(event: PromiseRejectionEvent): void {
     const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason))
+
     this.trackError(error, "unhandledRejection")
   }
 
-  // Send error to server
+  // Send error to server (would implement actual API call in production)
   private sendErrorToServer(errorData: ErrorData): void {
     // In a real implementation, you would send this to your error tracking service
-    if (process.env.NODE_ENV === "development") {
-      console.log("[Monitoring] Error tracked:", errorData)
-    }
+    // For example:
+    // fetch('/api/monitoring/errors', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify(errorData),
+    // }).catch(console.error);
+
+    console.log("[Monitoring] Error tracked:", errorData)
   }
 
   // Send performance data to server
   private sendPerformanceToServer(performanceData: PerformanceData): void {
     // In a real implementation, you would send this to your monitoring service
-    if (process.env.NODE_ENV === "development") {
-      console.log("[Monitoring] Performance tracked:", performanceData)
-    }
+    console.log("[Monitoring] Performance tracked:", performanceData)
   }
 }
 
@@ -131,16 +138,13 @@ export function useErrorTracking(componentName: string) {
 }
 
 // Performance tracking HOC
-export function withPerformanceTracking<P extends Record<string, any>>(
-  Component: React.ComponentType<P>,
-  name: string,
-): React.FC<P> {
+export function withPerformanceTracking<P>(Component: React.ComponentType<P>, name: string): React.FC<P> {
   return function WrappedComponent(props: P) {
     const endTimer = monitoring.startTimer(`render_${name}`)
 
     useEffect(() => {
       endTimer()
-    }, [endTimer])
+    }, [])
 
     return <Component {...props} />
   }
