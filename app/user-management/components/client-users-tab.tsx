@@ -1,15 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Search, Plus, Edit, Trash2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Plus, Edit, Trash2, RefreshCw, ChevronLeft, ChevronRight, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import CreateUserModal from "./create-user-modal"
+import { BulkImportModal } from "./bulk-import-modal"
 import type { User } from "@/types/auth"
 
 interface ClientUser {
@@ -30,6 +30,7 @@ export function ClientUsersTab() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isBulkImportModalOpen, setIsBulkImportModalOpen] = useState(false)
 
   const [currentPage, setCurrentPage] = useState(1)
   const [usersPerPage] = useState(20)
@@ -58,38 +59,22 @@ export function ClientUsersTab() {
   const fetchUsers = async () => {
     setIsLoading(true)
     try {
-      console.log("[v0] 🔄 Fetching client users from Supabase...")
+      console.log("[v0] 🔄 Fetching client users from API...")
 
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .select("id, email, role, first_name, surname, department")
-        .eq("role", "client") // Filter for client users only
-        .order("created_at", { ascending: false })
+      const response = await fetch("/api/users/list?type=client")
 
-      if (error) {
-        console.error("[v0] ❌ Error fetching client users:", error)
-        throw error
+      if (!response.ok) {
+        throw new Error("Failed to fetch users")
       }
 
-      console.log("[v0] 📋 Client users fetched:", data?.length || 0)
+      const result = await response.json()
 
-      const mappedUsers: ClientUser[] = (data || []).map((user) => ({
-        id: user.id,
-        username:
-          user.first_name && user.surname
-            ? `${user.first_name.toLowerCase()}.${user.surname.toLowerCase()}`
-            : user.email?.split("@")[0] || "user",
-        email: user.email || "",
-        role: user.role || "client",
-        first_name: user.first_name || "",
-        surname: user.surname || "",
-        department: user.department || "",
-      }))
+      console.log("[v0] 📋 Client users fetched:", result.users?.length || 0)
 
-      setUsers(mappedUsers)
-      console.log("[v0] ✅ Client users mapped successfully")
+      setUsers(result.users || [])
+      console.log("[v0] ✅ Client users loaded successfully")
 
-      if (mappedUsers.length === 0) {
+      if ((result.users || []).length === 0) {
         console.log("[v0] ⚠️ No client users found in Supabase")
       }
     } catch (error) {
@@ -166,6 +151,47 @@ export function ClientUsersTab() {
     }
   }
 
+  const handleBulkImport = async (users: any[]) => {
+    try {
+      console.log("[v0] 🔄 Starting bulk import of", users.length, "client users")
+
+      // Ensure all imported users have client role
+      const clientUsers = users.map((user) => ({ ...user, role: "client" }))
+
+      const response = await fetch("/api/users/bulk-import", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ users: clientUsers }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to import users")
+      }
+
+      console.log("[v0] ✅ Bulk import completed:", result.results)
+
+      toast({
+        title: "Import Complete",
+        description: result.message,
+      })
+
+      // Refresh the user list
+      await fetchUsers()
+      setIsBulkImportModalOpen(false)
+    } catch (error) {
+      console.error("[v0] ❌ Error during bulk import:", error)
+      toast({
+        title: "Import Error",
+        description: error instanceof Error ? error.message : "Failed to import users",
+        variant: "destructive",
+      })
+    }
+  }
+
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage)
   const startIndex = (currentPage - 1) * usersPerPage
   const endIndex = startIndex + usersPerPage
@@ -219,10 +245,16 @@ export function ClientUsersTab() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Button className="bg-purple-600 hover:bg-purple-700" onClick={() => setIsCreateModalOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Client User
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsBulkImportModalOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Bulk Import
+            </Button>
+            <Button className="bg-purple-600 hover:bg-purple-700" onClick={() => setIsCreateModalOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Client User
+            </Button>
+          </div>
         </div>
 
         {currentUsers.length === 0 ? (
@@ -337,6 +369,11 @@ export function ClientUsersTab() {
           onClose={() => setIsCreateModalOpen(false)}
           onCreateUser={handleCreateUser}
           userType="client"
+        />
+        <BulkImportModal
+          isOpen={isBulkImportModalOpen}
+          onClose={() => setIsBulkImportModalOpen(false)}
+          onImport={handleBulkImport}
         />
       </CardContent>
     </Card>
