@@ -1,149 +1,96 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "@/contexts/AuthContext"
+import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Search, Plus, Edit, Trash2, RefreshCw } from "lucide-react"
-import type { User } from "@/types/auth"
+import { Search, Plus, Edit, Trash2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import CreateUserModal from "./create-user-modal"
-import EditUserModal from "./edit-user-modal"
+import type { User } from "@/types/auth"
 
-function SafeUserRenderer({
-  user,
-  onEdit,
-  onDelete,
-}: { user: User; onEdit: (user: User) => void; onDelete: (id: string, name: string) => void }) {
-  try {
-    if (!user || typeof user !== "object" || !user.id) {
-      return null
-    }
-
-    const safeFirstName = String(user.first_name || user.name || "")
-    const safeSurname = String(user.surname || "")
-    const safeEmail = String(user.email || "No email")
-    const safeUsername = String(user.username || "no-username")
-    const safeRole = String(user.role || "employee")
-    const safeDepartment = String(user.department || "No department")
-
-    let safePageAccess: string[] = []
-    try {
-      if (Array.isArray(user.pageAccess)) {
-        safePageAccess = user.pageAccess.filter((page) => typeof page === "string" && page.length > 0)
-      }
-    } catch {
-      safePageAccess = []
-    }
-
-    const getRoleBadgeVariant = (role: string) => {
-      switch (role) {
-        case "admin":
-          return "default"
-        case "manager":
-          return "secondary"
-        case "employee":
-          return "outline"
-        default:
-          return "outline"
-      }
-    }
-
-    return (
-      <div className="flex items-center justify-between p-4 border rounded-lg">
-        <div className="flex-1">
-          <div className="flex items-center space-x-4">
-            <div>
-              <h3 className="font-medium">{`${safeFirstName} ${safeSurname}`.trim() || "Unnamed User"}</h3>
-              <p className="text-sm text-muted-foreground">{safeEmail}</p>
-              <p className="text-xs text-muted-foreground">@{safeUsername}</p>
-            </div>
-            <Badge variant={getRoleBadgeVariant(safeRole)}>
-              {safeRole.charAt(0).toUpperCase() + safeRole.slice(1)}
-            </Badge>
-            <div className="text-sm text-muted-foreground">{safeDepartment}</div>
-          </div>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            {safePageAccess.length > 0 ? (
-              <div className="flex flex-wrap gap-1">
-                {safePageAccess.slice(0, 3).map((page, index) => (
-                  <Badge key={`${page}-${index}`} variant="outline" className="text-xs">
-                    {page}
-                  </Badge>
-                ))}
-                {safePageAccess.length > 3 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{safePageAccess.length - 3} more
-                  </Badge>
-                )}
-              </div>
-            ) : (
-              <span className="text-muted-foreground text-sm">No access</span>
-            )}
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" onClick={() => onEdit(user)}>
-              <Edit className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onDelete(user.id, `${safeFirstName} ${safeSurname}`.trim() || "Unnamed User")}
-              className="text-red-500 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  } catch (error) {
-    console.error("[v0] Error rendering user:", user?.id || "unknown", error)
-    return null
-  }
+interface InternalUser {
+  id: string
+  username: string
+  email: string
+  role: string
+  first_name?: string
+  surname?: string
 }
 
 export function InternalUsersTab() {
-  const { getUsers, createUser, deleteUser, updateUser } = useAuth()
   const { toast } = useToast()
-  const [users, setUsers] = useState<User[]>([])
+  const [users, setUsers] = useState<InternalUser[]>([])
+  const [filteredUsers, setFilteredUsers] = useState<InternalUser[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+
+  const [currentPage, setCurrentPage] = useState(1)
+  const [usersPerPage] = useState(20)
 
   useEffect(() => {
     fetchUsers()
   }, [])
 
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredUsers(users)
+    } else {
+      const searchLower = searchTerm.toLowerCase()
+      const filtered = users.filter(
+        (user) =>
+          user.username?.toLowerCase().includes(searchLower) ||
+          user.email?.toLowerCase().includes(searchLower) ||
+          `${user.first_name} ${user.surname}`.toLowerCase().includes(searchLower),
+      )
+      setFilteredUsers(filtered)
+    }
+    setCurrentPage(1) // Reset to first page when searching
+  }, [searchTerm, users])
+
   const fetchUsers = async () => {
     setIsLoading(true)
     try {
-      const fetchedUsers = await getUsers()
+      console.log("[v0] 🔄 Fetching internal users from Supabase...")
 
-      if (!Array.isArray(fetchedUsers)) {
-        console.error("❌ Invalid users data received:", fetchedUsers)
-        setUsers([])
-        return
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("id, email, role, first_name, surname")
+        .in("role", ["admin", "manager", "employee"]) // Filter for internal user roles
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("[v0] ❌ Error fetching internal users:", error)
+        throw error
       }
 
-      const validUsers = fetchedUsers.filter(
-        (user) => user && typeof user === "object" && user.id && user.role !== "client",
-      )
+      console.log("[v0] 📋 Internal users fetched:", data?.length || 0)
 
-      setUsers(validUsers)
+      const mappedUsers: InternalUser[] = (data || []).map((user) => ({
+        id: user.id,
+        username:
+          user.first_name && user.surname
+            ? `${user.first_name.toLowerCase()}.${user.surname.toLowerCase()}`
+            : user.email?.split("@")[0] || "user",
+        email: user.email || "",
+        role: user.role || "employee",
+        first_name: user.first_name || "",
+        surname: user.surname || "",
+      }))
+
+      setUsers(mappedUsers)
+      console.log("[v0] ✅ Internal users mapped successfully")
     } catch (error) {
-      console.error("❌ Error fetching users:", error)
+      console.error("[v0] ❌ Error fetching internal users:", error)
       setUsers([])
       toast({
         title: "Error",
-        description: "Failed to load users from Supabase.",
+        description: "Failed to load internal users from Supabase.",
         variant: "destructive",
       })
     } finally {
@@ -157,12 +104,12 @@ export function InternalUsersTab() {
       await fetchUsers()
       toast({
         title: "Success",
-        description: "User list refreshed successfully!",
+        description: "Internal user list refreshed successfully!",
       })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to refresh user list.",
+        description: "Failed to refresh internal user list.",
         variant: "destructive",
       })
     } finally {
@@ -172,154 +119,70 @@ export function InternalUsersTab() {
 
   const handleCreateUser = async (userData: Partial<User> & { password?: string; sendWelcomeEmail?: boolean }) => {
     try {
-      const success = await createUser({
-        first_name: userData.first_name || userData.name!,
-        surname: userData.surname!,
-        email: userData.email!,
-        role: userData.role!,
-        department: userData.department!,
-        pageAccess: userData.pageAccess || getDefaultPageAccess(userData.role!),
-        password: userData.password,
-        sendWelcomeEmail: userData.sendWelcomeEmail,
+      console.log("[v0] 🔄 Creating internal user:", userData.email)
+
+      const response = await fetch("/api/users/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(userData),
       })
 
-      if (success) {
-        toast({
-          title: "Success",
-          description: `User ${userData.email} created successfully!`,
-        })
-        setIsCreateModalOpen(false)
-        setTimeout(() => fetchUsers(), 1000)
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to create user")
       }
+
+      console.log("[v0] ✅ Internal user created successfully")
+
+      toast({
+        title: "Success",
+        description: `Internal user ${userData.email} created successfully!`,
+      })
+
+      // Refresh the user list
+      await fetchUsers()
+      setIsCreateModalOpen(false)
     } catch (error) {
-      console.error("❌ Error creating user:", error)
+      console.error("[v0] ❌ Error creating internal user:", error)
       toast({
         title: "Error",
-        description: "Failed to create user. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create internal user",
         variant: "destructive",
       })
     }
   }
 
-  const handleDeleteUser = async (userId: string, userName: string) => {
-    if (confirm(`Are you sure you want to delete user ${userName}?`)) {
-      try {
-        const success = await deleteUser(userId)
-        if (success) {
-          toast({
-            title: "Success",
-            description: `User ${userName} deleted successfully!`,
-          })
-          fetchUsers()
-        } else {
-          toast({
-            title: "Error",
-            description: "Failed to delete user. Please try again.",
-            variant: "destructive",
-          })
-        }
-      } catch (error) {
-        console.error("❌ Error deleting user:", error)
-        toast({
-          title: "Error",
-          description: "Failed to delete user. Please try again.",
-          variant: "destructive",
-        })
-      }
-    }
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage)
+  const startIndex = (currentPage - 1) * usersPerPage
+  const endIndex = startIndex + usersPerPage
+  const currentUsers = filteredUsers.slice(startIndex, endIndex)
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
   }
 
-  const handleEditUser = (user: User) => {
-    setSelectedUser(user)
-    setIsEditModalOpen(true)
-  }
-
-  const handleUpdateUser = async (userData: Partial<User>) => {
-    if (!selectedUser) return
-
-    try {
-      const success = await updateUser(selectedUser.id, userData)
-      if (success) {
-        toast({
-          title: "Success",
-          description: `User updated successfully!`,
-        })
-        setIsEditModalOpen(false)
-        setSelectedUser(null)
-        fetchUsers()
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to update user. Please try again.",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("❌ Error updating user:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update user. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const getDefaultPageAccess = (role: string): string[] => {
+  const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case "admin":
-        return [
-          "dashboard",
-          "orders",
-          "customers",
-          "documents",
-          "deliveries",
-          "courierOrders",
-          "shipmentTracker",
-          "userManagement",
-        ]
+        return "default"
       case "manager":
-        return ["dashboard", "orders", "customers", "deliveries", "courierOrders"]
+        return "secondary"
       case "employee":
-        return ["dashboard", "orders"]
+        return "outline"
       default:
-        return ["dashboard"]
+        return "outline"
     }
   }
-
-  const getFilteredUsers = () => {
-    try {
-      if (!Array.isArray(users)) return []
-
-      return users.filter((user) => {
-        if (!user || typeof user !== "object" || !user.id) return false
-
-        const searchLower = String(searchTerm || "").toLowerCase()
-        if (!searchLower) return true
-
-        const searchableFields = [
-          String(user.first_name || user.name || ""),
-          String(user.surname || ""),
-          String(user.email || ""),
-          String(user.department || ""),
-          String(user.username || ""),
-        ]
-
-        return searchableFields.some((field) => field.toLowerCase().includes(searchLower))
-      })
-    } catch (error) {
-      console.error("[v0] Error filtering users:", error)
-      return []
-    }
-  }
-
-  const filteredUsers = getFilteredUsers()
 
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Internal Users</CardTitle>
-          <CardDescription>Loading users from database...</CardDescription>
+          <CardDescription>Loading internal users from Supabase...</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-center py-8">
@@ -336,7 +199,9 @@ export function InternalUsersTab() {
         <div className="flex justify-between items-center">
           <div>
             <CardTitle>Internal Users</CardTitle>
-            <CardDescription>Manage users within your organization ({users.length} users)</CardDescription>
+            <CardDescription>
+              Manage internal organization users ({filteredUsers.length} of {users.length} users)
+            </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
@@ -350,7 +215,7 @@ export function InternalUsersTab() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Search users..."
+              placeholder="Search by username or email..."
               className="pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -358,47 +223,116 @@ export function InternalUsersTab() {
           </div>
           <Button onClick={() => setIsCreateModalOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add User
+            Add Internal User
           </Button>
         </div>
 
-        <div className="space-y-4">
-          {filteredUsers.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-muted-foreground">
-                {searchTerm ? "No users found matching your search" : "No internal users found"}
-              </p>
-              {!searchTerm && (
-                <div className="mt-4">
-                  <Button onClick={() => setIsCreateModalOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Your First User
+        {currentUsers.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-muted-foreground">
+              {searchTerm ? "No internal users found matching your search" : "No internal users found in Supabase"}
+            </p>
+            {!searchTerm && (
+              <div className="mt-4">
+                <Button onClick={() => setIsCreateModalOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Your First Internal User
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Username</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role(s)</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {currentUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      {user.username}
+                      {user.first_name && user.surname && (
+                        <div className="text-sm text-muted-foreground">
+                          {user.first_name} {user.surname}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={getRoleBadgeVariant(user.role)}>
+                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end space-x-2">
+                        <Button variant="outline" size="sm">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-red-500 hover:text-red-700 bg-transparent">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6">
+                <div className="text-sm text-muted-foreground">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length} users
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const page = i + 1
+                      return (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => goToPage(page)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {page}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
-              )}
-            </div>
-          ) : (
-            filteredUsers.map((user) => (
-              <SafeUserRenderer key={user.id} user={user} onEdit={handleEditUser} onDelete={handleDeleteUser} />
-            ))
-          )}
-        </div>
-
+              </div>
+            )}
+          </>
+        )}
         <CreateUserModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
           onCreateUser={handleCreateUser}
-          userType="internal"
-        />
-
-        <EditUserModal
-          isOpen={isEditModalOpen}
-          onClose={() => {
-            setIsEditModalOpen(false)
-            setSelectedUser(null)
-          }}
-          onUpdateUser={handleUpdateUser}
-          user={selectedUser}
           userType="internal"
         />
       </CardContent>
