@@ -184,6 +184,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       requiredPermission: { module: "auditTrail", action: "view" },
     },
     {
+      href: "/edi-status-inputs",
+      label: "EDI Status Inputs",
+      icon: Settings,
+      pageKey: "ediStatusInputs",
+      requiredPermission: { module: "admin", action: "view" },
+    },
+    {
+      href: "/user-management",
+      label: "User Management",
+      icon: User,
+      pageKey: "userManagement",
+      requiredPermission: { module: "admin", action: "view" },
+    },
+    {
       label: "Admin",
       icon: Settings,
       pageKey: "admin",
@@ -214,13 +228,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           requiredPermission: { module: "admin", action: "view" },
         },
       ],
-    },
-    {
-      href: "/user-management",
-      label: "User Management",
-      icon: User,
-      pageKey: "userManagement",
-      requiredPermission: { module: "admin", action: "view" },
     },
   ]
 

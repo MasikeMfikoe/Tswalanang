@@ -49,6 +49,7 @@ const MOCK_USERS: User[] = [
       "estimates",
       "currency",
       "rateCard",
+      "ediStatusInputs",
     ],
     email: "demo@tswsmartlog.com",
   },
