@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect } from "react" // Added useEffect import
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -54,9 +54,14 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
   const [editedCustomer, setEditedCustomer] = useState<Customer | null>(null)
   const [activeTab, setActiveTab] = useState("details")
   const [loading, setLoading] = useState(true)
-  const [ordersLoading, setOrdersLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (params.id) {
+      fetchCustomer()
+    }
+  }, [params.id])
 
   // Add this function before the fetchCustomer function
   const isValidUUID = (str: string) => {
@@ -66,36 +71,27 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
     return uuidRegex.test(str)
   }
 
-  // Update the fetchCustomer function to include validation
+  // Update the fetchCustomer function to use API route
   const fetchCustomer = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      console.log("Fetching customer with ID:", params.id)
+      console.log("[v0] Fetching customer details via API for ID:", params.id)
 
-      // Validate UUID format
-      if (!isValidUUID(params.id)) {
-        console.log("Invalid UUID format:", params.id)
-        throw new Error(`Invalid customer ID format: ${params.id}`)
+      const response = await fetch(`/api/customers/${params.id}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch customer details")
       }
 
-      const { data, error } = await supabase.from("customers").select("*").eq("id", params.id).single()
-
-      if (error) {
-        console.error("Supabase error:", error)
-        throw error
-      }
-
-      if (!data) {
-        throw new Error("Customer not found")
-      }
-
-      console.log("Customer loaded successfully:", data.name)
-      setCustomer(data)
-      setEditedCustomer(data)
+      console.log("[v0] Successfully fetched customer details via API")
+      setCustomer(data.customer)
+      setEditedCustomer(data.customer)
+      setOrders(data.orders || [])
     } catch (error: any) {
-      console.error("Error fetching customer:", error)
+      console.error("[v0] Error fetching customer:", error)
       setError(error.message || "Failed to fetch customer details")
       toast({
         title: "Error",
@@ -106,76 +102,6 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
       setLoading(false)
     }
   }
-
-  // Fetch customer orders with fallback logic
-  const fetchCustomerOrders = async () => {
-    if (!customer) return
-
-    try {
-      setOrdersLoading(true)
-
-      // First, check if customer_id column exists by trying to query it
-      const ordersQuery = supabase
-        .from("orders")
-        .select("id, po_number, supplier, status, freight_type, total_value, created_at, customer_name, importer")
-
-      // Try to filter by customer_id first
-      try {
-        const { data: testData, error: testError } = await supabase.from("orders").select("customer_id").limit(1)
-
-        if (!testError) {
-          // customer_id column exists, use it
-          const { data, error } = await ordersQuery
-            .eq("customer_id", params.id)
-            .order("created_at", { ascending: false })
-
-          if (error) throw error
-          setOrders(data || [])
-          return
-        }
-      } catch (columnError) {
-        console.log("customer_id column doesn't exist, falling back to name matching")
-      }
-
-      // Fallback: match by customer name or importer name
-      const { data, error } = await ordersQuery
-        .or(`customer_name.eq.${customer.name},importer.eq.${customer.name}`)
-        .order("created_at", { ascending: false })
-
-      if (error) {
-        throw error
-      }
-
-      setOrders(data || [])
-    } catch (error: any) {
-      console.error("Error fetching customer orders:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch customer orders",
-        variant: "destructive",
-      })
-      setOrders([])
-    } finally {
-      setOrdersLoading(false)
-    }
-  }
-
-  // Load data on component mount - only for valid UUIDs
-  useEffect(() => {
-    if (isValidUUID(params.id)) {
-      fetchCustomer()
-    } else {
-      setLoading(false)
-      setError(`Invalid customer ID format: ${params.id}`)
-    }
-  }, [params.id])
-
-  // Fetch orders after customer is loaded
-  useEffect(() => {
-    if (customer) {
-      fetchCustomerOrders()
-    }
-  }, [customer])
 
   // Handle input changes
   const handleInputChange = (field: string, value: string) => {
@@ -380,12 +306,7 @@ export default function CustomerDetails({ params }: { params: { id: string } }) 
                 </p>
               </CardHeader>
               <CardContent>
-                {ordersLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Spinner />
-                    <span className="ml-2">Loading orders...</span>
-                  </div>
-                ) : orders.length === 0 ? (
+                {orders.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-500 mb-2">No orders found for this customer.</p>
                     <p className="text-sm text-gray-400 mb-4">

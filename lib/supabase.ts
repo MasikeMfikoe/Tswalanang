@@ -1,17 +1,10 @@
 import { createClient } from "@supabase/supabase-js"
 
-// Get environment variables with validation
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// Validate required environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("❌ Missing required Supabase environment variables:")
-  console.error("- NEXT_PUBLIC_SUPABASE_URL:", supabaseUrl ? "✅" : "❌")
-  console.error("- NEXT_PUBLIC_SUPABASE_ANON_KEY:", supabaseAnonKey ? "✅" : "❌")
-
-  // Don't create client with invalid credentials
-  throw new Error("Missing required Supabase environment variables. Please check your .env file.")
+  throw new Error("Missing required Supabase environment variables")
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

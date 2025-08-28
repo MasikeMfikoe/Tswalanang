@@ -38,20 +38,26 @@ export async function POST(request: NextRequest) {
           password = "TempPassword123!", // Default password - users should change this
         } = userData
 
-        if (!email || !username) {
+        if (!email) {
           results.failed++
-          results.errors.push(`Missing email or username for user: ${JSON.stringify(userData)}`)
+          results.errors.push(`Missing email for user: ${JSON.stringify(userData)}`)
           continue
         }
 
-        // Check if user already exists in auth.users
-        const { data: existingAuthUser } = await supabaseAdmin.auth.admin.getUserByEmail(email)
+        const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers()
 
+        if (listError) {
+          results.failed++
+          results.errors.push(`Failed to check existing users: ${listError.message}`)
+          continue
+        }
+
+        const existingAuthUser = existingUsers.users.find((user) => user.email === email)
         let authUserId
 
-        if (existingAuthUser.user) {
+        if (existingAuthUser) {
           // User exists in auth, use their ID
-          authUserId = existingAuthUser.user.id
+          authUserId = existingAuthUser.id
           console.log(`[v0] User ${email} already exists in auth.users`)
         } else {
           // Create new auth user
@@ -68,6 +74,7 @@ export async function POST(request: NextRequest) {
           }
 
           authUserId = newAuthUser.user?.id
+          console.log(`[v0] Created new auth user for ${email}`)
         }
 
         if (!authUserId) {
@@ -76,21 +83,21 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // Create or update user profile
         const { error: profileError } = await supabaseAdmin.from("user_profiles").upsert({
           id: authUserId,
-          username,
           email,
           role,
-          full_name: name || username,
+          full_name: name || email.split("@")[0], // Generate name from email if missing
           surname: surname || "",
           department: department || "",
           page_access: getPageAccessForRole(role),
+          updated_at: new Date().toISOString(),
         })
 
         if (profileError) {
           results.failed++
           results.errors.push(`Failed to create profile for ${email}: ${profileError.message}`)
+          console.error(`[v0] Profile error for ${email}:`, profileError)
           continue
         }
 
@@ -99,6 +106,7 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         results.failed++
         results.errors.push(`Error processing user ${userData.email || "unknown"}: ${error}`)
+        console.error(`[v0] Error processing user:`, error)
       }
     }
 

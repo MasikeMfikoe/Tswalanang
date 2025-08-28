@@ -81,79 +81,34 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
     },
   ])
 
-  // Check if financial columns exist in the orders table
-  const checkFinancialColumns = async () => {
-    try {
-      // Try to select financial columns to see if they exist
-      const { data, error } = await supabase
-        .from("orders")
-        .select(
-          "commercial_value, customs_duties, handling_fees, shipping_cost, documentation_fee, communication_fee, financial_notes",
-        )
-        .limit(1)
-
-      if (!error) {
-        setHasFinancialColumns(true)
-        console.log("Financial columns exist in orders table.")
-      } else {
-        setHasFinancialColumns(false)
-        console.warn("Financial columns do NOT exist in orders table or query failed:", error.message)
-      }
-      console.log("Final hasFinancialColumns state:", !error)
-      // Check for calculated financial columns
-      const { data: calculatedData, error: calculatedError } = await supabase
-        .from("orders")
-        .select("customs_vat, total_disbursements, facility_fee, agency_fee, subtotal_amount, vat_amount, total_amount")
-        .limit(1)
-
-      if (!calculatedError) {
-        setHasCalculatedFinancialColumns(true)
-        console.log("Calculated financial columns exist in orders table.")
-      } else {
-        setHasCalculatedFinancialColumns(false)
-        console.warn(
-          "Calculated financial columns do NOT exist in orders table or query failed:",
-          calculatedError.message,
-        )
-      }
-    } catch (error) {
-      setHasFinancialColumns(false)
-      setHasCalculatedFinancialColumns(false)
-      console.error("Error during financial columns check:", error)
-      console.log("Financial columns check failed, assuming they don't exist.")
-    }
-  }
-
-  // Fetch order details from Supabase
+  // Fetch order details from API
   const fetchOrderDetails = async () => {
     try {
       setIsLoading(true)
       setError(null)
 
-      // First check if financial columns exist
-      await checkFinancialColumns()
+      console.log("[v0] Fetching order details via API for ID:", params.id)
 
-      const { data, error: supabaseError } = await supabase.from("orders").select("*").eq("id", params.id).single()
+      const response = await fetch(`/api/orders/${params.id}`)
+      const data = await response.json()
 
-      if (supabaseError) {
-        throw supabaseError
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch order details")
       }
 
-      if (!data) {
-        throw new Error("Order not found")
-      }
-
-      console.log("Fetched order details:", data)
-      setOrder(data)
-      setTempOrder(data)
+      console.log("[v0] Successfully fetched order details via API")
+      setOrder(data.order)
+      setTempOrder(data.order)
+      setHasFinancialColumns(data.hasFinancialColumns)
+      setHasCalculatedFinancialColumns(data.hasCalculatedFinancialColumns)
 
       // Update cargo status history with real data
       setCargoStatusHistory([
         {
           id: "1",
-          status: data.cargo_status || "pending",
-          comment: data.cargo_status_comment || "Order created",
-          timestamp: data.created_at,
+          status: data.order.cargo_status || "pending",
+          comment: data.order.cargo_status_comment || "Order created",
+          timestamp: data.order.created_at,
           user: {
             name: "System",
             surname: "User",
@@ -161,7 +116,7 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
         },
       ])
     } catch (error: any) {
-      console.error("Error fetching order:", error)
+      console.error("[v0] Error fetching order:", error)
       setError(error.message || "Failed to fetch order details")
       toast({
         title: "Error",
@@ -176,22 +131,29 @@ export default function OrderDetails({ params }: { params: { id: string } }) {
   // Fetch customers for dropdown
   const fetchCustomers = async () => {
     try {
-      const { data, error: supabaseError } = await supabase.from("customers").select("id, name").order("name")
+      console.log("[v0] 🔄 Fetching customers from API...")
+      const response = await fetch("/api/customers")
 
-      if (supabaseError) {
-        console.error("Error fetching customers:", supabaseError)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      setCustomers(
-        data || [
-          { id: 1, name: "Acme Corp" },
-          { id: 2, name: "Global Traders" },
-          { id: 3, name: "Tech Innovators" },
-          { id: 4, name: "Default Customer" },
-        ],
-      )
+      const result = await response.json()
+      console.log("[v0] ✅ Customers API response:", result)
+
+      if (result.success && result.data) {
+        // Map the customer data to the format expected by the dropdown
+        const customerOptions = result.data.map((customer: any) => ({
+          id: customer.id,
+          name: customer.name || customer.company_name || `Customer ${customer.id}`,
+        }))
+        setCustomers(customerOptions)
+        console.log("[v0] ✅ Customers set successfully:", customerOptions.length, "customers")
+      } else {
+        throw new Error("Invalid API response format")
+      }
     } catch (error) {
-      console.error("Error fetching customers:", error)
+      console.error("[v0] ❌ Error fetching customers:", error)
       // Use fallback data
       setCustomers([
         { id: 1, name: "Acme Corp" },

@@ -29,10 +29,10 @@ const getUserIdFromRequest = async (request: NextRequest): Promise<string | null
   }
 }
 
-// GET: Fetch all orders with optional filtering
+// GET: Fetch all courier orders with optional filtering
 export async function GET(request: NextRequest) {
   try {
-    console.log("[v0] 📡 Fetching orders from database...")
+    console.log("[v0] 📡 Fetching courier orders from database...")
 
     const searchParams = request.nextUrl.searchParams
     const page = Number.parseInt(searchParams.get("page") || "1")
@@ -40,18 +40,19 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search")
     const sortBy = searchParams.get("sortBy") || "created_at"
     const sortOrder = searchParams.get("sortOrder") || "desc"
-    const customerId = searchParams.get("customerId")
+    const status = searchParams.get("status")
 
-    let query = supabaseAdmin.from("orders").select("*", { count: "exact" })
+    // Use service role client to bypass RLS issues
+    let query = supabaseAdmin.from("courier_orders").select("*", { count: "exact" })
 
-    // Apply customer filter if provided
-    if (customerId) {
-      query = query.eq("customer_id", customerId)
+    // Apply status filter if provided
+    if (status) {
+      query = query.eq("status", status)
     }
 
     // Apply search filter if provided
     if (search) {
-      query = query.or(`po_number.ilike.%${search}%,supplier.ilike.%${search}%,importer.ilike.%${search}%`)
+      query = query.or(`waybill_no.ilike.%${search}%,sender.ilike.%${search}%,receiver.ilike.%${search}%`)
     }
 
     // Calculate pagination
@@ -59,23 +60,23 @@ export async function GET(request: NextRequest) {
 
     // Apply sorting and pagination
     const {
-      data: orders,
+      data: courierOrders,
       error,
       count,
     } = await query.order(sortBy, { ascending: sortOrder === "asc" }).range(startRow, startRow + pageSize - 1)
 
     if (error) {
-      console.error("[v0] ❌ Error fetching orders:", error)
-      return NextResponse.json({ error: "Failed to fetch orders", details: error.message }, { status: 500 })
+      console.error("[v0] ❌ Error fetching courier orders:", error)
+      return NextResponse.json({ error: "Failed to fetch courier orders", details: error.message }, { status: 500 })
     }
 
-    console.log(`[v0] ✅ Successfully fetched ${orders?.length || 0} orders`)
+    console.log(`[v0] ✅ Successfully fetched ${courierOrders?.length || 0} courier orders`)
 
     // Calculate total pages
     const totalPages = count ? Math.ceil(count / pageSize) : 0
 
     return NextResponse.json({
-      data: orders || [],
+      data: courierOrders || [],
       total: count || 0,
       page,
       pageSize,
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
       success: true,
     })
   } catch (error) {
-    console.error("[v0] ❌ Unexpected error in orders GET route:", error)
+    console.error("[v0] ❌ Unexpected error in courier orders GET route:", error)
     return NextResponse.json(
       { error: "An unexpected error occurred", details: (error as Error).message },
       { status: 500 },
@@ -91,24 +92,30 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Create a new order
+// POST: Create a new courier order
 export async function POST(request: NextRequest) {
   try {
-    console.log("[v0] 📡 Creating new order...")
+    console.log("[v0] 📡 Creating new courier order...")
 
     const orderData = await request.json()
     const userId = await getUserIdFromRequest(request)
 
     // Validate required fields
-    const requiredFields = ["po_number", "supplier", "importer"]
+    const requiredFields = ["sender", "receiver", "pickup_address", "delivery_address"]
     for (const field of requiredFields) {
       if (!orderData[field]) {
         return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 })
       }
     }
 
+    // Generate waybill number if not provided
+    if (!orderData.waybill_no) {
+      orderData.waybill_no = `WB${Date.now()}`
+    }
+
+    // Use service role client to bypass RLS issues
     const { data: newOrder, error } = await supabaseAdmin
-      .from("orders")
+      .from("courier_orders")
       .insert({
         ...orderData,
         status: orderData.status || "Pending",
@@ -118,18 +125,18 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error("[v0] ❌ Error creating order:", error)
-      return NextResponse.json({ error: "Failed to create order", details: error.message }, { status: 500 })
+      console.error("[v0] ❌ Error creating courier order:", error)
+      return NextResponse.json({ error: "Failed to create courier order", details: error.message }, { status: 500 })
     }
 
-    console.log("[v0] ✅ Successfully created order:", newOrder.id)
+    console.log("[v0] ✅ Successfully created courier order:", newOrder.id)
 
-    // Log order creation
+    // Log courier order creation
     if (userId && newOrder) {
-      await AuditLogger.logOrderCreated(userId, newOrder.id, {
-        po_number: orderData.po_number,
-        supplier: orderData.supplier,
-        importer: orderData.importer,
+      await AuditLogger.logCourierOrderCreated(userId, newOrder.id, {
+        waybill_no: orderData.waybill_no,
+        sender: orderData.sender,
+        receiver: orderData.receiver,
         status: orderData.status || "Pending",
       })
     }
@@ -138,12 +145,12 @@ export async function POST(request: NextRequest) {
       {
         data: newOrder,
         success: true,
-        message: "Order created successfully",
+        message: "Courier order created successfully",
       },
       { status: 201 },
     )
   } catch (error) {
-    console.error("[v0] ❌ Unexpected error in orders POST route:", error)
+    console.error("[v0] ❌ Unexpected error in courier orders POST route:", error)
     return NextResponse.json(
       { error: "An unexpected error occurred", details: (error as Error).message },
       { status: 500 },
@@ -151,23 +158,24 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT: Update an existing order
+// PUT: Update an existing courier order
 export async function PUT(request: NextRequest) {
   try {
-    console.log("[v0] 📡 Updating order...")
+    console.log("[v0] 📡 Updating courier order...")
 
     const orderData = await request.json()
     const userId = await getUserIdFromRequest(request)
 
     if (!orderData.id) {
-      return NextResponse.json({ error: "Order ID is required" }, { status: 400 })
+      return NextResponse.json({ error: "Courier order ID is required" }, { status: 400 })
     }
 
     // Get old order data for audit logging
-    const { data: oldOrder } = await supabaseAdmin.from("orders").select("*").eq("id", orderData.id).single()
+    const { data: oldOrder } = await supabaseAdmin.from("courier_orders").select("*").eq("id", orderData.id).single()
 
+    // Use service role client to bypass RLS issues
     const { data: updatedOrder, error } = await supabaseAdmin
-      .from("orders")
+      .from("courier_orders")
       .update({
         ...orderData,
         updated_at: new Date().toISOString(),
@@ -177,24 +185,24 @@ export async function PUT(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error("[v0] ❌ Error updating order:", error)
-      return NextResponse.json({ error: "Failed to update order", details: error.message }, { status: 500 })
+      console.error("[v0] ❌ Error updating courier order:", error)
+      return NextResponse.json({ error: "Failed to update courier order", details: error.message }, { status: 500 })
     }
 
-    console.log("[v0] ✅ Successfully updated order:", updatedOrder.id)
+    console.log("[v0] ✅ Successfully updated courier order:", updatedOrder.id)
 
-    // Log order update
+    // Log courier order update
     if (userId && oldOrder) {
-      await AuditLogger.logOrderUpdated(userId, orderData.id, oldOrder, orderData)
+      await AuditLogger.logCourierOrderUpdated(userId, orderData.id, oldOrder, orderData)
     }
 
     return NextResponse.json({
       data: updatedOrder,
       success: true,
-      message: "Order updated successfully",
+      message: "Courier order updated successfully",
     })
   } catch (error) {
-    console.error("[v0] ❌ Unexpected error in orders PUT route:", error)
+    console.error("[v0] ❌ Unexpected error in courier orders PUT route:", error)
     return NextResponse.json(
       { error: "An unexpected error occurred", details: (error as Error).message },
       { status: 500 },

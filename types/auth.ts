@@ -34,6 +34,7 @@ export const rolePermissions = {
     auditTrail: { view: true, create: true, edit: true, delete: true },
     admin: { view: true, create: true, edit: true, delete: true },
     shipmentTracker: { view: true, create: true, edit: true, delete: true },
+    ediStatusInputs: { view: true, create: true, edit: true, delete: true },
   },
   manager: {
     dashboard: { view: true, create: false, edit: false, delete: false },
@@ -43,12 +44,13 @@ export const rolePermissions = {
     deliveries: { view: true, create: true, edit: true, delete: false },
     courierOrders: { view: true, create: true, edit: true, delete: false },
     containerTracking: { view: true, create: false, edit: false, delete: false },
-    clientPortal: { view: false, create: false, edit: false, delete: false },
+    clientPortal: { view: true, create: false, edit: false, delete: false },
     currencyConversion: { view: true, create: false, edit: false, delete: false },
     rateCard: { view: true, create: false, edit: false, delete: false },
     auditTrail: { view: true, create: false, edit: false, delete: false },
     admin: { view: false, create: false, edit: false, delete: false },
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
+    ediStatusInputs: { view: true, create: true, edit: true, delete: false },
   },
   employee: {
     dashboard: { view: true, create: false, edit: false, delete: false },
@@ -64,6 +66,7 @@ export const rolePermissions = {
     auditTrail: { view: false, create: false, edit: false, delete: false },
     admin: { view: false, create: false, edit: false, delete: false },
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
+    ediStatusInputs: { view: false, create: false, edit: false, delete: false },
   },
   client: {
     dashboard: { view: false, create: false, edit: false, delete: false },
@@ -79,6 +82,7 @@ export const rolePermissions = {
     auditTrail: { view: false, create: false, edit: false, delete: false },
     admin: { view: false, create: false, edit: false, delete: false },
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
+    ediStatusInputs: { view: false, create: false, edit: false, delete: false },
   },
   guest: {
     dashboard: { view: false, create: false, edit: false, delete: false },
@@ -94,6 +98,7 @@ export const rolePermissions = {
     auditTrail: { view: false, create: false, edit: false, delete: false },
     admin: { view: false, create: false, edit: false, delete: false },
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
+    ediStatusInputs: { view: false, create: false, edit: false, delete: false },
   },
   tracking: {
     dashboard: { view: false, create: false, edit: false, delete: false },
@@ -109,6 +114,7 @@ export const rolePermissions = {
     auditTrail: { view: false, create: false, edit: false, delete: false },
     admin: { view: false, create: false, edit: false, delete: false },
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
+    ediStatusInputs: { view: false, create: false, edit: false, delete: false },
   },
 }
 

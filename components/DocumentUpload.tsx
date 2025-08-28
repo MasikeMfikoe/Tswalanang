@@ -74,25 +74,21 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
       setIsLoading(true)
       console.log("🔍 Fetching documents for order:", orderId)
 
-      const { data, error } = await supabase
-        .from("uploaded_documents")
-        .select("*")
-        .eq("order_id", orderId)
-        .order("created_at", { ascending: false })
+      const response = await fetch(`/api/documents?orderId=${orderId}`)
 
-      if (error) {
-        console.error("❌ Error fetching documents:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load documents",
-          variant: "destructive",
-        })
-        return
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      console.log("✅ Fetched documents from Supabase:", data)
+      const result = await response.json()
 
-      const formattedDocs: UploadedDocument[] = (data || []).map((doc: any) => ({
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch documents")
+      }
+
+      console.log("✅ Fetched documents from API:", result.data)
+
+      const formattedDocs: UploadedDocument[] = (result.data || []).map((doc: any) => ({
         id: doc.id,
         name: doc.name,
         type: doc.type,

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { supabase } from "@/lib/supabase"
 
 export default function CourierOrderDetails({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -24,58 +23,22 @@ export default function CourierOrderDetails({ params }: { params: { id: string }
       setLoading(true)
       setError(null)
 
-      console.log("Fetching courier order with ID:", params.id)
+      console.log("[v0] Fetching courier order details via API for ID:", params.id)
 
-      // Fetch the main courier order
-      const { data: orderData, error: orderError } = await supabase
-        .from("courier_orders")
-        .select("*")
-        .eq("id", params.id)
-        .single()
+      const response = await fetch(`/api/courier-orders/${params.id}`)
+      const data = await response.json()
 
-      if (orderError) {
-        console.error("Error fetching courier order:", orderError)
-        if (orderError.code === "PGRST116") {
-          setError("Courier order not found")
-        } else {
-          setError(`Error fetching order: ${orderError.message}`)
-        }
-        return
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch courier order details")
       }
 
-      console.log("Fetched order data:", orderData)
-      setOrder(orderData)
-
-      // Fetch courier order items
-      const { data: itemsData, error: itemsError } = await supabase
-        .from("courier_order_items")
-        .select("*")
-        .eq("courier_order_id", params.id)
-        .order("created_at", { ascending: true })
-
-      if (itemsError) {
-        console.error("Error fetching courier order items:", itemsError)
-      } else {
-        console.log("Fetched items data:", itemsData)
-        setItems(itemsData || [])
-      }
-
-      // Fetch tracking events
-      const { data: trackingData, error: trackingError } = await supabase
-        .from("tracking_events")
-        .select("*")
-        .eq("courier_order_id", params.id)
-        .order("timestamp", { ascending: false })
-
-      if (trackingError) {
-        console.error("Error fetching tracking events:", trackingError)
-      } else {
-        console.log("Fetched tracking data:", trackingData)
-        setTrackingEvents(trackingData || [])
-      }
-    } catch (error) {
-      console.error("Unexpected error:", error)
-      setError("An unexpected error occurred")
+      console.log("[v0] Successfully fetched courier order details via API")
+      setOrder(data.order)
+      setItems(data.items || [])
+      setTrackingEvents(data.trackingEvents || [])
+    } catch (error: any) {
+      console.error("[v0] Error fetching courier order:", error)
+      setError(error.message || "An unexpected error occurred")
     } finally {
       setLoading(false)
     }

@@ -62,14 +62,14 @@ export default function EditUserModal({ isOpen, onClose, onUpdateUser, user, use
     if (user) {
       console.log("[v0] Edit modal - user data:", {
         id: user.id,
-        name: user.name,
+        first_name: user.first_name, // Changed from name to first_name
         surname: user.surname,
         email: user.email,
         role: user.role,
       })
 
       setFormData({
-        name: user.name || "",
+        name: user.first_name || "", // Use first_name instead of name
         surname: user.surname || "",
         email: user.email || "",
         role: user.role,
@@ -80,7 +80,7 @@ export default function EditUserModal({ isOpen, onClose, onUpdateUser, user, use
       })
 
       console.log("[v0] Edit modal - form data set:", {
-        name: user.name || "",
+        name: user.first_name || "", // Log first_name instead of name
         surname: user.surname || "",
       })
     }
@@ -148,7 +148,7 @@ export default function EditUserModal({ isOpen, onClose, onUpdateUser, user, use
 
     try {
       const updateData: Partial<User> & { password?: string; sendWelcomeEmail?: boolean } = {
-        name: formData.name,
+        first_name: formData.name, // Map form name field to first_name
         surname: formData.surname,
         email: formData.email,
         role: formData.role,

@@ -70,61 +70,30 @@ export default function CreateOrder() {
     fetchFreightTypes()
   }, [])
 
-  // Fetch customers directly from Supabase
+  // Fetch customers from API
   const fetchCustomers = async () => {
     setIsLoadingCustomers(true)
     setCustomersFetchError(null)
 
     try {
-      const { data, error } = await supabase.from("customers").select("*").order("name")
+      console.log("[v0] 🔄 Fetching customers from API")
+      const response = await fetch("/api/customers")
 
-      if (error) {
-        console.error("Error fetching customers:", error)
-        setCustomersFetchError("Failed to load customers")
-        // Use fallback customers
-        setCustomers([
-          {
-            id: "demo-1",
-            name: "ABC Trading Company",
-            contactPerson: "John Smith",
-            email: "john@abctrading.com",
-            phone: "+1-555-0123",
-            address: {
-              street: "123 Business Ave",
-              city: "New York",
-              postalCode: "10001",
-              country: "USA",
-            },
-            totalOrders: 15,
-            totalSpent: 125000,
-            vatNumber: "US123456789",
-            importersCode: "IMP001",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: "demo-2",
-            name: "Global Imports Ltd",
-            contactPerson: "Sarah Johnson",
-            email: "sarah@globalimports.com",
-            phone: "+1-555-0456",
-            address: {
-              street: "456 Commerce St",
-              city: "Los Angeles",
-              postalCode: "90210",
-              country: "USA",
-            },
-            totalOrders: 8,
-            totalSpent: 75000,
-            vatNumber: "US987654321",
-            importersCode: "IMP002",
-            createdAt: new Date().toISOString(),
-          },
-        ])
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log("[v0] ✅ Customers API response:", result)
+
+      if (result.success && result.data) {
+        setCustomers(result.data)
+        console.log(`[v0] ✅ Successfully loaded ${result.data.length} customers`)
       } else {
-        setCustomers(data || [])
+        throw new Error("Invalid API response format")
       }
     } catch (error) {
-      console.error("Error:", error)
+      console.error("[v0] ❌ Error fetching customers:", error)
       setCustomersFetchError("Failed to load customers")
       // Use fallback customers on error
       setCustomers([
@@ -150,29 +119,28 @@ export default function CreateOrder() {
     }
   }
 
+  // Fetch freight types from API
   const fetchFreightTypes = async () => {
     setIsLoadingFreightTypes(true)
     try {
-      const { data, error } = await supabase
-        .from("freight_types")
-        .select("id, name, code")
-        .eq("active", true)
-        .order("name")
+      console.log("[v0] 🔄 Fetching freight types from API")
+      const response = await fetch("/api/freight-types")
 
-      if (error) {
-        console.error("Error fetching freight types:", error)
-        // Fallback to hardcoded options
-        setFreightTypes([
-          { id: "1", name: "Sea Freight", code: "SEA" },
-          { id: "2", name: "Air Freight", code: "AIR" },
-          { id: "3", name: "EXW", code: "EXW" },
-          { id: "4", name: "FOB", code: "FOB" },
-        ])
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log("[v0] ✅ Freight types API response:", result)
+
+      if (result.success && result.data) {
+        setFreightTypes(result.data)
+        console.log(`[v0] ✅ Successfully loaded ${result.data.length} freight types`)
       } else {
-        setFreightTypes(data || [])
+        throw new Error("Invalid API response format")
       }
     } catch (error) {
-      console.error("Error:", error)
+      console.error("[v0] ❌ Error fetching freight types:", error)
       // Use fallback data
       setFreightTypes([
         { id: "1", name: "Sea Freight", code: "SEA" },

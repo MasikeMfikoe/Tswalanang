@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import CreateUserModal from "./create-user-modal"
 import { BulkImportModal } from "./bulk-import-modal"
+import EditUserModal from "./edit-user-modal"
 import type { User } from "@/types/auth"
 
 interface ClientUser {
@@ -19,6 +20,7 @@ interface ClientUser {
   role: string
   first_name?: string
   surname?: string
+  full_name?: string
   department?: string
 }
 
@@ -31,6 +33,8 @@ export function ClientUsersTab() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isBulkImportModalOpen, setIsBulkImportModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<ClientUser | null>(null)
 
   const [currentPage, setCurrentPage] = useState(1)
   const [usersPerPage] = useState(20)
@@ -49,7 +53,7 @@ export function ClientUsersTab() {
         (user) =>
           user.username?.toLowerCase().includes(searchLower) ||
           user.email?.toLowerCase().includes(searchLower) ||
-          `${user.first_name} ${user.surname}`.toLowerCase().includes(searchLower),
+          user.full_name?.toLowerCase().includes(searchLower),
       )
       setFilteredUsers(filtered)
     }
@@ -192,6 +196,55 @@ export function ClientUsersTab() {
     }
   }
 
+  const handleEditUser = (user: ClientUser) => {
+    console.log("[v0] 📝 Opening edit modal for client user:", user.email)
+    const userForEdit = {
+      ...user,
+      name: user.first_name, // Map first_name to name for the modal
+    }
+    setSelectedUser(userForEdit)
+    setIsEditModalOpen(true)
+  }
+
+  const handleUpdateUser = async (userData: any) => {
+    try {
+      console.log("[v0] 🔄 Updating client user:", userData.email)
+
+      const response = await fetch("/api/users/update", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...userData,
+          role: "client", // Ensure client role is maintained
+          pageAccess: ["clientPortal", "shipmentTracker"], // Maintain client access
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to update user")
+      }
+
+      console.log("[v0] ✅ Client user updated successfully")
+
+      toast({
+        title: "Success",
+        description: `Client user ${userData.email} updated successfully!`,
+      })
+
+      // Refresh the user list
+      await fetchUsers()
+      setIsEditModalOpen(false)
+      setSelectedUser(null)
+    } catch (error) {
+      console.error("[v0] ❌ Error updating client user:", error)
+      throw error // Re-throw to let modal handle the error display
+    }
+  }
+
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage)
   const startIndex = (currentPage - 1) * usersPerPage
   const endIndex = startIndex + usersPerPage
@@ -291,9 +344,9 @@ export function ClientUsersTab() {
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">
                       {user.username}
-                      {user.first_name && user.surname && (
+                      {(user.first_name || user.surname) && (
                         <div className="text-sm text-muted-foreground">
-                          {user.first_name} {user.surname}
+                          {`${user.first_name || ""} ${user.surname || ""}`.trim()}
                         </div>
                       )}
                     </TableCell>
@@ -306,7 +359,7 @@ export function ClientUsersTab() {
                     <TableCell>{user.department || "No company"}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end space-x-2">
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button variant="outline" size="sm" className="text-red-500 hover:text-red-700 bg-transparent">
@@ -364,6 +417,16 @@ export function ClientUsersTab() {
             )}
           </>
         )}
+        <EditUserModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false)
+            setSelectedUser(null)
+          }}
+          onUpdateUser={handleUpdateUser}
+          user={selectedUser}
+          userType="client"
+        />
         <CreateUserModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}

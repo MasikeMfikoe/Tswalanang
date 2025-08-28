@@ -42,6 +42,11 @@ export class GocometService implements TrackingProvider {
       email: process.env.GOCOMET_EMAIL || "",
       password: process.env.GOCOMET_PASSWORD || "",
     }
+    console.log("[v0] 🔍 Gocomet credentials check:")
+    console.log("[v0] Email exists:", !!this.credentials.email)
+    console.log("[v0] Password exists:", !!this.credentials.password)
+    console.log("[v0] Email length:", this.credentials.email.length)
+    console.log("[v0] Password length:", this.credentials.password.length)
   }
 
   async authenticate(): Promise<string> {
@@ -50,6 +55,10 @@ export class GocometService implements TrackingProvider {
     }
 
     try {
+      console.log("[v0] 🔐 Attempting Gocomet authentication...")
+      console.log("[v0] API URL:", `${this.baseUrl}/auth/login`)
+      console.log("[v0] Credentials valid:", !!this.credentials.email && !!this.credentials.password)
+
       const response = await fetch(`${this.baseUrl}/auth/login`, {
         method: "POST",
         headers: {
@@ -58,18 +67,27 @@ export class GocometService implements TrackingProvider {
         body: JSON.stringify(this.credentials),
       })
 
+      console.log("[v0] 📡 Gocomet API response status:", response.status)
+      console.log("[v0] 📡 Gocomet API response ok:", response.ok)
+
       if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.statusText}`)
+        const errorText = await response.text()
+        console.log("[v0] ❌ Gocomet API error response:", errorText)
+        throw new Error(`Authentication failed: ${response.status} ${response.statusText} - ${errorText}`)
       }
 
       const data: GocometAuthResponse = await response.json()
+      console.log("[v0] ✅ Gocomet authentication successful")
+
       this.accessToken = data.access_token
       this.tokenExpiry = Date.now() + data.expires_in * 1000
 
       return this.accessToken
     } catch (error) {
-      console.error("Gocomet authentication error:", error)
-      throw new Error("Failed to authenticate with Gocomet")
+      console.error("[v0] ❌ Gocomet authentication error:", error)
+      throw new Error(
+        `Failed to authenticate with Gocomet: ${error instanceof Error ? error.message : "Unknown error"}`,
+      )
     }
   }
 

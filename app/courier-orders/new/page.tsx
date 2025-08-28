@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,8 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
 import { emailService } from "@/lib/email-service"
 import { generateSecureToken } from "@/lib/qr-code-utils"
 import { supabase } from "@/lib/supabase"
@@ -83,38 +81,6 @@ export default function NewCourierOrderPage() {
   const [emailPreview, setEmailPreview] = useState<string | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [columnsExist, setColumnsExist] = useState({
-    checked: false,
-    hasNewColumns: false,
-  })
-
-  // Check if the new columns exist in the database
-  useEffect(() => {
-    const checkColumns = async () => {
-      try {
-        // Try to select a row with the new columns to see if they exist
-        const { error } = await supabase
-          .from("courier_orders")
-          .select("order_date, senders_name")
-          .limit(1)
-          .maybeSingle()
-
-        // If there's no error, the columns exist
-        setColumnsExist({
-          checked: true,
-          hasNewColumns: !error,
-        })
-      } catch (error) {
-        console.error("Error checking columns:", error)
-        setColumnsExist({
-          checked: true,
-          hasNewColumns: false,
-        })
-      }
-    }
-
-    checkColumns()
-  }, [])
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => {
@@ -230,27 +196,17 @@ export default function NewCourierOrderPage() {
         },
       }
 
-      // Only add the new columns if they exist in the database
-      if (columnsExist.hasNewColumns) {
-        // Format dates for PostgreSQL
-        const formatDate = (dateString: string) => {
-          return dateString ? dateString : null
-        }
-
-        // Add the new columns
-        courierOrderData.order_date = formatDate(formData.orderDate)
-        courierOrderData.senders_name = formData.sendersName
-        courierOrderData.senders_date = formatDate(formData.sendersDate)
-        courierOrderData.receivers_name = formData.receiversName
-        courierOrderData.receivers_date = formatDate(formData.receiversDate)
-      } else {
-        // Store these fields in the contact_details JSONB as a fallback
-        courierOrderData.contact_details.order_date = formData.orderDate
-        courierOrderData.contact_details.senders_name = formData.sendersName
-        courierOrderData.contact_details.senders_date = formData.sendersDate
-        courierOrderData.contact_details.receivers_name = formData.receiversName
-        courierOrderData.contact_details.receivers_date = formData.receiversDate
+      // Format dates for PostgreSQL
+      const formatDate = (dateString: string) => {
+        return dateString ? dateString : null
       }
+
+      // Add the new columns
+      courierOrderData.order_date = formatDate(formData.orderDate)
+      courierOrderData.senders_name = formData.sendersName
+      courierOrderData.senders_date = formatDate(formData.sendersDate)
+      courierOrderData.receivers_name = formData.receiversName
+      courierOrderData.receivers_date = formatDate(formData.receiversDate)
 
       // Save courier order to Supabase
       const { data: courierOrder, error: orderError } = await supabase
@@ -420,17 +376,6 @@ export default function NewCourierOrderPage() {
           </Button>
         </div>
       </div>
-
-      {columnsExist.checked && !columnsExist.hasNewColumns && (
-        <Alert variant="warning" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Database Update Required</AlertTitle>
-          <AlertDescription>
-            Some columns are missing in your database. Please run the SQL migration to add the missing columns. Your
-            order will still be saved, but some fields will be stored in the contact_details JSON field instead.
-          </AlertDescription>
-        </Alert>
-      )}
 
       <form className="space-y-6" onSubmit={handleSubmit}>
         {/* Order Information */}

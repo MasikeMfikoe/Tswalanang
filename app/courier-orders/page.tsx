@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { supabase } from "@/lib/supabase"
 import { toast } from "@/lib/toast"
 import { ArrowLeft, Eye, RefreshCw, Search } from "lucide-react"
 
@@ -43,18 +42,24 @@ export default function CourierOrdersPage() {
   const fetchCourierOrders = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
-        .from("courier_orders")
-        .select("*")
-        .order("created_at", { ascending: false })
+      console.log("[v0] Fetching courier orders from API route...")
 
-      if (error) {
-        throw error
+      const response = await fetch("/api/courier-orders")
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      setCourierOrders(data || [])
-    } catch (error) {
-      console.error("Error fetching courier orders:", error)
+      const data = await response.json()
+      console.log("[v0] Courier orders API response:", data)
+
+      if (data.error) {
+        throw new Error(data.error)
+      }
+
+      setCourierOrders(data.data || [])
+    } catch (error: any) {
+      console.error("[v0] Error fetching courier orders:", error)
       toast.error("Failed to load courier orders")
     } finally {
       setLoading(false)

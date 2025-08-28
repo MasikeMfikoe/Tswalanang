@@ -195,11 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(userData)
 
           // Redirect client users to client portal immediately
-          if (userData.role === "client") {
-            router.push("/client-portal")
-          } else if (userData.role === "employee") {
-            router.push("/customer-summary")
-          }
+          redirectUserByRole(userData.role)
         } catch (error) {
           console.error("❌ Error processing user profile:", error)
           setUser(null)
@@ -224,39 +220,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { userAgent, ipAddress } = getClientInfo()
 
+      // Check if Supabase is configured
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
       if (!supabaseUrl || !supabaseAnonKey) {
-        console.warn("⚠️ Supabase not configured, using mock authentication only")
-
-        // Use mock authentication
-        const mockUser = MOCK_USERS.find((u) => u.username === username)
-        if (
-          mockUser &&
-          ((username === "demo" && password === "demo") ||
-            (username === "tracking" && password === "tracking") ||
-            (username === "client1" && password === "client1") ||
-            (username === "client2" && password === "client2"))
-        ) {
-          console.log("✅ Using mock authentication for:", username)
-          setUser(mockUser)
-
-          // Safe audit logging
-          await safeAuditLog(() => AuditLogger.logUserLogin(mockUser.id, mockUser.email, ipAddress, userAgent))
-
-          if (mockUser.role === "client") {
-            router.push("/client-portal")
-          } else if (mockUser.role === "employee") {
-            router.push("/customer-summary")
-          }
-
-          return true
-        }
-        return false
+        console.warn("⚠️ Supabase not configured, using mock authentication")
+        return await handleMockLogin(username, password, userAgent, ipAddress)
       }
 
-      // First, try to find user by username in Supabase
+      // Try database authentication first
       try {
         const { data: profiles, error: profileError } = await supabase
           .from("user_profiles")
@@ -274,120 +247,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (!error && data.user) {
             console.log("✅ Supabase authentication successful")
-
-            // Set user with profile data
-            const userData = {
-              id: data.user.id,
-              username: profiles.username,
-              first_name: profiles.first_name,
-              surname:
-                profiles.surname || (profiles.full_name ? profiles.full_name.split(" ").slice(1).join(" ") : "") || "",
-              role: profiles.role as UserRole,
-              department: profiles.department,
-              pageAccess: profiles.page_access || [],
-              email: profiles.email || data.user.email || `${profiles.username}@tswsmartlog.com`,
-            }
-
-            console.log("✅ Setting user from Supabase auth:", userData.email)
+            const userData = mapUserProfile(profiles, data.user.id)
             setUser(userData)
 
-            // Safe audit logging
             await safeAuditLog(() => AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent))
-
-            // Redirect client users to client portal immediately
-            if (userData.role === "client") {
-              router.push("/client-portal")
-            } else if (userData.role === "employee") {
-              router.push("/customer-summary")
-            }
-
+            redirectUserByRole(userData.role)
             return true
-          } else {
-            console.log("❌ Supabase auth failed:", error?.message)
           }
         }
       } catch (supabaseError) {
-        console.log("⚠️ Supabase profile lookup failed, trying mock fallback:", supabaseError)
+        console.log("⚠️ Database authentication failed, trying mock:", supabaseError)
       }
 
-      // FALLBACK: Mock authentication for development
-      const mockUser = MOCK_USERS.find((u) => u.username === username)
-      if (mockUser) {
-        console.log("🔄 Using mock login for user:", username)
-
-        // Try Supabase auth with mock user email
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: mockUser.email,
-            password: password,
-          })
-
-          if (!error && data.user) {
-            console.log("✅ Mock user authenticated via Supabase")
-
-            // Get or create profile
-            const { data: profile, error: profileError } = await supabase
-              .from("user_profiles")
-              .select("*")
-              .eq("user_id", data.user.id)
-              .single()
-
-            if (!profileError && profile) {
-              const userData = {
-                id: data.user.id,
-                username: profile.username,
-                first_name: profile.first_name,
-                surname:
-                  profile.surname || (profile.full_name ? profile.full_name.split(" ").slice(1).join(" ") : "") || "",
-                role: profile.role as UserRole,
-                department: profile.department,
-                pageAccess: profile.page_access || [],
-                email: profile.email || data.user.email || mockUser.email,
-              }
-
-              setUser(userData)
-
-              // Safe audit logging
-              await safeAuditLog(() => AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent))
-
-              if (userData.role === "client") {
-                router.push("/client-portal")
-              } else if (userData.role === "employee") {
-                router.push("/customer-summary")
-              }
-
-              return true
-            }
-          }
-        } catch (mockAuthError) {
-          console.log("⚠️ Mock user Supabase auth failed, using local auth:", mockAuthError)
-        }
-
-        // Final fallback to local mock authentication
-        if (
-          (username === "demo" && password === "demo") ||
-          (username === "tracking" && password === "tracking") ||
-          (username === "client1" && password === "client1") ||
-          (username === "client2" && password === "client2")
-        ) {
-          console.log("✅ Using local mock authentication for:", username)
-          setUser(mockUser)
-
-          // Safe audit logging
-          await safeAuditLog(() => AuditLogger.logUserLogin(mockUser.id, mockUser.email, ipAddress, userAgent))
-
-          if (mockUser.role === "client") {
-            router.push("/client-portal")
-          } else if (mockUser.role === "employee") {
-            router.push("/customer-summary")
-          }
-
-          return true
-        }
-      }
-
-      console.log("❌ Authentication failed for user:", username)
-      return false
+      // Fallback to mock authentication
+      return await handleMockLogin(username, password, userAgent, ipAddress)
     } catch (error) {
       console.error("❌ Login error:", error)
       return false
@@ -732,6 +605,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Sign out alias
   const signOut = async (): Promise<void> => {
     await logout()
+  }
+
+  const handleMockLogin = async (
+    username: string,
+    password: string,
+    userAgent: any,
+    ipAddress: any,
+  ): Promise<boolean> => {
+    const mockUser = MOCK_USERS.find((u) => u.username === username)
+    if (mockUser && isValidMockCredentials(username, password)) {
+      console.log("✅ Using mock authentication for:", username)
+      setUser(mockUser)
+      await safeAuditLog(() => AuditLogger.logUserLogin(mockUser.id, mockUser.email, ipAddress, userAgent))
+      redirectUserByRole(mockUser.role)
+      return true
+    }
+    return false
+  }
+
+  const isValidMockCredentials = (username: string, password: string): boolean => {
+    const validCredentials = [
+      { username: "demo", password: "demo" },
+      { username: "tracking", password: "tracking" },
+      { username: "client1", password: "client1" },
+      { username: "client2", password: "client2" },
+    ]
+    return validCredentials.some((cred) => cred.username === username && cred.password === password)
+  }
+
+  const mapUserProfile = (profile: any, userId: string) => {
+    return {
+      id: userId,
+      username: profile.username,
+      first_name: profile.first_name || profile.full_name?.split(" ")[0] || "Unknown",
+      surname: profile.surname || (profile.full_name ? profile.full_name.split(" ").slice(1).join(" ") : "") || "",
+      role: profile.role as UserRole,
+      department: profile.department || "General",
+      pageAccess: profile.page_access || [],
+      email: profile.email || `${profile.username}@tswsmartlog.com`,
+    }
+  }
+
+  const redirectUserByRole = (role: UserRole) => {
+    if (role === "client") {
+      router.push("/client-portal")
+    } else if (role === "employee") {
+      router.push("/customer-summary")
+    }
   }
 
   return (
