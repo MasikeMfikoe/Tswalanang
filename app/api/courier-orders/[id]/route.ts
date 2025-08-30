@@ -1,27 +1,35 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-})
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+)
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }   // 👈 make params async
+) {
   try {
-    console.log("[v0] Fetching courier order details for ID:", params.id)
+    const { id } = await params                         // 👈 await it
+    console.log("[v0] Fetching courier order details for ID:", id)
 
     // Fetch the main courier order
     const { data: orderData, error: orderError } = await supabaseAdmin
       .from("courier_orders")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", id)
       .single()
 
     if (orderError) {
       console.error("[v0] Error fetching courier order:", orderError)
-      if (orderError.code === "PGRST116") {
+      if ((orderError as any).code === "PGRST116") {
         return NextResponse.json({ error: "Courier order not found" }, { status: 404 })
       }
       return NextResponse.json({ error: orderError.message }, { status: 500 })
@@ -31,7 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const { data: itemsData, error: itemsError } = await supabaseAdmin
       .from("courier_order_items")
       .select("*")
-      .eq("courier_order_id", params.id)
+      .eq("courier_order_id", id)
       .order("created_at", { ascending: true })
 
     if (itemsError) {
@@ -42,7 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const { data: trackingData, error: trackingError } = await supabaseAdmin
       .from("tracking_events")
       .select("*")
-      .eq("courier_order_id", params.id)
+      .eq("courier_order_id", id)
       .order("timestamp", { ascending: false })
 
     if (trackingError) {
