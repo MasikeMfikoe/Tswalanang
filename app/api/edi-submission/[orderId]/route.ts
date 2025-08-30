@@ -1,16 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-})
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: { autoRefreshToken: false, persistSession: false },
+  }
+)
 
-export async function GET(request: NextRequest, { params }: { params: { orderId: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ orderId: string }> } // 👈 async
+) {
   try {
-    const { orderId } = params
+    const { orderId } = await params                      // 👈 await
 
     // Check if tables exist by trying a simple query first
     const { error: tableCheckError } = await supabase.from("edi_submission_status").select("id").limit(1)
@@ -58,9 +62,12 @@ export async function GET(request: NextRequest, { params }: { params: { orderId:
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { orderId: string } }) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ orderId: string }> } // 👈 async
+) {
   try {
-    const { orderId } = params
+    const { orderId } = await params                      // 👈 await
     const body = await request.json()
     const { edi_submission_status, edi_status, file_status } = body
 
@@ -69,10 +76,8 @@ export async function PUT(request: NextRequest, { params }: { params: { orderId:
     if (tableCheckError && tableCheckError.message.includes("does not exist")) {
       console.error("EDI tables don't exist yet")
       return NextResponse.json(
-        {
-          error: "EDI tables not created yet. Please run the database migration script.",
-        },
-        { status: 400 },
+        { error: "EDI tables not created yet. Please run the database migration script." },
+        { status: 400 }
       )
     }
 
@@ -85,7 +90,6 @@ export async function PUT(request: NextRequest, { params }: { params: { orderId:
 
     let result
     if (existing) {
-      // Update existing record
       const { data, error } = await supabase
         .from("edi_submission_status")
         .update({
@@ -104,7 +108,6 @@ export async function PUT(request: NextRequest, { params }: { params: { orderId:
       }
       result = data
     } else {
-      // Create new record
       const { data, error } = await supabase
         .from("edi_submission_status")
         .insert({
