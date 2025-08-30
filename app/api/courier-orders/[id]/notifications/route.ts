@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server"
 import { courierOrdersApi } from "@/lib/api/courierOrdersApi"
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const orderId = params.id
+    const { id: orderId } = await params
 
     // Get order details
     const orderResponse = await courierOrdersApi.getCourierOrder(orderId)
@@ -13,9 +16,14 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     const order = orderResponse.data
 
-    // In a real implementation, this would fetch from a notifications table
-    // For now, we'll construct a response based on the order data
-    const notifications = []
+    // Construct notifications (placeholder logic)
+    const notifications: Array<{
+      id: number
+      type: string
+      email: string
+      status: "sent" | "pending" | "failed"
+      sentAt: string
+    }> = []
 
     if (order.notify_recipient && order.recipient_email) {
       notifications.push({
@@ -51,16 +59,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
       notifications.push({
         id: 4,
         type: "admin",
-        email: "admin@example.com", // This would come from system settings
+        email: "admin@example.com", // TODO: read from system settings
         status: "sent",
         sentAt: order.admin_notification_sent_at || new Date().toISOString(),
       })
     }
 
-    return NextResponse.json({
-      success: true,
-      data: notifications,
-    })
+    return NextResponse.json({ success: true, data: notifications })
   } catch (error) {
     console.error("Error fetching notifications:", error)
     return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 })
