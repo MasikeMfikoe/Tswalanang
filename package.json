@@ -49,7 +49,6 @@
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
     "autoprefixer": "^10.4.20",
-    "axios": "latest",
     "buffer": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

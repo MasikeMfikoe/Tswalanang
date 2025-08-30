@@ -3,7 +3,21 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { PlaneTakeoff, Ship, Package, MapPin, Calendar, Clock, Info, FileText, ArrowRight, Loader2, XCircle, CheckCircle, Truck, Warehouse, Container, Sailboat, Anchor, ClipboardList, CircleDot, PlaneTakeoffIcon as PlaneDeparture, PlaneLandingIcon as PlaneArrival, BadgeCheck, Hourglass } from 'lucide-react'
+import {
+  PlaneTakeoff,
+  Ship,
+  Package,
+  MapPin,
+  Calendar,
+  FileText,
+  ArrowRight,
+  Loader2,
+  XCircle,
+  CheckCircle,
+  Container as ContainerIcon,
+  Hourglass,
+  CircleDot,
+} from "lucide-react"
 import type { TrackingData, TrackingEvent, ShipmentType } from "@/types/tracking"
 import { cn } from "@/lib/utils"
 
@@ -15,102 +29,57 @@ interface ShipmentTrackingResultsProps {
 }
 
 const getStatusColorClass = (status: string) => {
-  const lowerStatus = status.toLowerCase()
-  if (lowerStatus.includes("delivered") || lowerStatus.includes("completed")) {
-    return "text-green-600"
-  }
-  if (lowerStatus.includes("in transit") || lowerStatus.includes("shipped") || lowerStatus.includes("departed")) {
-    return "text-blue-600"
-  }
-  if (lowerStatus.includes("pending") || lowerStatus.includes("hold") || lowerStatus.includes("exception")) {
-    return "text-orange-600"
-  }
-  if (lowerStatus.includes("cancelled") || lowerStatus.includes("failed")) {
-    return "text-red-600"
-  }
+  const lower = (status || "").toLowerCase()
+  if (lower.includes("delivered") || lower.includes("completed")) return "text-green-600"
+  if (lower.includes("in transit") || lower.includes("shipped") || lower.includes("departed")) return "text-blue-600"
+  if (lower.includes("pending") || lower.includes("hold") || lower.includes("exception")) return "text-orange-600"
+  if (lower.includes("cancelled") || lower.includes("failed")) return "text-red-600"
   return "text-gray-700"
 }
 
 const formatDate = (dateValue: string | undefined | null): string => {
-  if (
-    !dateValue ||
-    dateValue === "N/A" ||
-    dateValue === "Unknown" ||
-    dateValue === "" ||
-    dateValue === "null" ||
-    dateValue === "undefined"
-  ) {
-    return "--"
-  }
-
+  if (!dateValue || ["n/a", "unknown", "null", "undefined", ""].includes(dateValue.toLowerCase?.() ?? "")) return "--"
   try {
-    let date = new Date(dateValue)
-
-    // If standard parsing fails, try custom formats
-    if (isNaN(date.getTime())) {
-      // Handle DD/MM/YYYY format
+    let d = new Date(dateValue)
+    if (isNaN(d.getTime())) {
+      // DD/MM/YYYY
       if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue)) {
-        const [day, month, year] = dateValue.split('/')
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+        const [day, month, year] = dateValue.split("/")
+        d = new Date(Number(year), Number(month) - 1, Number(day))
       }
-      // Handle YYYY-MM-DD format
+      // YYYY-MM-DD
       else if (/^\d{4}-\d{1,2}-\d{1,2}/.test(dateValue)) {
-        date = new Date(dateValue.split('T')[0] + 'T00:00:00.000Z')
+        d = new Date(dateValue.split("T")[0] + "T00:00:00.000Z")
       }
-      // Handle DD-MM-YYYY format
+      // DD-MM-YYYY
       else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateValue)) {
-        const [day, month, year] = dateValue.split('-')
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-      }
-      // Handle "DD MMM YYYY" format (e.g., "15 Jan 2024")
-      else if (/^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}$/.test(dateValue)) {
-        date = new Date(dateValue)
-      }
-      // Handle "MMM DD, YYYY" format (e.g., "Jan 15, 2024")
-      else if (/^[A-Za-z]{3}\s+\d{1,2},\s+\d{4}$/.test(dateValue)) {
-        date = new Date(dateValue)
+        const [day, month, year] = dateValue.split("-")
+        d = new Date(Number(year), Number(month) - 1, Number(day))
       }
     }
-
-    if (isNaN(date.getTime())) {
-      console.warn("Could not parse date for display:", dateValue)
-      return "Invalid Date" // Return "Invalid Date" if parsing truly failed
-    }
-
-    return date.toLocaleDateString("en-US", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })
-  } catch (error) {
-    console.warn("Error formatting date for display:", dateValue, error)
-    return "Invalid Date" // Return "Invalid Date" on error
+    if (isNaN(d.getTime())) return "Invalid Date"
+    return d.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })
+  } catch {
+    return "Invalid Date"
   }
 }
 
-// Function to determine if an event is delayed
 const isEventDelayed = (event: TrackingEvent): boolean => {
-  if (!event.plannedDate || !event.actualDate || event.plannedDate === "--" || event.actualDate === "--" || event.plannedDate === "Invalid Date" || event.actualDate === "Invalid Date") {
-    return false
-  }
-  
-  try {
-    const plannedDate = new Date(event.plannedDate)
-    const actualDate = new Date(event.actualDate)
-    
-    if (isNaN(plannedDate.getTime()) || isNaN(actualDate.getTime())) {
-      return false
-    }
-    
-    return actualDate > plannedDate
-  } catch (error) {
-    return false
-  }
+  if (!event.plannedDate || !event.actualDate) return false
+  const planned = new Date(event.plannedDate)
+  const actual = new Date(event.actualDate)
+  if (isNaN(planned.getTime()) || isNaN(actual.getTime())) return false
+  return actual > planned
 }
 
-// Function to determine if an event is completed (has actual date)
 const isEventCompleted = (event: TrackingEvent): boolean => {
-  return event.actualDate !== undefined && event.actualDate !== "--" && event.actualDate !== "N/A" && event.actualDate !== "Invalid Date"
+  const v = event.actualDate
+  return !!v && !["--", "n/a", "invalid date"].includes(v.toLowerCase?.() ?? "")
+}
+
+const normalizeType = (val?: string): ShipmentType => {
+  const t = (val || "").toLowerCase()
+  return t === "ocean" || t === "air" || t === "lcl" ? t : "unknown"
 }
 
 export default function ShipmentTrackingResults({
@@ -136,29 +105,21 @@ export default function ShipmentTrackingResults({
       setScrapedAt(null)
 
       try {
-        const response = await fetch("/api/tracking", {
+        const res = await fetch("/api/tracking", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            trackingNumber,
-            bookingType,
-            carrierHint,
-            preferScraping,
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trackingNumber, bookingType, carrierHint, preferScraping }),
         })
-
-        const result = await response.json()
+        const result = await res.json()
 
         if (result.success) {
-          setTrackingResult(result.data)
-          setSource(result.source)
-          setIsLiveData(result.isLiveData)
-          setScrapedAt(result.scrapedAt)
+          setTrackingResult(result.data as TrackingData)
+          setSource(result.source as string)
+          setIsLiveData(!!result.isLiveData)
+          setScrapedAt(result.scrapedAt ?? null)
         } else {
           setError(result.error || "Failed to retrieve tracking information.")
-          setSource(result.source)
+          setSource(result.source ?? null)
         }
       } catch (err: any) {
         console.error("Error fetching tracking data:", err)
@@ -169,9 +130,7 @@ export default function ShipmentTrackingResults({
       }
     }
 
-    if (trackingNumber) {
-      fetchTrackingData()
-    }
+    if (trackingNumber) fetchTrackingData()
   }, [trackingNumber, bookingType, carrierHint, preferScraping])
 
   if (isLoading) {
@@ -220,8 +179,6 @@ export default function ShipmentTrackingResults({
     weight,
     origin,
     destination,
-    pol,
-    pod,
     estimatedArrival,
     estimatedDeparture,
     lastLocation,
@@ -231,27 +188,23 @@ export default function ShipmentTrackingResults({
     demurrageDetentionDays,
   } = trackingResult
 
-  const displayShipmentType = details?.shipmentType || bookingType || "unknown"
+  const displayShipmentType: ShipmentType = normalizeType(details?.shipmentType) || bookingType || "unknown"
   const formattedEstimatedDeparture = formatDate(estimatedDeparture)
   const formattedEstimatedArrival = formatDate(estimatedArrival)
 
-  // Flatten all events from all locations for the vertical timeline
+  // Flatten events and prefer event.location over group location
   const allEvents: (TrackingEvent & { locationName: string })[] = []
-  timeline.forEach(locationEntry => {
-    locationEntry.events.forEach(event => {
+  timeline.forEach((group) => {
+    group.events.forEach((event) => {
       allEvents.push({
         ...event,
-        locationName: locationEntry.location
+        locationName: event.location || group.location,
       })
     })
   })
 
-  // Sort events chronologically in DESCENDING order (latest event first)
-  allEvents.sort((a, b) => {
-    const dateA = new Date(a.timestamp).getTime()
-    const dateB = new Date(b.timestamp).getTime()
-    return dateB - dateA // This will put the latest event at the top
-  })
+  // Sort DESC by timestamp (latest first)
+  allEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
   return (
     <Card className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm shadow-lg">
@@ -270,8 +223,10 @@ export default function ShipmentTrackingResults({
               <CheckCircle className="h-3 w-3 mr-1" /> Live Data
             </span>
           )}
+          {scrapedAt && <span className="ml-2 text-gray-400">(Updated: {formatDate(scrapedAt)})</span>}
         </div>
       </CardHeader>
+
       <CardContent className="p-6 pt-0">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
           <div className="flex items-center gap-2">
@@ -283,28 +238,28 @@ export default function ShipmentTrackingResults({
             <strong>Destination:</strong> {destination}
           </div>
 
-          {(estimatedDeparture || estimatedArrival) && (
-            <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {estimatedDeparture && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-gray-500" />
-                  <strong>Est. Departure:</strong>
-                  <span className={formattedEstimatedDeparture === "--" ? "text-gray-400 italic" : ""}>
-                    {formattedEstimatedDeparture}
-                  </span>
-                </div>
-              )}
-              {estimatedArrival && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-gray-500" />
-                  <strong>Est. Arrival:</strong>
-                  <span className={formattedEstimatedArrival === "--" ? "text-gray-400 italic" : ""}>
-                    {formattedEstimatedArrival}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+        {(estimatedDeparture || estimatedArrival) && (
+          <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {estimatedDeparture && (
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-gray-500" />
+                <strong>Est. Departure:</strong>
+                <span className={formattedEstimatedDeparture === "--" ? "text-gray-400 italic" : ""}>
+                  {formattedEstimatedDeparture}
+                </span>
+              </div>
+            )}
+            {estimatedArrival && (
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-gray-500" />
+                <strong>Est. Arrival:</strong>
+                <span className={formattedEstimatedArrival === "--" ? "text-gray-400 italic" : ""}>
+                  {formattedEstimatedArrival}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
           {lastLocation && lastLocation !== "N/A" && (
             <div className="flex items-center gap-2">
@@ -312,21 +267,24 @@ export default function ShipmentTrackingResults({
               <strong>Last Location:</strong> {lastLocation}
             </div>
           )}
+
           {containerNumber && containerNumber !== "N/A" && (
             <div className="flex items-center gap-2">
-              <Container className="h-5 w-5 text-gray-500" />
+              <ContainerIcon className="h-5 w-5 text-gray-500" />
               <strong>Container No:</strong> {containerNumber}
             </div>
           )}
+
           {demurrageDetentionDays !== undefined && demurrageDetentionDays !== null && (
             <div className="flex items-center gap-2">
               <Hourglass className="h-5 w-5 text-orange-500" />
-              <strong>Demurrage & Detention Days:</strong>
+              <strong>Demurrage &amp; Detention Days:</strong>
               <span className={demurrageDetentionDays > 0 ? "text-orange-600 font-semibold" : "text-green-600"}>
                 {demurrageDetentionDays}
               </span>
             </div>
           )}
+
           {weight && weight !== "N/A" && (
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5 text-gray-500" />
@@ -341,48 +299,28 @@ export default function ShipmentTrackingResults({
         {allEvents.length > 0 ? (
           <div className="relative">
             {allEvents.map((event, index) => {
-              const isCompleted = isEventCompleted(event)
-              const isDelayed = isEventDelayed(event)
+              const completed = isEventCompleted(event)
+              const delayed = isEventDelayed(event)
               const isLast = index === allEvents.length - 1
-              
-              // Determine the color of the vertical line
-              const lineColor = isCompleted ? (isDelayed ? "bg-red-500" : "bg-green-500") : "bg-gray-300"
-              
-              // Determine the icon for the status circle
-              const StatusIcon = isCompleted ? CheckCircle : CircleDot // Use CircleDot for incomplete events
+              const lineColor = completed ? (delayed ? "bg-red-500" : "bg-green-500") : "bg-gray-300"
+              const StatusIcon = completed ? CheckCircle : CircleDot
 
               return (
-                <div key={index} className="relative flex items-start mb-6">
-                  {/* Vertical line */}
-                  {!isLast && (
-                    <div className={cn("absolute left-3 top-8 w-0.5 h-[calc(100%+1.5rem)]", lineColor)}></div>
-                  )}
-                  
-                  {/* Status circle with checkmark */}
+                <div key={`${event.timestamp}-${index}`} className="relative flex items-start mb-6">
+                  {!isLast && <div className={cn("absolute left-3 top-8 w-0.5 h-[calc(100%+1.5rem)]", lineColor)} />}
                   <div className="relative z-10 flex-shrink-0">
-                    <div className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center border-2",
-                      isCompleted 
-                        ? (isDelayed ? "bg-red-500 border-red-500" : "bg-green-500 border-green-500")
-                        : "bg-white border-gray-300"
-                    )}>
-                      <StatusIcon className={cn(
-                        "w-4 h-4",
-                        isCompleted 
-                          ? "text-white" 
-                          : "text-gray-500"
-                      )} />
+                    <div
+                      className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center border-2",
+                        completed ? (delayed ? "bg-red-500 border-red-500" : "bg-green-500 border-green-500") : "bg-white border-gray-300",
+                      )}
+                    >
+                      <StatusIcon className={cn("w-4 h-4", completed ? "text-white" : "text-gray-500")} />
                     </div>
                   </div>
-                  
-                  {/* Event content */}
                   <div className="ml-4 flex-1">
-                    <div className="font-semibold text-gray-800 text-base">
-                      {event.status}
-                    </div>
-                    <div className="text-sm text-blue-600 font-medium mb-2">
-                      {event.locationName}
-                    </div>
+                    <div className="font-semibold text-gray-800 text-base">{event.status}</div>
+                    <div className="text-sm text-blue-600 font-medium mb-2">{event.locationName}</div>
                     <div className="text-sm text-gray-600 space-y-1">
                       <div>
                         <span className="font-medium">Planned:</span> {formatDate(event.plannedDate)}
@@ -407,9 +345,9 @@ export default function ShipmentTrackingResults({
             <Separator className="my-6" />
             <h3 className="text-xl font-semibold text-gray-800 mb-4">Documents</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {documents.map((doc, index) => (
+              {documents.map((doc, i) => (
                 <a
-                  key={index}
+                  key={`${doc.url}-${i}`}
                   href={doc.url}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -440,13 +378,13 @@ export default function ShipmentTrackingResults({
               )}
               {details.dimensions && details.dimensions !== "N/A" && (
                 <div className="flex items-center gap-2">
-                  <Info className="h-5 w-5 text-gray-500" />
+                  <span className="text-gray-500">ℹ️</span>
                   <strong>Dimensions:</strong> {details.dimensions}
                 </div>
               )}
               {details.specialInstructions && details.specialInstructions !== "N/A" && (
                 <div className="flex items-center gap-2 col-span-full">
-                  <ClipboardList className="h-5 w-5 text-gray-500" />
+                  <span className="text-gray-500">📝</span>
                   <strong>Instructions:</strong> {details.specialInstructions}
                 </div>
               )}
