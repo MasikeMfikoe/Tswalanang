@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +21,9 @@ import { useToast } from "@/components/ui/use-toast"
 import { Plus, Pencil, Save, X } from "lucide-react"
 
 export default function RateCardClient({ id }: { id: string }) {
+  const router = useRouter()
+  const { toast } = useToast()
+
   const [rates, setRates] = useState<RateItem[]>(defaultRates)
   const [freightTypes, setFreightTypes] = useState<FreightType[]>(defaultFreightTypes)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -31,46 +34,42 @@ export default function RateCardClient({ id }: { id: string }) {
     isPercentage: false,
   })
   const [newFreightType, setNewFreightType] = useState<string>("")
-  const router = useRouter()
-  const { toast } = useToast()
 
-  // In a real app, fetch the customer's rates here using `id`
   useEffect(() => {
+    // In a real app, fetch customer-specific rate card here using `id`
     // e.g. fetch(`/api/customers/${id}/rate-card`)
   }, [id])
 
   const handleSave = (rateId: string, updatedRate: RateItem) => {
-    setRates(rates.map((rate) => (rate.id === rateId ? updatedRate : rate)))
+    setRates(prev => prev.map(r => (r.id === rateId ? updatedRate : r)))
     setEditingId(null)
     toast({ title: "Success", description: "Rate updated successfully" })
   }
 
   const handleAddRate = () => {
-    if (newRate.name) {
-      const newRateItem: RateItem = {
-        id: newRate.name.toLowerCase().replace(/\s+/g, "-"),
-        name: newRate.name,
-        seaFreight: Number(newRate.seaFreight) || 0,
-        airFreight: Number(newRate.airFreight) || 0,
-        isPercentage: newRate.isPercentage || false,
-        percentageBase: newRate.isPercentage ? "totalDisbursements" : undefined,
-      }
-      setRates([...rates, newRateItem])
-      setNewRate({ name: "", seaFreight: 0, airFreight: 0, isPercentage: false })
-      toast({ title: "Success", description: "New rate added successfully" })
+    if (!newRate.name) return
+    const newRateItem: RateItem = {
+      id: newRate.name.toLowerCase().replace(/\s+/g, "-"),
+      name: newRate.name,
+      seaFreight: Number(newRate.seaFreight) || 0,
+      airFreight: Number(newRate.airFreight) || 0,
+      isPercentage: !!newRate.isPercentage,
+      percentageBase: newRate.isPercentage ? "totalDisbursements" : undefined,
     }
+    setRates(prev => [...prev, newRateItem])
+    setNewRate({ name: "", seaFreight: 0, airFreight: 0, isPercentage: false })
+    toast({ title: "Success", description: "New rate added successfully" })
   }
 
   const handleAddFreightType = () => {
-    if (newFreightType) {
-      const newType: FreightType = {
-        id: newFreightType.toLowerCase().replace(/\s+/g, "-"),
-        name: newFreightType,
-      }
-      setFreightTypes([...freightTypes, newType])
-      setNewFreightType("")
-      toast({ title: "Success", description: "New freight type added successfully" })
+    if (!newFreightType) return
+    const newType: FreightType = {
+      id: newFreightType.toLowerCase().replace(/\s+/g, "-"),
+      name: newFreightType,
     }
+    setFreightTypes(prev => [...prev, newType])
+    setNewFreightType("")
+    toast({ title: "Success", description: "New freight type added successfully" })
   }
 
   return (
@@ -222,3 +221,39 @@ export default function RateCardClient({ id }: { id: string }) {
                 <DialogTrigger asChild>
                   <Button size="sm">
                     <Plus className="w-4 h-4 mr-2" />
+                    Add Type
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Freight Type</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="freightType">Freight Type Name</Label>
+                      <Input
+                        id="freightType"
+                        value={newFreightType}
+                        onChange={(e) => setNewFreightType(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={handleAddFreightType}>Add Freight Type</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {freightTypes.map((type) => (
+                <div key={type.id} className="flex justify-between items-center p-4 border rounded-lg">
+                  <span>{type.name}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
