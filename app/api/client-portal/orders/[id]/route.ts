@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
-  const { id } = params
+// ✅ Next 15: params is async → type as Promise<...> and await it
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
   const { searchParams } = new URL(request.url)
   const userId = searchParams.get("userId")
 
@@ -11,7 +15,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 
   try {
-    // 1. Get user profile to determine role and customer_id
+    // 1) Load user profile
     const { data: userProfile, error: userProfileError } = await supabase
       .from("user_profiles")
       .select("role, customer_id, email")
@@ -27,7 +31,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     let customerId: string | null = userProfile.customer_id
     let customerName: string | null = null
 
-    // 2. If not admin, and customer_id is not directly set, try to infer from email domain
+    // 2) Infer customer by email domain (non-admins) if missing
     if (!isAdmin && !customerId && userProfile.email) {
       const emailDomain = userProfile.email.split("@")[1]
       if (emailDomain) {
@@ -35,50 +39,43 @@ export async function GET(request: Request, { params }: { params: { id: string }
           .from("customers")
           .select("id, name")
           .ilike("email", `%@${emailDomain}`)
-          .limit(1) // Limit to 1 to avoid multiple rows error
+          .limit(1)
 
         if (customersByEmailError) {
           console.error("Error inferring customer from email domain:", customersByEmailError.message)
-          // Do not return error here, continue with null customerId/Name
-        } else if (customersByEmail && customersByEmail.length > 0) {
+        } else if (customersByEmail?.length) {
           customerId = customersByEmail[0].id
           customerName = customersByEmail[0].name
-          // Optionally, update user_profile with customer_id for future direct access
+          // Best-effort update; ignore result
           await supabase.from("user_profiles").update({ customer_id: customerId }).eq("id", userId)
         }
       }
     } else if (isAdmin && userProfile.customer_id) {
-      // If admin and has a customer_id (e.g., admin viewing a specific client's portal)
-      // This case might not be strictly necessary for fetching ALL orders, but good for consistency
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
         .select("name")
         .eq("id", userProfile.customer_id)
         .single()
-      if (!customerError && customerData) {
-        customerName = customerData.name
-      }
+      if (!customerError && customerData) customerName = customerData.name
     } else if (!isAdmin && customerId) {
-      // If client and customer_id is directly set
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
         .select("name")
         .eq("id", customerId)
         .single()
-      if (!customerError && customerData) {
-        customerName = customerData.name
-      }
+      if (!customerError && customerData) customerName = customerData.name
     }
 
+    // 3) Build order query
     let query = supabase.from("orders").select("*").eq("id", id)
 
-    // 3. Apply filtering based on user role
+    // Apply role-based filter
     if (!isAdmin) {
       if (!customerName) {
         console.warn(`No customer name found for user ${userId}. Cannot filter orders.`)
         return NextResponse.json(
           { success: false, message: "Could not identify associated customer." },
-          { status: 403 },
+          { status: 403 }
         )
       }
       query = query.eq("customer_name", customerName)
@@ -88,11 +85,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     if (orderError) {
       console.error("Error fetching order:", orderError.message)
-      if (orderError.code === "PGRST116") {
-        // No rows found
+      if ((orderError as any).code === "PGRST116") {
         return NextResponse.json(
           { success: false, message: "Order not found or you do not have permission to view it." },
-          { status: 404 },
+          { status: 404 }
         )
       }
       return NextResponse.json({ success: false, message: "Failed to retrieve order details." }, { status: 500 })
