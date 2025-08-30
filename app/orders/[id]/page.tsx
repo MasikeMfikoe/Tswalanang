@@ -1,9 +1,9 @@
 // app/orders/[id]/page.tsx
-import OrderDetailsClient from "./OrderDetailsClient"
+import OrderDetailsClient from "./OrderDetailsClient";
 
-type PageParams = { id: string }
+type PageParams = { id: string };
 
 export default async function Page({ params }: { params: Promise<PageParams> }) {
-  const { id } = await params
-  return <OrderDetailsClient id={id} />
+  const { id } = await params;
+  return <OrderDetailsClient id={id} />;
 }
