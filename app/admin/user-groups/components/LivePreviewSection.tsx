@@ -22,10 +22,22 @@ interface LivePreviewSectionProps {
   permissions: GroupPermission[]
 }
 
+// Safely extract a path and "allowed" flag from possibly different shapes
+const getPermissionForPath = (permissions: GroupPermission[], path: string) => {
+  const list = permissions as unknown as Array<any>
+  return list.find((p) => {
+    const permPath = p?.pagePath ?? p?.path ?? p?.route ?? p?.key ?? p?.slug
+    return permPath === path
+  })
+}
+
+const isAllowedFlag = (perm: any): boolean =>
+  Boolean(perm?.allowed ?? perm?.canAccess ?? perm?.enabled ?? false)
+
 export default function LivePreviewSection({ navigationStructure, permissions }: LivePreviewSectionProps) {
   const isPathAllowed = (path: string) => {
-    const permission = permissions.find((p) => p.pagePath === path)
-    return permission?.allowed || false
+    const perm = getPermissionForPath(permissions, path)
+    return isAllowedFlag(perm)
   }
 
   // Map icon names to actual Lucide icons
@@ -59,10 +71,9 @@ export default function LivePreviewSection({ navigationStructure, permissions }:
   }
 
   const renderNavigationItem = (item: any, depth = 0) => {
-    const hasChildren = item.children && item.children.length > 0
-    const isAllowed = isPathAllowed(item.path)
-
-    if (!isAllowed) return null
+    const hasChildren = Array.isArray(item.children) && item.children.length > 0
+    const allowed = isPathAllowed(item.path)
+    if (!allowed) return null
 
     return (
       <div key={item.path} className="space-y-1">
@@ -95,7 +106,9 @@ export default function LivePreviewSection({ navigationStructure, permissions }:
 
       <Card className="w-64 shadow-md">
         <CardContent className="p-2 space-y-1">
-          {navigationStructure.filter((item) => isPathAllowed(item.path)).map((item) => renderNavigationItem(item))}
+          {navigationStructure
+            .filter((item) => isPathAllowed(item.path))
+            .map((item) => renderNavigationItem(item))}
         </CardContent>
       </Card>
     </div>
