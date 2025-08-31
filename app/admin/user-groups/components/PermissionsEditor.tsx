@@ -19,13 +19,36 @@ interface PermissionsEditorProps {
   onUpdatePermissions: (permissions: GroupPermission[]) => void
 }
 
+// --- helpers to tolerate different permission shapes ---
+type AnyPerm = GroupPermission & Record<string, any>
+
+const getPermPath = (p: AnyPerm): string =>
+  p?.pagePath ?? p?.path ?? p?.route ?? p?.key ?? p?.slug ?? ""
+
+const getPermAllowed = (p: AnyPerm): boolean =>
+  Boolean(p?.allowed ?? p?.canAccess ?? p?.enabled ?? false)
+
+const setPermAllowed = (p: AnyPerm, allowed: boolean): AnyPerm => {
+  if ("allowed" in p) return { ...p, allowed }
+  if ("canAccess" in p) return { ...p, canAccess: allowed }
+  if ("enabled" in p) return { ...p, enabled: allowed }
+  // default to adding `allowed`
+  return { ...p, allowed }
+}
+
+// fixed class maps so Tailwind can keep them during build
+const indentClass = (depth: number) => {
+  const map = ["", "ml-4", "ml-8", "ml-12", "ml-16"]
+  return map[Math.min(depth, map.length - 1)]
+}
+const padLeftClass = (depth: number) => {
+  const map = ["pl-4", "pl-4", "pl-8", "pl-12", "pl-16"]
+  return map[Math.min(depth, map.length - 1)]
+}
+
 // Navigation structure for the app
 const navigationStructure = [
-  {
-    name: "Dashboard",
-    path: "/dashboard",
-    icon: "BarChart",
-  },
+  { name: "Dashboard", path: "/dashboard", icon: "BarChart" },
   {
     name: "Orders",
     path: "/orders",
@@ -35,11 +58,7 @@ const navigationStructure = [
       { name: "Order List", path: "/orders/list", icon: "List" },
     ],
   },
-  {
-    name: "Documents",
-    path: "/documents",
-    icon: "FileText",
-  },
+  { name: "Documents", path: "/documents", icon: "FileText" },
   {
     name: "Analytics",
     path: "/analytics",
@@ -78,39 +97,48 @@ export default function PermissionsEditor({
   const [activeTab, setActiveTab] = useState("permissions")
 
   const handlePermissionChange = (pagePath: string, allowed: boolean) => {
-    const updatedPermissions = permissions.map((p) => (p.pagePath === pagePath ? { ...p, allowed } : p))
+    // toggle the exact path
+    const updated: GroupPermission[] = permissions.map((p) => {
+      const pp = getPermPath(p as AnyPerm)
+      if (pp === pagePath) {
+        return setPermAllowed(p as AnyPerm, allowed) as GroupPermission
+      }
+      return p
+    })
 
-    // If this is a parent path, update all children
-    const childPaths = permissions.filter((p) => p.pagePath.startsWith(pagePath + "/")).map((p) => p.pagePath)
+    // cascade to children (prefix match)
+    const childPaths = permissions
+      .map((p) => getPermPath(p as AnyPerm))
+      .filter((pp) => pp && pp.startsWith(pagePath + "/"))
 
     if (childPaths.length > 0) {
       childPaths.forEach((childPath) => {
-        const childIndex = updatedPermissions.findIndex((p) => p.pagePath === childPath)
-        if (childIndex !== -1) {
-          updatedPermissions[childIndex] = { ...updatedPermissions[childIndex], allowed }
+        const idx = updated.findIndex((p) => getPermPath(p as AnyPerm) === childPath)
+        if (idx !== -1) {
+          updated[idx] = setPermAllowed(updated[idx] as AnyPerm, allowed) as GroupPermission
         }
       })
     }
 
-    onUpdatePermissions(updatedPermissions)
+    onUpdatePermissions(updated)
   }
 
   const isPathAllowed = (path: string) => {
-    const permission = permissions.find((p) => p.pagePath === path)
-    return permission?.allowed || false
+    const perm = (permissions as AnyPerm[]).find((p) => getPermPath(p) === path)
+    return perm ? getPermAllowed(perm) : false
   }
 
   const renderNavigationItem = (item: any, depth = 0) => {
-    const hasChildren = item.children && item.children.length > 0
-    const isAllowed = isPathAllowed(item.path)
+    const hasChildren = Array.isArray(item.children) && item.children.length > 0
+    const allowed = isPathAllowed(item.path)
 
     return (
       <div key={item.path} className="space-y-2">
-        <div className={`flex items-center ${depth > 0 ? `ml-${depth * 4}` : ""}`}>
+        <div className={`flex items-center ${indentClass(depth)}`}>
           <Checkbox
             id={item.path}
-            checked={isAllowed}
-            onCheckedChange={(checked) => handlePermissionChange(item.path, !!checked)}
+            checked={allowed}
+            onCheckedChange={(checked) => handlePermissionChange(item.path, checked === true)}
             disabled={group.name === "Super Admin"} // Super Admin always has all permissions
           />
           <Label htmlFor={item.path} className="ml-2 font-medium">
@@ -119,7 +147,7 @@ export default function PermissionsEditor({
         </div>
 
         {hasChildren && (
-          <div className={`pl-${depth > 0 ? (depth + 1) * 4 : 4} border-l ml-1.5 space-y-2`}>
+          <div className={`${padLeftClass(depth + 1)} border-l ml-1.5 space-y-2`}>
             {item.children.map((child: any) => renderNavigationItem(child, depth + 1))}
           </div>
         )}
