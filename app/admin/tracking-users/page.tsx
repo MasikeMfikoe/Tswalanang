@@ -12,11 +12,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
 
+type Role = "admin" | "guest" | "user"
+
+interface AdminUser {
+  id: string
+  username?: string
+  name?: string
+  surname?: string
+  email?: string
+  department?: string
+  role?: Role
+  // pageAccess can be undefined, string[], string (CSV), or null depending on source
+  pageAccess?: string[] | string | null
+}
+
 export default function TrackingUsersPage() {
   const router = useRouter()
   const { toast } = useToast()
   const { register, getUsers } = useAuth()
-  const [users, setUsers] = useState<any[]>([])
+  const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
 
   const [newUser, setNewUser] = useState({
@@ -28,18 +42,30 @@ export default function TrackingUsersPage() {
     email: "tracking@example.com",
   })
 
+  // --- helpers -------------------------------------------------------------
+  const toArray = (val: unknown): string[] => {
+    if (Array.isArray(val)) return val
+    if (typeof val === "string") return val.split(",").map(s => s.trim()).filter(Boolean)
+    return []
+  }
+
+  const hasShipmentTrackerAccess = (u: AdminUser): boolean =>
+    toArray(u.pageAccess).includes("shipmentTracker")
+
+  // ------------------------------------------------------------------------
   useEffect(() => {
     fetchUsers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      // In a real app, you would filter users by role
+
       if (typeof getUsers === "function") {
-        const allUsers = await getUsers()
-        const trackingUsers = allUsers.filter(
-          (user) => user.role === "guest" && user.pageAccess.includes("shipmentTracker"),
+        const allUsers = (await getUsers()) as AdminUser[]
+        const trackingUsers = (allUsers ?? []).filter(
+          (user) => user.role === "guest" && hasShipmentTrackerAccess(user)
         )
         setUsers(trackingUsers)
       } else {
@@ -50,7 +76,7 @@ export default function TrackingUsersPage() {
           variant: "default",
         })
 
-        // Provide mock data for development/testing
+        // mock fallback
         setUsers([
           {
             id: "mock-tracking-1",
@@ -79,8 +105,6 @@ export default function TrackingUsersPage() {
         description: "Failed to load tracking users",
         variant: "destructive",
       })
-
-      // Set empty array on error
       setUsers([])
     } finally {
       setLoading(false)
@@ -105,15 +129,14 @@ export default function TrackingUsersPage() {
     }
 
     try {
-      // Create a tracking-only user
       await register({
         username: newUser.username,
         password: newUser.password,
         name: newUser.name,
         surname: newUser.surname,
-        role: "guest", // Using guest role with limited access
+        role: "guest",
         department: newUser.company || "Client",
-        pageAccess: ["shipmentTracker"], // Only access to shipment tracker
+        pageAccess: ["shipmentTracker"],
         email: newUser.email,
       })
 
@@ -122,7 +145,6 @@ export default function TrackingUsersPage() {
         description: "Tracking user created successfully",
       })
 
-      // Reset form and refresh user list
       setNewUser({
         username: "trackinguser1",
         password: "Tracking123!",
@@ -239,6 +261,7 @@ export default function TrackingUsersPage() {
           </CardContent>
         </Card>
       </div>
+
       <div className="mt-4">
         <p>
           To test the app, use the following credentials:
