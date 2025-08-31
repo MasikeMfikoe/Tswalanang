@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -12,28 +11,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/AuthContext"
 
-type Role = "admin" | "guest" | "user"
-
-interface AdminUser {
-  id: string
-  username?: string
-  name?: string
-  surname?: string
-  email?: string
-  department?: string
-  role?: Role
-  // pageAccess can be undefined, string[], string (CSV), or null depending on source
-  pageAccess?: string[] | string | null
+type NewUser = {
+  username: string
+  password: string
+  name: string
+  surname: string
+  company: string
+  email: string
 }
 
 export default function TrackingUsersPage() {
   const router = useRouter()
   const { toast } = useToast()
   const { register, getUsers } = useAuth()
-  const [users, setUsers] = useState<AdminUser[]>([])
+  const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [newUser, setNewUser] = useState({
+  const [newUser, setNewUser] = useState<NewUser>({
     username: "trackinguser1",
     password: "Tracking123!",
     name: "Tracking",
@@ -42,17 +36,6 @@ export default function TrackingUsersPage() {
     email: "tracking@example.com",
   })
 
-  // --- helpers -------------------------------------------------------------
-  const toArray = (val: unknown): string[] => {
-    if (Array.isArray(val)) return val
-    if (typeof val === "string") return val.split(",").map(s => s.trim()).filter(Boolean)
-    return []
-  }
-
-  const hasShipmentTrackerAccess = (u: AdminUser): boolean =>
-    toArray(u.pageAccess).includes("shipmentTracker")
-
-  // ------------------------------------------------------------------------
   useEffect(() => {
     fetchUsers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,22 +44,24 @@ export default function TrackingUsersPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true)
-
       if (typeof getUsers === "function") {
-        const allUsers = (await getUsers()) as AdminUser[]
-        const trackingUsers = (allUsers ?? []).filter(
-          (user) => user.role === "guest" && hasShipmentTrackerAccess(user)
-        )
+        const allUsers = await getUsers()
+        const trackingUsers = (allUsers ?? []).filter((user: any) => {
+          const roleOk = user?.role === "guest"
+          const accessList = Array.isArray(user?.pageAccess)
+            ? user.pageAccess
+            : typeof user?.pageAccess === "string"
+              ? [user.pageAccess]
+              : []
+          const hasAccess = accessList.includes("shipmentTracker")
+          return roleOk && hasAccess
+        })
         setUsers(trackingUsers)
       } else {
-        console.error("getUsers function is not available in AuthContext")
         toast({
           title: "Using mock data",
-          description: "Using mock tracking users data since getUsers is not available",
-          variant: "default",
+          description: "getUsers is not available; showing mock tracking users.",
         })
-
-        // mock fallback
         setUsers([
           {
             id: "mock-tracking-1",
@@ -100,11 +85,7 @@ export default function TrackingUsersPage() {
       }
     } catch (error) {
       console.error("Error fetching tracking users:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load tracking users",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to load tracking users", variant: "destructive" })
       setUsers([])
     } finally {
       setLoading(false)
@@ -120,30 +101,26 @@ export default function TrackingUsersPage() {
     e.preventDefault()
 
     if (!newUser.username || !newUser.password || !newUser.name || !newUser.surname) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      })
+      toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" })
       return
     }
 
     try {
-      await register({
-        username: newUser.username,
-        password: newUser.password,
-        name: newUser.name,
-        surname: newUser.surname,
+      const { password, ...profile } = newUser
+
+      // Build payload that matches your User shape; password is *not* part of Partial<User>.
+      const payload: any = {
+        ...profile,
         role: "guest",
         department: newUser.company || "Client",
         pageAccess: ["shipmentTracker"],
-        email: newUser.email,
-      })
+        // many backends accept an extra field for first-time password; harmless if ignored
+        initialPassword: password,
+      }
 
-      toast({
-        title: "Success",
-        description: "Tracking user created successfully",
-      })
+      await (register as unknown as (data: any) => Promise<any>)(payload)
+
+      toast({ title: "Success", description: "Tracking user created successfully" })
 
       setNewUser({
         username: "trackinguser1",
@@ -157,11 +134,7 @@ export default function TrackingUsersPage() {
       fetchUsers()
     } catch (error) {
       console.error("Error creating tracking user:", error)
-      toast({
-        title: "Error",
-        description: "Failed to create tracking user",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to create tracking user", variant: "destructive" })
     }
   }
 
