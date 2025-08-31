@@ -1,3 +1,4 @@
+// app/admin/user-groups/page.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -10,15 +11,16 @@ import { Loader2, Plus, Save, Users } from "lucide-react"
 import UserGroupsSidebar from "./components/UserGroupsSidebar"
 import PermissionsEditor from "./components/PermissionsEditor"
 import ConfirmationDialog from "./components/ConfirmationDialog"
-import type { UserGroup, GroupPermission } from "@/types/auth"
+import type { UserGroup, GroupPermissionPage } from "@/types/auth"
 
-// Mock data for initial development
+// ---- mock groups (shape matches UserGroup) ----
+const now = new Date().toISOString()
 const initialGroups: UserGroup[] = [
-  { id: "1", name: "Super Admin", isDefault: true, createdAt: new Date().toISOString() },
-  { id: "2", name: "Sales", isDefault: false, createdAt: new Date().toISOString() },
-  { id: "3", name: "HR", isDefault: false, createdAt: new Date().toISOString() },
-  { id: "4", name: "Support", isDefault: false, createdAt: new Date().toISOString() },
-  { id: "5", name: "Guest", isDefault: true, createdAt: new Date().toISOString() },
+  { id: "1", name: "Super Admin", description: "Full access",  permissions: [], users: [], created_at: now, updated_at: now, isDefault: true },
+  { id: "2", name: "Sales",       description: "Sales team",   permissions: [], users: [], created_at: now, updated_at: now, isDefault: false },
+  { id: "3", name: "HR",          description: "HR team",      permissions: [], users: [], created_at: now, updated_at: now, isDefault: false },
+  { id: "4", name: "Support",     description: "Support team", permissions: [], users: [], created_at: now, updated_at: now, isDefault: false },
+  { id: "5", name: "Guest",       description: "Limited",      permissions: [], users: [], created_at: now, updated_at: now, isDefault: true },
 ]
 
 export default function AdminUserGroupsPage() {
@@ -28,112 +30,80 @@ export default function AdminUserGroupsPage() {
 
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups)
   const [selectedGroup, setSelectedGroup] = useState<UserGroup | null>(null)
-  const [permissions, setPermissions] = useState<GroupPermission[]>([])
+  const [permissions, setPermissions] = useState<GroupPermissionPage[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
 
-  // Check if user is Super Admin
+  // gate non-admins
   useEffect(() => {
-    if (!isLoading && user) {
-      if (user.role !== "admin") {
-        toast({
-          title: "Access Denied",
-          description: "You don't have admin privileges.",
-          variant: "destructive",
-        })
-        router.push("/dashboard")
-      }
+    if (!isLoading && user && user.role !== "admin") {
+      toast({ title: "Access Denied", description: "You don't have admin privileges.", variant: "destructive" })
+      router.push("/dashboard")
     }
   }, [user, isLoading, router, toast])
 
-  // Load group permissions when a group is selected
+  // load page-level permissions for preview
   useEffect(() => {
-    if (selectedGroup) {
-      // In a real app, this would fetch from API
-      // For now, we'll use mock data
-      const mockPermissions: GroupPermission[] = [
-        { id: "1", groupId: selectedGroup.id, pagePath: "/dashboard", allowed: true },
-        { id: "2", groupId: selectedGroup.id, pagePath: "/orders", allowed: selectedGroup.id !== "5" },
-        { id: "3", groupId: selectedGroup.id, pagePath: "/orders/new", allowed: selectedGroup.id !== "5" },
-        { id: "4", groupId: selectedGroup.id, pagePath: "/documents", allowed: true },
-        { id: "5", groupId: selectedGroup.id, pagePath: "/settings", allowed: selectedGroup.id === "1" },
-        { id: "6", groupId: selectedGroup.id, pagePath: "/settings/users", allowed: selectedGroup.id === "1" },
-        { id: "7", groupId: selectedGroup.id, pagePath: "/settings/billing", allowed: selectedGroup.id === "1" },
-        { id: "8", groupId: selectedGroup.id, pagePath: "/analytics", allowed: selectedGroup.id !== "5" },
-        { id: "9", groupId: selectedGroup.id, pagePath: "/analytics/reports", allowed: selectedGroup.id !== "5" },
-        {
-          id: "10",
-          groupId: selectedGroup.id,
-          pagePath: "/analytics/reports/monthly",
-          allowed: selectedGroup.id !== "5",
-        },
-      ]
-      setPermissions(mockPermissions)
-    }
+    if (!selectedGroup) return
+    const mock: GroupPermissionPage[] = [
+      { id: "1",  groupId: selectedGroup.id, pagePath: "/dashboard",                   allowed: true },
+      { id: "2",  groupId: selectedGroup.id, pagePath: "/orders",                      allowed: selectedGroup.id !== "5" },
+      { id: "3",  groupId: selectedGroup.id, pagePath: "/orders/new",                  allowed: selectedGroup.id !== "5" },
+      { id: "4",  groupId: selectedGroup.id, pagePath: "/documents",                   allowed: true },
+      { id: "5",  groupId: selectedGroup.id, pagePath: "/settings",                    allowed: selectedGroup.id === "1" },
+      { id: "6",  groupId: selectedGroup.id, pagePath: "/settings/users",              allowed: selectedGroup.id === "1" },
+      { id: "7",  groupId: selectedGroup.id, pagePath: "/settings/billing",            allowed: selectedGroup.id === "1" },
+      { id: "8",  groupId: selectedGroup.id, pagePath: "/analytics",                   allowed: selectedGroup.id !== "5" },
+      { id: "9",  groupId: selectedGroup.id, pagePath: "/analytics/reports",           allowed: selectedGroup.id !== "5" },
+      { id: "10", groupId: selectedGroup.id, pagePath: "/analytics/reports/monthly",   allowed: selectedGroup.id !== "5" },
+    ]
+    setPermissions(mock)
   }, [selectedGroup])
 
   const handleCreateGroup = () => {
-    const newGroup: UserGroup = {
+    const g: UserGroup = {
       id: `group-${Date.now()}`,
       name: "New Group",
+      description: "",
+      permissions: [],
+      users: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       isDefault: false,
-      createdAt: new Date().toISOString(),
     }
-    setGroups([...groups, newGroup])
-    setSelectedGroup(newGroup)
-
-    // Log audit trail
-    console.log(`Admin ${user?.username} created new group "${newGroup.name}" on ${new Date().toISOString()}`)
-
+    setGroups(prev => [...prev, g])
+    setSelectedGroup(g)
+    console.log(`Admin ${user?.username} created group "${g.name}" @ ${new Date().toISOString()}`)
     setHasChanges(true)
   }
 
-  const handleSelectGroup = (group: UserGroup) => {
-    if (hasChanges) {
-      setShowConfirmation(true)
-      return
-    }
-    setSelectedGroup(group)
+  const handleSelectGroup = (g: UserGroup) => {
+    if (hasChanges) { setShowConfirmation(true); return }
+    setSelectedGroup(g)
   }
 
   const handleUpdateGroupName = (name: string) => {
-    if (selectedGroup && !selectedGroup.isDefault) {
-      setSelectedGroup({ ...selectedGroup, name })
-      setGroups(groups.map((g) => (g.id === selectedGroup.id ? { ...g, name } : g)))
-      setHasChanges(true)
-    }
+    if (!selectedGroup || selectedGroup.isDefault) return
+    setSelectedGroup({ ...selectedGroup, name })
+    setGroups(prev => prev.map(g => (g.id === selectedGroup.id ? { ...g, name } : g)))
+    setHasChanges(true)
   }
 
-  const handleUpdatePermissions = (updatedPermissions: GroupPermission[]) => {
-    setPermissions(updatedPermissions)
+  const handleUpdatePermissions = (updated: GroupPermissionPage[]) => {
+    setPermissions(updated)
     setHasChanges(true)
   }
 
   const handleSaveChanges = async () => {
     setIsSubmitting(true)
-
     try {
-      // In a real app, this would be an API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Log audit trail
-      console.log(
-        `Admin ${user?.username} updated permissions for "${selectedGroup?.name}" group on ${new Date().toISOString()}`,
-      )
-
-      toast({
-        title: "Success",
-        description: `Permissions updated for ${selectedGroup?.name}`,
-      })
-
+      // TODO: persist via API/Supabase
+      await new Promise(res => setTimeout(res, 600))
+      toast({ title: "Success", description: `Permissions updated for ${selectedGroup?.name}` })
       setHasChanges(false)
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to save permissions",
-        variant: "destructive",
-      })
+    } catch {
+      toast({ title: "Error", description: "Failed to save permissions", variant: "destructive" })
     } finally {
       setIsSubmitting(false)
     }
@@ -141,10 +111,7 @@ export default function AdminUserGroupsPage() {
 
   const handleConfirmNavigation = (confirm: boolean) => {
     setShowConfirmation(false)
-    if (confirm) {
-      setHasChanges(false)
-      // Navigate to the selected group
-    }
+    if (confirm) setHasChanges(false)
   }
 
   if (isLoading) {
@@ -166,7 +133,6 @@ export default function AdminUserGroupsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Left Sidebar - User Groups */}
         <div className="md:col-span-1">
           <Card>
             <CardHeader className="pb-3">
@@ -184,7 +150,6 @@ export default function AdminUserGroupsPage() {
           </Card>
         </div>
 
-        {/* Main Panel - Permissions Editor */}
         <div className="md:col-span-3">
           {selectedGroup ? (
             <PermissionsEditor
@@ -206,7 +171,6 @@ export default function AdminUserGroupsPage() {
         </div>
       </div>
 
-      {/* Confirmation Dialog */}
       <ConfirmationDialog
         open={showConfirmation}
         onOpenChange={setShowConfirmation}

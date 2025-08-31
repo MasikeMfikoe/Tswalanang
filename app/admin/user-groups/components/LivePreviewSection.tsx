@@ -1,6 +1,7 @@
+// app/admin/user-groups/components/LivePreviewSection.tsx
 "use client"
 
-import type { GroupPermission } from "@/types/auth"
+import type { GroupPermissionPage } from "@/types/auth"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import {
@@ -19,55 +20,52 @@ import {
 
 interface LivePreviewSectionProps {
   navigationStructure: any[]
-  permissions: GroupPermission[]
+  permissions: GroupPermissionPage[]
 }
 
-/** Convert a route like "/orders/new" -> "orders" to match GroupPermission.module */
-function pathToModule(path: string): string {
-  const first = path.split("/").filter(Boolean)[0] ?? ""
-  return first || "dashboard"
+/** Consider a path allowed if it is explicitly allowed OR any child path under it is allowed */
+function isPathAllowed(path: string, permissions: GroupPermissionPage[]) {
+  return (
+    permissions.some((p) => p.pagePath === path && p.allowed) ||
+    permissions.some((p) => p.pagePath.startsWith(path + "/") && p.allowed)
+  )
+}
+
+// Map icon names to actual Lucide icons
+function getIcon(iconName: string) {
+  switch (iconName) {
+    case "BarChart":
+      return <BarChart className="h-4 w-4" />
+    case "Package":
+      return <Package className="h-4 w-4" />
+    case "FileText":
+      return <FileText className="h-4 w-4" />
+    case "Settings":
+      return <Settings className="h-4 w-4" />
+    case "Calendar":
+      return <Calendar className="h-4 w-4" />
+    case "Layout":
+      return <Layout className="h-4 w-4" />
+    case "Users":
+      return <Users className="h-4 w-4" />
+    case "CreditCard":
+      return <CreditCard className="h-4 w-4" />
+    case "Ticket":
+      return <Ticket className="h-4 w-4" />
+    case "Plus":
+      return <Plus className="h-4 w-4" />
+    case "List":
+      return <List className="h-4 w-4" />
+    default:
+      return <FileText className="h-4 w-4" />
+  }
 }
 
 export default function LivePreviewSection({ navigationStructure, permissions }: LivePreviewSectionProps) {
-  const isPathAllowed = (path: string) => {
-    const mod = pathToModule(path)
-    const perm = permissions.find((p) => p.module === mod)
-    return !!perm?.view
-  }
-
-  const getIcon = (iconName: string) => {
-    switch (iconName) {
-      case "BarChart":
-        return <BarChart className="h-4 w-4" />
-      case "Package":
-        return <Package className="h-4 w-4" />
-      case "FileText":
-        return <FileText className="h-4 w-4" />
-      case "Settings":
-        return <Settings className="h-4 w-4" />
-      case "Calendar":
-        return <Calendar className="h-4 w-4" />
-      case "Layout":
-        return <Layout className="h-4 w-4" />
-      case "Users":
-        return <Users className="h-4 w-4" />
-      case "CreditCard":
-        return <CreditCard className="h-4 w-4" />
-      case "Ticket":
-        return <Ticket className="h-4 w-4" />
-      case "Plus":
-        return <Plus className="h-4 w-4" />
-      case "List":
-        return <List className="h-4 w-4" />
-      default:
-        return <FileText className="h-4 w-4" />
-    }
-  }
-
   const renderNavigationItem = (item: any, depth = 0) => {
-    const hasChildren = item.children && item.children.length > 0
-    const isAllowed = isPathAllowed(item.path)
-    if (!isAllowed) return null
+    const hasChildren = Array.isArray(item.children) && item.children.length > 0
+    const allowed = isPathAllowed(item.path, permissions)
+    if (!allowed) return null
 
     return (
       <div key={item.path} className="space-y-1">
@@ -84,7 +82,7 @@ export default function LivePreviewSection({ navigationStructure, permissions }:
         {hasChildren && (
           <div className="space-y-1">
             {item.children
-              .filter((child: any) => isPathAllowed(child.path))
+              .filter((child: any) => isPathAllowed(child.path, permissions))
               .map((child: any) => renderNavigationItem(child, depth + 1))}
           </div>
         )}
@@ -100,7 +98,9 @@ export default function LivePreviewSection({ navigationStructure, permissions }:
 
       <Card className="w-64 shadow-md">
         <CardContent className="p-2 space-y-1">
-          {navigationStructure.filter((item) => isPathAllowed(item.path)).map((item) => renderNavigationItem(item))}
+          {navigationStructure
+            .filter((item) => isPathAllowed(item.path, permissions))
+            .map((item) => renderNavigationItem(item))}
         </CardContent>
       </Card>
     </div>

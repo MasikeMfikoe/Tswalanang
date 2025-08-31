@@ -143,3 +143,10 @@ export interface GroupPermission {
   created_at: string
   updated_at: string
 }
+// Page-level permission used by the UI
+export interface GroupPermissionPage {
+  id: string
+  groupId: string
+  pagePath: string
+  allowed: boolean
+}
