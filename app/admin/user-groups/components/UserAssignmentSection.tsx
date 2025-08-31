@@ -1,6 +1,7 @@
+// app/admin/user-groups/components/UserAssignmentSection.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import type { User } from "@/types/auth"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -9,194 +10,77 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Check, ChevronsUpDown, UserPlus, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { createClient } from "@/lib/supabase/client" // or your helper
 
-interface UserAssignmentSectionProps {
+interface Props {
   groupId: string
   isDefaultGroup: boolean
 }
 
-// Mock users for development
-const mockUsers: User[] = [
-  { id: "1", username: "john.doe", name: "John", surname: "Doe", role: "admin", department: "IT", pageAccess: [] },
-  {
-    id: "2",
-    username: "jane.smith",
-    name: "Jane",
-    surname: "Smith",
-    role: "manager",
-    department: "Sales",
-    pageAccess: [],
-  },
-  {
-    id: "3",
-    username: "bob.johnson",
-    name: "Bob",
-    surname: "Johnson",
-    role: "employee",
-    department: "Support",
-    pageAccess: [],
-  },
-  {
-    id: "4",
-    username: "alice.williams",
-    name: "Alice",
-    surname: "Williams",
-    role: "manager",
-    department: "HR",
-    pageAccess: [],
-  },
-  {
-    id: "5",
-    username: "charlie.brown",
-    name: "Charlie",
-    surname: "Brown",
-    role: "employee",
-    department: "Marketing",
-    pageAccess: [],
-  },
-  {
-    id: "6",
-    username: "diana.prince",
-    name: "Diana",
-    surname: "Prince",
-    role: "manager",
-    department: "Operations",
-    pageAccess: [],
-  },
-  {
-    id: "7",
-    username: "edward.stark",
-    name: "Edward",
-    surname: "Stark",
-    role: "employee",
-    department: "Finance",
-    pageAccess: [],
-  },
-]
-
-export default function UserAssignmentSection({ groupId, isDefaultGroup }: UserAssignmentSectionProps) {
+export default function UserAssignmentSection({ groupId, isDefaultGroup }: Props) {
+  const supabase = createClient()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [assignedUsers, setAssignedUsers] = useState<User[]>([])
   const [availableUsers, setAvailableUsers] = useState<User[]>([])
 
   useEffect(() => {
-    // In a real app, this would fetch from API
-    // For now, we'll use mock data
-    const mockAssignedUsers = mockUsers.filter((_, index) => index % 3 === 0)
-    setAssignedUsers(mockAssignedUsers)
-    setAvailableUsers(mockUsers.filter((user) => !mockAssignedUsers.some((u) => u.id === user.id)))
+    ;(async () => {
+      // Load assigned users for this group (adjust to your schema)
+      const { data: assigned } = await supabase
+        .from("group_users") // pivot table: group_id, user_id
+        .select("user_profiles(id,user_id,customer_id,username,first_name,surname,full_name,email,role,department,page_access,created_at,updated_at)")
+        .eq("group_id", groupId)
+
+      const assignedList = (assigned || []).map((row: any) => mapProfileToUser(row.user_profiles)) as User[]
+
+      // Load all users
+      const { data: allProfiles } = await supabase
+        .from("user_profiles")
+        .select("id,user_id,customer_id,username,first_name,surname,full_name,email,role,department,page_access,created_at,updated_at")
+
+      const allUsers = (allProfiles || []).map(mapProfileToUser) as User[]
+
+      // Split into assigned / available
+      const assignedIds = new Set(assignedList.map(u => u.id))
+      const available = allUsers.filter(u => !assignedIds.has(u.id))
+
+      setAssignedUsers(assignedList)
+      setAvailableUsers(available)
+    })()
   }, [groupId])
 
-  const handleAssignUser = (user: User) => {
-    setAssignedUsers([...assignedUsers, user])
-    setAvailableUsers(availableUsers.filter((u) => u.id !== user.id))
-    setOpen(false)
+  const mapProfileToUser = (p: any): User => ({
+    id: p.id,
+    user_id: p.user_id,
+    customer_id: p.customer_id,
+    username: p.username ?? undefined,
+    name: p.first_name ?? p.name ?? undefined,
+    first_name: p.first_name ?? undefined,
+    surname: p.surname ?? undefined,
+    full_name: p.full_name ?? undefined,
+    email: p.email, // REQUIRED
+    role: p.role,
+    department: p.department ?? undefined,
+    pageAccess: p.page_access ? p.page_access.split(",").map((s: string) => s.trim()).filter(Boolean) : undefined,
+    page_access: p.page_access ?? undefined,
+    created_at: p.created_at,
+    updated_at: p.updated_at,
+  })
+
+  const handleAssignUser = async (user: User) => {
+    setAssignedUsers(prev => [...prev, user])
+    setAvailableUsers(prev => prev.filter(u => u.id !== user.id))
+    await supabase.from("group_users").insert({ group_id: groupId, user_id: user.id })
   }
 
-  const handleRemoveUser = (userId: string) => {
-    const userToRemove = assignedUsers.find((u) => u.id === userId)
-    if (userToRemove) {
-      setAssignedUsers(assignedUsers.filter((u) => u.id !== userId))
-      setAvailableUsers([...availableUsers, userToRemove])
-    }
+  const handleRemoveUser = async (userId: string) => {
+    const userToRemove = assignedUsers.find(u => u.id === userId)
+    if (!userToRemove) return
+    setAssignedUsers(prev => prev.filter(u => u.id !== userId))
+    setAvailableUsers(prev => [...prev, userToRemove])
+    await supabase.from("group_users").delete().eq("group_id", groupId).eq("user_id", userId)
   }
 
-  const filteredUsers = availableUsers.filter(
-    (user) =>
-      user.username.toLowerCase().includes(search.toLowerCase()) ||
-      `${user.name} ${user.surname}`.toLowerCase().includes(search.toLowerCase()) ||
-      user.department.toLowerCase().includes(search.toLowerCase()),
-  )
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label htmlFor="assign-users">Assign Users to Group</Label>
-        <div className="flex mt-1.5">
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={open}
-                className="justify-between"
-                disabled={isDefaultGroup}
-              >
-                <span>Select users...</span>
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="p-0"
-              align="start"
-              side="bottom"
-              sideOffset={5}
-              alignOffset={0}
-              avoidCollisions={false}
-            >
-              <Command>
-                <CommandInput placeholder="Search users..." value={search} onValueChange={setSearch} />
-                <CommandList>
-                  <CommandEmpty>No users found.</CommandEmpty>
-                  <CommandGroup>
-                    <ScrollArea className="h-72">
-                      {filteredUsers.map((user) => (
-                        <CommandItem key={user.id} value={user.id} onSelect={() => handleAssignUser(user)}>
-                          <div className="flex flex-col">
-                            <span>
-                              {user.name} {user.surname}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              @{user.username} • {user.department}
-                            </span>
-                          </div>
-                          <Check className="ml-auto h-4 w-4 opacity-0" />
-                        </CommandItem>
-                      ))}
-                    </ScrollArea>
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
-
-      <div>
-        <Label>Assigned Users</Label>
-        <div className="mt-1.5 border rounded-md p-2 min-h-[100px]">
-          {assignedUsers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-24 text-muted-foreground">
-              <UserPlus className="h-8 w-8 mb-2" />
-              <p>No users assigned to this group</p>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {assignedUsers.map((user) => (
-                <Badge key={user.id} variant="secondary" className="flex items-center gap-1">
-                  {user.name} {user.surname}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-4 w-4 p-0 ml-1"
-                    onClick={() => handleRemoveUser(user.id)}
-                    disabled={isDefaultGroup}
-                  >
-                    <X className="h-3 w-3" />
-                    <span className="sr-only">Remove</span>
-                  </Button>
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-        {isDefaultGroup && (
-          <p className="text-sm text-muted-foreground mt-2">
-            Default groups automatically assign permissions based on user roles. Manual user assignment is disabled.
-          </p>
-        )}
-      </div>
-    </div>
-  )
+  // ...keep the rest of your UI exactly the same (search, popover, list, badges) ...
 }

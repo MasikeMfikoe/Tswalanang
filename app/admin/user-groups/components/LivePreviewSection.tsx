@@ -22,25 +22,19 @@ interface LivePreviewSectionProps {
   permissions: GroupPermission[]
 }
 
-// Safely extract a path and "allowed" flag from possibly different shapes
-const getPermissionForPath = (permissions: GroupPermission[], path: string) => {
-  const list = permissions as unknown as Array<any>
-  return list.find((p) => {
-    const permPath = p?.pagePath ?? p?.path ?? p?.route ?? p?.key ?? p?.slug
-    return permPath === path
-  })
+/** Convert a route like "/orders/new" -> "orders" to match GroupPermission.module */
+function pathToModule(path: string): string {
+  const first = path.split("/").filter(Boolean)[0] ?? ""
+  return first || "dashboard"
 }
-
-const isAllowedFlag = (perm: any): boolean =>
-  Boolean(perm?.allowed ?? perm?.canAccess ?? perm?.enabled ?? false)
 
 export default function LivePreviewSection({ navigationStructure, permissions }: LivePreviewSectionProps) {
   const isPathAllowed = (path: string) => {
-    const perm = getPermissionForPath(permissions, path)
-    return isAllowedFlag(perm)
+    const mod = pathToModule(path)
+    const perm = permissions.find((p) => p.module === mod)
+    return !!perm?.view
   }
 
-  // Map icon names to actual Lucide icons
   const getIcon = (iconName: string) => {
     switch (iconName) {
       case "BarChart":
@@ -71,9 +65,9 @@ export default function LivePreviewSection({ navigationStructure, permissions }:
   }
 
   const renderNavigationItem = (item: any, depth = 0) => {
-    const hasChildren = Array.isArray(item.children) && item.children.length > 0
-    const allowed = isPathAllowed(item.path)
-    if (!allowed) return null
+    const hasChildren = item.children && item.children.length > 0
+    const isAllowed = isPathAllowed(item.path)
+    if (!isAllowed) return null
 
     return (
       <div key={item.path} className="space-y-1">
@@ -106,9 +100,7 @@ export default function LivePreviewSection({ navigationStructure, permissions }:
 
       <Card className="w-64 shadow-md">
         <CardContent className="p-2 space-y-1">
-          {navigationStructure
-            .filter((item) => isPathAllowed(item.path))
-            .map((item) => renderNavigationItem(item))}
+          {navigationStructure.filter((item) => isPathAllowed(item.path)).map((item) => renderNavigationItem(item))}
         </CardContent>
       </Card>
     </div>

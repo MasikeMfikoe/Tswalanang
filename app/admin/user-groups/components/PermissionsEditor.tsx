@@ -12,33 +12,7 @@ import LivePreviewSection from "./LivePreviewSection"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
-// ---------- helpers to tolerate different permission shapes ----------
-type AnyPerm = GroupPermission & Record<string, any>
-
-const getPermPath = (p: AnyPerm): string =>
-  p?.pagePath ?? p?.path ?? p?.route ?? p?.key ?? p?.slug ?? ""
-
-const getPermAllowed = (p: AnyPerm): boolean =>
-  Boolean(p?.allowed ?? p?.canAccess ?? p?.enabled ?? false)
-
-const setPermAllowed = (p: AnyPerm, allowed: boolean): AnyPerm => {
-  if ("allowed" in p) return { ...p, allowed }
-  if ("canAccess" in p) return { ...p, canAccess: allowed }
-  if ("enabled" in p) return { ...p, enabled: allowed }
-  return { ...p, allowed }
-}
-
-// fixed class maps so Tailwind won't purge them
-const indentClass = (depth: number) => {
-  const map = ["", "ml-4", "ml-8", "ml-12", "ml-16"]
-  return map[Math.min(depth, map.length - 1)]
-}
-const padLeftClass = (depth: number) => {
-  const map = ["pl-4", "pl-4", "pl-8", "pl-12", "pl-16"]
-  return map[Math.min(depth, map.length - 1)]
-}
-
-// ---------- navigation structure ----------
+// App navigation structure
 const navigationStructure = [
   { name: "Dashboard", path: "/dashboard", icon: "BarChart" },
   {
@@ -87,6 +61,12 @@ interface PermissionsEditorProps {
   onUpdatePermissions: (permissions: GroupPermission[]) => void
 }
 
+/** Convert a route like "/orders/new" -> "orders" to match GroupPermission.module */
+function pathToModule(path: string): string {
+  const first = path.split("/").filter(Boolean)[0] ?? ""
+  return first || "dashboard"
+}
+
 export default function PermissionsEditor({
   group,
   permissions,
@@ -95,33 +75,27 @@ export default function PermissionsEditor({
 }: PermissionsEditorProps) {
   const [activeTab, setActiveTab] = useState("permissions")
 
-  // ✅ derive a safe default flag instead of using group.isDefault directly
-  const isDefaultGroup = Boolean(
-    (group as any)?.isDefault ??
-      (group as any)?.is_default ??
-      (group as any)?.isDefaultGroup ??
-      (group as any)?.default ??
-      (group as any)?.locked ?? // some schemas use locked/system
-      (group?.name === "Super Admin")
-  )
-
+  // Toggle VIEW permission for the module that corresponds to a given path
   const handlePermissionChange = (pagePath: string, allowed: boolean) => {
-    const updated: GroupPermission[] = permissions.map((p) => {
-      const pp = getPermPath(p as AnyPerm)
-      return pp === pagePath ? (setPermAllowed(p as AnyPerm, allowed) as GroupPermission) : p
-    })
+    const mod = pathToModule(pagePath)
 
-    // cascade to children
-    const childPaths = permissions
-      .map((p) => getPermPath(p as AnyPerm))
-      .filter((pp) => pp && pp.startsWith(pagePath + "/"))
+    const idx = permissions.findIndex((p) => p.module === mod)
+    let updated = [...permissions]
 
-    if (childPaths.length > 0) {
-      childPaths.forEach((childPath) => {
-        const idx = updated.findIndex((p) => getPermPath(p as AnyPerm) === childPath)
-        if (idx !== -1) {
-          updated[idx] = setPermAllowed(updated[idx] as AnyPerm, allowed) as GroupPermission
-        }
+    if (idx >= 0) {
+      updated[idx] = { ...updated[idx], view: allowed }
+    } else {
+      // If module not present, create a new permission entry for it
+      updated.push({
+        id: crypto.randomUUID(),
+        group_id: group.id,
+        module: mod,
+        view: allowed,
+        create: false,
+        edit: false,
+        delete: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
     }
 
@@ -129,22 +103,24 @@ export default function PermissionsEditor({
   }
 
   const isPathAllowed = (path: string) => {
-    const perm = (permissions as AnyPerm[]).find((p) => getPermPath(p) === path)
-    return perm ? getPermAllowed(perm) : false
+    const mod = pathToModule(path)
+    const perm = permissions.find((p) => p.module === mod)
+    return !!perm?.view
   }
 
   const renderNavigationItem = (item: any, depth = 0) => {
-    const hasChildren = Array.isArray(item.children) && item.children.length > 0
-    const allowed = isPathAllowed(item.path)
+    const hasChildren = item.children && item.children.length > 0
+    const isAllowed = isPathAllowed(item.path)
 
     return (
       <div key={item.path} className="space-y-2">
-        <div className={`flex items-center ${indentClass(depth)}`}>
+        <div className={`flex items-center ${depth > 0 ? `ml-${depth * 4}` : ""}`}>
           <Checkbox
             id={item.path}
-            checked={allowed}
-            onCheckedChange={(checked) => handlePermissionChange(item.path, checked === true)}
-            disabled={isDefaultGroup} // ⬅️ use derived flag
+            checked={isAllowed}
+            onCheckedChange={(checked) => handlePermissionChange(item.path, !!checked)}
+            // Optional: protect a special group name if you use one
+            disabled={group.name === "Super Admin"}
           />
           <Label htmlFor={item.path} className="ml-2 font-medium">
             {item.name}
@@ -152,7 +128,7 @@ export default function PermissionsEditor({
         </div>
 
         {hasChildren && (
-          <div className={`${padLeftClass(depth + 1)} border-l ml-1.5 space-y-2`}>
+          <div className={`pl-${depth > 0 ? (depth + 1) * 4 : 4} border-l ml-1.5 space-y-2`}>
             {item.children.map((child: any) => renderNavigationItem(child, depth + 1))}
           </div>
         )}
@@ -164,23 +140,16 @@ export default function PermissionsEditor({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">
-          {isDefaultGroup ? (
-            group.name
-          ) : (
-            <Input
-              value={group.name}
-              onChange={(e) => onUpdateGroupName(e.target.value)}
-              className="max-w-sm font-bold"
-            />
-          )}
+          {/* Rename group inline unless you deliberately lock the name by convention */}
+          <Input value={group.name} onChange={(e) => onUpdateGroupName(e.target.value)} className="max-w-sm font-bold" />
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {isDefaultGroup && (
+        {group.name === "Super Admin" && (
           <Alert className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              This group has full access to all features and cannot be modified.
+              Super Admin group has full access to all features and cannot be modified.
             </AlertDescription>
           </Alert>
         )}
@@ -197,7 +166,8 @@ export default function PermissionsEditor({
           </TabsContent>
 
           <TabsContent value="users">
-            <UserAssignmentSection groupId={(group as any).id} isDefaultGroup={isDefaultGroup} />
+            {/* Pass a boolean if you need to lock assignment for a special group name */}
+            <UserAssignmentSection groupId={group.id} isDefaultGroup={group.name === "Super Admin"} />
           </TabsContent>
 
           <TabsContent value="preview">
