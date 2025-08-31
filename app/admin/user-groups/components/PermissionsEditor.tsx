@@ -12,14 +12,7 @@ import LivePreviewSection from "./LivePreviewSection"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
-interface PermissionsEditorProps {
-  group: UserGroup
-  permissions: GroupPermission[]
-  onUpdateGroupName: (name: string) => void
-  onUpdatePermissions: (permissions: GroupPermission[]) => void
-}
-
-// --- helpers to tolerate different permission shapes ---
+// ---------- helpers to tolerate different permission shapes ----------
 type AnyPerm = GroupPermission & Record<string, any>
 
 const getPermPath = (p: AnyPerm): string =>
@@ -32,11 +25,10 @@ const setPermAllowed = (p: AnyPerm, allowed: boolean): AnyPerm => {
   if ("allowed" in p) return { ...p, allowed }
   if ("canAccess" in p) return { ...p, canAccess: allowed }
   if ("enabled" in p) return { ...p, enabled: allowed }
-  // default to adding `allowed`
   return { ...p, allowed }
 }
 
-// fixed class maps so Tailwind can keep them during build
+// fixed class maps so Tailwind won't purge them
 const indentClass = (depth: number) => {
   const map = ["", "ml-4", "ml-8", "ml-12", "ml-16"]
   return map[Math.min(depth, map.length - 1)]
@@ -46,7 +38,7 @@ const padLeftClass = (depth: number) => {
   return map[Math.min(depth, map.length - 1)]
 }
 
-// Navigation structure for the app
+// ---------- navigation structure ----------
 const navigationStructure = [
   { name: "Dashboard", path: "/dashboard", icon: "BarChart" },
   {
@@ -88,6 +80,13 @@ const navigationStructure = [
   },
 ]
 
+interface PermissionsEditorProps {
+  group: UserGroup
+  permissions: GroupPermission[]
+  onUpdateGroupName: (name: string) => void
+  onUpdatePermissions: (permissions: GroupPermission[]) => void
+}
+
 export default function PermissionsEditor({
   group,
   permissions,
@@ -96,17 +95,23 @@ export default function PermissionsEditor({
 }: PermissionsEditorProps) {
   const [activeTab, setActiveTab] = useState("permissions")
 
+  // ✅ derive a safe default flag instead of using group.isDefault directly
+  const isDefaultGroup = Boolean(
+    (group as any)?.isDefault ??
+      (group as any)?.is_default ??
+      (group as any)?.isDefaultGroup ??
+      (group as any)?.default ??
+      (group as any)?.locked ?? // some schemas use locked/system
+      (group?.name === "Super Admin")
+  )
+
   const handlePermissionChange = (pagePath: string, allowed: boolean) => {
-    // toggle the exact path
     const updated: GroupPermission[] = permissions.map((p) => {
       const pp = getPermPath(p as AnyPerm)
-      if (pp === pagePath) {
-        return setPermAllowed(p as AnyPerm, allowed) as GroupPermission
-      }
-      return p
+      return pp === pagePath ? (setPermAllowed(p as AnyPerm, allowed) as GroupPermission) : p
     })
 
-    // cascade to children (prefix match)
+    // cascade to children
     const childPaths = permissions
       .map((p) => getPermPath(p as AnyPerm))
       .filter((pp) => pp && pp.startsWith(pagePath + "/"))
@@ -139,7 +144,7 @@ export default function PermissionsEditor({
             id={item.path}
             checked={allowed}
             onCheckedChange={(checked) => handlePermissionChange(item.path, checked === true)}
-            disabled={group.name === "Super Admin"} // Super Admin always has all permissions
+            disabled={isDefaultGroup} // ⬅️ use derived flag
           />
           <Label htmlFor={item.path} className="ml-2 font-medium">
             {item.name}
@@ -159,7 +164,7 @@ export default function PermissionsEditor({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">
-          {group.isDefault ? (
+          {isDefaultGroup ? (
             group.name
           ) : (
             <Input
@@ -171,11 +176,11 @@ export default function PermissionsEditor({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {group.name === "Super Admin" && (
+        {isDefaultGroup && (
           <Alert className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Super Admin group has full access to all features and cannot be modified.
+              This group has full access to all features and cannot be modified.
             </AlertDescription>
           </Alert>
         )}
@@ -192,7 +197,7 @@ export default function PermissionsEditor({
           </TabsContent>
 
           <TabsContent value="users">
-            <UserAssignmentSection groupId={group.id} isDefaultGroup={group.isDefault} />
+            <UserAssignmentSection groupId={(group as any).id} isDefaultGroup={isDefaultGroup} />
           </TabsContent>
 
           <TabsContent value="preview">
