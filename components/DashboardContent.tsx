@@ -21,31 +21,7 @@ type PeriodOption = {
 }
 
 export default function DashboardContent() {
-  const [supabaseClient, setSupabaseClient] = useState<any>(null)
-  const [supabaseError, setSupabaseError] = useState<string | null>(null)
-
-  // Initialize Supabase client with error handling
-  useEffect(() => {
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-      if (!supabaseUrl || !supabaseAnonKey) {
-        console.warn("⚠️ Supabase environment variables not configured. Dashboard will show mock data.")
-        setSupabaseError(
-          "Dashboard error: either NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY env variables or supabaseUrl and supabaseKey are required!",
-        )
-        return
-      }
-
-      const client = createClientComponentClient()
-      setSupabaseClient(client)
-      setSupabaseError(null)
-    } catch (error) {
-      console.error("Failed to initialize Supabase client:", error)
-      setSupabaseError("Failed to initialize database connection")
-    }
-  }, [])
+  const supabase = createClientComponentClient()
 
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
@@ -72,20 +48,8 @@ export default function DashboardContent() {
     async function fetchData() {
       setIsLoading(true)
       try {
-        if (!supabaseClient) {
-          console.log("Supabase client not available, using mock data")
-          // Set mock data when Supabase is not available
-          setAllOrders([])
-          setCustomers([])
-          setDocuments([])
-          setNotifications([])
-          setNoDataMessage("Database connection not configured. Please set up Supabase environment variables.")
-          setIsLoading(false)
-          return
-        }
-
         // Fetch orders
-        const { data: ordersData, error: ordersError } = await supabaseClient.from("orders").select("*")
+        const { data: ordersData, error: ordersError } = await supabase.from("orders").select("*")
         if (ordersError) {
           console.error("Error fetching orders:", ordersError)
           toast({
@@ -104,7 +68,7 @@ export default function DashboardContent() {
         }
 
         // Fetch customers
-        const { data: customersData, error: customersError } = await supabaseClient.from("customers").select("*")
+        const { data: customersData, error: customersError } = await supabase.from("customers").select("*")
         if (customersError) {
           console.error("Error fetching customers:", customersError)
           toast({
@@ -120,7 +84,7 @@ export default function DashboardContent() {
         }
 
         // Fetch documents (assuming a 'documents' table with 'created_at' and 'processed_at')
-        const { data: documentsData, error: documentsError } = await supabaseClient.from("documents").select("*")
+        const { data: documentsData, error: documentsError } = await supabase.from("documents").select("*")
         if (documentsError) {
           console.error("Error fetching documents:", documentsError)
           toast({
@@ -134,7 +98,7 @@ export default function DashboardContent() {
         }
 
         // Fetch notifications (assuming a 'notifications' table)
-        const { data: notificationsData, error: notificationsError } = await supabaseClient
+        const { data: notificationsData, error: notificationsError } = await supabase
           .from("notifications")
           .select("*")
           .order("created_at", { ascending: false })
@@ -163,7 +127,7 @@ export default function DashboardContent() {
     }
 
     fetchData()
-  }, [supabaseClient])
+  }, [supabase])
 
   // Predefined period options
   const periodOptions: PeriodOption[] = useMemo(
@@ -672,19 +636,13 @@ export default function DashboardContent() {
 
   useEffect(() => {
     try {
-      if (supabaseError) {
-        console.error("Supabase configuration error:", supabaseError)
-        setHasError(true)
-        setErrorMessage(supabaseError)
-        return
-      }
       // Your initialization logic here
     } catch (error: any) {
       console.error("Error in DashboardContent:", error)
       setHasError(true)
       setErrorMessage(error instanceof Error ? error.message : "An unexpected error occurred.")
     }
-  }, [supabaseError])
+  }, [])
 
   if (hasError) {
     return <ErrorDisplay title="Error" message={errorMessage} />

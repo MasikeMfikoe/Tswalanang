@@ -625,14 +625,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const isValidMockCredentials = (username: string, password: string): boolean => {
-    // This allows both Supabase users and all mock users to login
-    const mockUser = MOCK_USERS.find((user) => user.username === username)
-    if (!mockUser) return false
-
-    // For mock users, we'll use a simple pattern: password = username
-    // This maintains the existing demo/demo, tracking/tracking, client1/client1, client2/client2 pattern
-    // and extends it to manager/manager, employee/employee
-    return password === username
+    const validCredentials = [
+      { username: "demo", password: "demo" },
+      { username: "tracking", password: "tracking" },
+      { username: "client1", password: "client1" },
+      { username: "client2", password: "client2" },
+    ]
+    return validCredentials.some((cred) => cred.username === username && cred.password === password)
   }
 
   const mapUserProfile = (profile: any, userId: string) => {

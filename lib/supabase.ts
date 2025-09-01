@@ -3,36 +3,22 @@ import { createClient } from "@supabase/supabase-js"
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-let supabase: ReturnType<typeof createClient> | null = null
-
-if (supabaseUrl && supabaseAnonKey) {
-  supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-  })
-} else {
-  console.warn("⚠️ Supabase environment variables not found. Some features may not work.")
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Missing required Supabase environment variables")
 }
 
-function ensureSupabaseClient() {
-  if (!supabase) {
-    throw new Error(
-      "Supabase client not initialized. Please check your environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    )
-  }
-  return supabase
-}
-
-export { supabase }
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+})
 
 // Helper functions that work with the real Supabase client
 export async function fetchData<T>(table: string, query?: any): Promise<T[]> {
   try {
-    const client = ensureSupabaseClient()
-    let queryBuilder = client.from(table).select("*")
+    let queryBuilder = supabase.from(table).select("*")
 
     if (query) {
       if (query.filter) {
@@ -64,8 +50,7 @@ export async function fetchData<T>(table: string, query?: any): Promise<T[]> {
 
 export async function insertData<T>(table: string, data: Partial<T>): Promise<T[]> {
   try {
-    const client = ensureSupabaseClient()
-    const { data: result, error } = await client.from(table).insert(data).select()
+    const { data: result, error } = await supabase.from(table).insert(data).select()
 
     if (error) {
       console.error(`Error inserting into ${table}:`, error)
@@ -81,8 +66,7 @@ export async function insertData<T>(table: string, data: Partial<T>): Promise<T[
 
 export async function updateData<T>(table: string, id: string, data: Partial<T>): Promise<T[]> {
   try {
-    const client = ensureSupabaseClient()
-    const { data: result, error } = await client.from(table).update(data).eq("id", id).select()
+    const { data: result, error } = await supabase.from(table).update(data).eq("id", id).select()
 
     if (error) {
       console.error(`Error updating ${table}:`, error)
@@ -98,8 +82,7 @@ export async function updateData<T>(table: string, id: string, data: Partial<T>)
 
 export async function deleteData(table: string, id: string): Promise<boolean> {
   try {
-    const client = ensureSupabaseClient()
-    const { error } = await client.from(table).delete().eq("id", id)
+    const { error } = await supabase.from(table).delete().eq("id", id)
 
     if (error) {
       console.error(`Error deleting from ${table}:`, error)
@@ -116,8 +99,7 @@ export async function deleteData(table: string, id: string): Promise<boolean> {
 // Test the connection
 export async function testConnection(): Promise<boolean> {
   try {
-    const client = ensureSupabaseClient()
-    const { data, error } = await client.from("user_profiles").select("count").limit(1)
+    const { data, error } = await supabase.from("user_profiles").select("count").limit(1)
 
     if (error) {
       console.error("Supabase connection test failed:", error)

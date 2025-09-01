@@ -8,15 +8,8 @@ export async function POST(request: NextRequest) {
     console.log(`[v0] Creating user with data:`, { email: userData.email, role: userData.role })
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error("[v0] ❌ Missing Supabase environment variables")
-      return NextResponse.json(
-        {
-          error:
-            "Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.",
-          details: "User creation requires Supabase database connection",
-        },
-        { status: 500 },
-      )
+      console.error("[v0] Missing Supabase environment variables")
+      return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
     }
 
     const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
