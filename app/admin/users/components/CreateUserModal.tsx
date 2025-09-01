@@ -1,8 +1,6 @@
 "use client"
 
-import * as React from "react"
-import * as SwitchPrimitives from "@radix-ui/react-switch"
-import { cn } from "@/lib/utils"
+import { Switch } from "@/components/ui/switch"
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -12,40 +10,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { User, UserGroup, UserRole } from "@/types/auth"
 import { AlertCircle, Check, RefreshCw, Building2, UserIcon } from "lucide-react"
 
+// ✨ Local form type extends User with fields that only exist in the form.
+type CreateUserForm = Partial<User> & {
+  password?: string
+  // You can include this if you pass it through; it's fine to leave it out of form state too.
+  sendWelcomeEmail?: boolean
+}
+
 interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreateUser: (user: Partial<User>) => void
+  // Keep the same signature if your parent expects Partial<User> only:
+  // onCreateUser: (user: Partial<User>) => void
+  // But allowing the extra fields is usually better:
+  onCreateUser: (user: CreateUserForm) => void
   userGroups: UserGroup[]
   existingEmails: string[]
   defaultRole?: UserRole
 }
-
-const Switch = React.forwardRef<
-  React.ElementRef<typeof SwitchPrimitives.Root>,
-  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
->(({ className, ...props }, ref) => (
-  <SwitchPrimitives.Root
-    ref={ref}
-    className={cn(
-      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent",
-      "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-      "focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50",
-      "data-[state=checked]:bg-primary data-[state=unchecked]:bg-input",
-      className
-    )}
-    {...props}
-  >
-    <SwitchPrimitives.Thumb
-      className={cn(
-        "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0",
-        "transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
-      )}
-    />
-  </SwitchPrimitives.Root>
-))
-Switch.displayName = "Switch"
-
 
 export default function CreateUserModal({
   isOpen,
@@ -55,7 +37,7 @@ export default function CreateUserModal({
   existingEmails,
   defaultRole = "employee",
 }: CreateUserModalProps) {
-  const [formData, setFormData] = useState<Partial<User>>({
+  const [formData, setFormData] = useState<CreateUserForm>({
     name: "",
     surname: "",
     email: "",
@@ -116,14 +98,15 @@ export default function CreateUserModal({
     }, 500)
   }
 
-  const handleInputChange = (field: keyof User, value: string) => {
+  // Allow "password" as a valid key by using the local CreateUserForm type
+  const handleInputChange = (field: keyof CreateUserForm, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
 
     // Clear error when user types
-    if (errors[field]) {
+    if (errors[field as string]) {
       setErrors((prev) => {
         const newErrors = { ...prev }
-        delete newErrors[field]
+        delete newErrors[field as string]
         return newErrors
       })
     }
