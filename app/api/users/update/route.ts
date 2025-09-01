@@ -15,13 +15,24 @@ export async function PUT(request: NextRequest) {
 
     console.log(`[v0] 🔄 Updating user: ${email}`)
 
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("[v0] ❌ Missing Supabase environment variables")
+      return NextResponse.json(
+        {
+          error:
+            "Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.",
+        },
+        { status: 500 },
+      )
+    }
+
     // IMPORTANT: Use a non-public URL env var if possible (e.g., SUPABASE_URL)
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!, // or process.env.SUPABASE_URL
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
         auth: { autoRefreshToken: false, persistSession: false },
-      }
+      },
     )
 
     // 1) Update your app's profile row
@@ -39,10 +50,7 @@ export async function PUT(request: NextRequest) {
 
     if (profileError) {
       console.error("[v0] ❌ Error updating user profile:", profileError)
-      return NextResponse.json(
-        { error: `Database error updating profile: ${profileError.message}` },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: `Database error updating profile: ${profileError.message}` }, { status: 500 })
     }
 
     // 2) If password provided, update the Auth user by ID
@@ -60,10 +68,7 @@ export async function PUT(request: NextRequest) {
 
         if (idErr) {
           console.error("[v0] ❌ Error looking up user id by email:", idErr)
-          return NextResponse.json(
-            { error: `Database error finding user id: ${idErr.message}` },
-            { status: 500 }
-          )
+          return NextResponse.json({ error: `Database error finding user id: ${idErr.message}` }, { status: 500 })
         }
         userId = idRow?.id
       }
@@ -72,16 +77,13 @@ export async function PUT(request: NextRequest) {
         console.warn("[v0] ⚠️ No Auth user id found for email:", email)
         // Don’t fail the whole request—just skip the password update
       } else {
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-          userId,
-          { password }
-        )
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, { password })
 
         if (updateError) {
           console.error("[v0] ❌ Error updating auth user password:", updateError)
           return NextResponse.json(
             { error: `Database error updating password: ${updateError.message}` },
-            { status: 500 }
+            { status: 500 },
           )
         }
 
@@ -98,11 +100,9 @@ export async function PUT(request: NextRequest) {
     console.error("[v0] ❌ Error in user update API:", error)
     return NextResponse.json(
       {
-        error: `Internal server error: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
+        error: `Internal server error: ${error instanceof Error ? error.message : "Unknown error"}`,
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

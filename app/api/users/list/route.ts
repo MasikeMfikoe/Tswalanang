@@ -8,6 +8,18 @@ export async function GET(request: NextRequest) {
 
     console.log(`[v0] 🔍 Fetching users of type: ${userType}`)
 
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("[v0] ❌ Missing Supabase environment variables")
+      return NextResponse.json(
+        {
+          error:
+            "Supabase not configured. Please set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.",
+          users: [],
+        },
+        { status: 500 },
+      )
+    }
+
     const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: {
         autoRefreshToken: false,
@@ -79,6 +91,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ users: mappedUsers })
   } catch (error) {
     console.error("[v0] ❌ Error in users list API:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error", users: [] }, { status: 500 })
   }
 }
