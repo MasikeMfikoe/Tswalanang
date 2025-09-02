@@ -13,6 +13,44 @@ const supabaseAdmin = createClient(
   },
 )
 
+/**
+ * Supabase v2 no longer has auth.admin.getUserByEmail.
+ * This helper paginates auth.admin.listUsers() and finds a user by email.
+ * It returns { data: { user }, error } to mimic the old shape.
+ */
+async function findUserByEmail(
+  supabase: ReturnType<typeof createClient>,
+  email: string
+): Promise<{ data: { user: any | null }, error: any | null }> {
+  let page = 1
+  const perPage = 200
+  const target = String(email).toLowerCase()
+
+  try {
+    // paginate until match or exhaustion
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage })
+      if (error) return { data: { user: null }, error }
+
+      const users = data?.users ?? []
+      const match = users.find((u: any) =>
+        u?.email?.toLowerCase() === target ||
+        u?.identities?.some((i: any) =>
+          i?.identity_data?.email?.toLowerCase?.() === target
+        )
+      )
+
+      if (match) return { data: { user: match }, error: null }
+      if (users.length < perPage) break
+      page += 1
+    }
+    return { data: { user: null }, error: null }
+  } catch (err) {
+    return { data: { user: null }, error: err as any }
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log("🚀 Starting user creation process...")
@@ -74,10 +112,10 @@ export async function POST(request: NextRequest) {
 
     // 1️⃣ Check if user already exists in auth
     console.log("🔍 Checking if user already exists...")
-    let existingAuthUser = null
+    let existingAuthUser: any = null
 
     try {
-      const { data: existing, error: fetchError } = await supabaseAdmin.auth.admin.getUserByEmail(email)
+      const { data: existing, error: fetchError } = await findUserByEmail(supabaseAdmin, email)
 
       if (!fetchError && existing?.user) {
         existingAuthUser = existing.user
@@ -117,7 +155,7 @@ export async function POST(request: NextRequest) {
       console.log("🔍 User check failed, proceeding with creation:", checkError)
     }
 
-    let authUser = null
+    let authUser: any = null
 
     // 2️⃣ Create auth user if doesn't exist
     if (!existingAuthUser) {
@@ -141,11 +179,11 @@ export async function POST(request: NextRequest) {
           if (
             authResult.error.message?.includes("already registered") ||
             authResult.error.message?.includes("email_exists") ||
-            authResult.error.code === "email_exists"
+            (authResult.error as any).code === "email_exists"
           ) {
             // Try to get the existing user one more time
             try {
-              const { data: retryExisting } = await supabaseAdmin.auth.admin.getUserByEmail(email)
+              const { data: retryExisting } = await findUserByEmail(supabaseAdmin, email)
               if (retryExisting?.user) {
                 existingAuthUser = retryExisting.user
                 console.log("✅ Found existing user on retry:", existingAuthUser.id)
