@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server"
 import { courierOrdersApi } from "@/lib/api/courierOrdersApi"
 
+type Notification = {
+  id: number
+  type: "recipient" | "sender_created" | "sender_confirmed" | "admin"
+  email: string
+  status: "sent" | "pending" | "failed"
+  sentAt: string
+}
+
 export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  _request: Request,
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: orderId } = await params
+    const { id: orderId } = params
 
     // Get order details
     const orderResponse = await courierOrdersApi.getCourierOrder(orderId)
@@ -14,54 +22,47 @@ export async function GET(
       return NextResponse.json({ success: false, message: "Order not found" }, { status: 404 })
     }
 
-    const order = orderResponse.data
+    const order = orderResponse.data // CourierOrder (camelCase)
 
-    // Construct notifications (placeholder logic)
-    const notifications: Array<{
-      id: number
-      type: string
-      email: string
-      status: "sent" | "pending" | "failed"
-      sentAt: string
-    }> = []
+    const notifications: Notification[] = []
 
-    if (order.notify_recipient && order.recipient_email) {
+    if (order.notifyRecipient && order.recipientEmail) {
       notifications.push({
         id: 1,
         type: "recipient",
-        email: order.recipient_email,
+        email: order.recipientEmail,
         status: "sent",
-        sentAt: order.notification_sent_at || new Date().toISOString(),
+        sentAt: order.notificationSentAt ?? new Date().toISOString(),
       })
     }
 
-    if (order.notify_sender_on_create && order.sender_email) {
+    if (order.notifySenderOnCreate && order.senderEmail) {
       notifications.push({
         id: 2,
         type: "sender_created",
-        email: order.sender_email,
+        email: order.senderEmail,
         status: "sent",
-        sentAt: order.sender_notification_sent_at || new Date().toISOString(),
+        sentAt: order.senderNotificationSentAt ?? new Date().toISOString(),
       })
     }
 
-    if (order.notify_sender_on_confirm && order.sender_email) {
+    if (order.notifySenderOnConfirm && order.senderEmail) {
       notifications.push({
         id: 3,
         type: "sender_confirmed",
-        email: order.sender_email,
+        email: order.senderEmail,
         status: "sent",
-        sentAt: order.sender_confirmation_sent_at || new Date().toISOString(),
+        sentAt: order.senderConfirmationSentAt ?? new Date().toISOString(),
       })
     }
 
-    if (order.send_confirmation_to_admin) {
+    if (order.sendConfirmationToAdmin) {
       notifications.push({
         id: 4,
         type: "admin",
         email: "admin@example.com", // TODO: read from system settings
         status: "sent",
-        sentAt: order.admin_notification_sent_at || new Date().toISOString(),
+        sentAt: order.adminNotificationSentAt ?? new Date().toISOString(),
       })
     }
 
