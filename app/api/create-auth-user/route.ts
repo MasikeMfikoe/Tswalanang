@@ -14,12 +14,12 @@ const supabaseAdmin = createClient(
 )
 
 /**
- * Supabase v2 no longer has auth.admin.getUserByEmail.
- * This helper paginates auth.admin.listUsers() and finds a user by email.
- * It returns { data: { user }, error } to mimic the old shape.
+ * Supabase v2 removed auth.admin.getUserByEmail.
+ * Helper: paginate auth.admin.listUsers() and find a user by email.
+ * Loosely typed to avoid TS generic mismatch during builds.
  */
 async function findUserByEmail(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   email: string
 ): Promise<{ data: { user: any | null }, error: any | null }> {
   let page = 1
@@ -27,18 +27,16 @@ async function findUserByEmail(
   const target = String(email).toLowerCase()
 
   try {
-    // paginate until match or exhaustion
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const { data, error } = await supabase.auth.admin.listUsers({ page, perPage })
       if (error) return { data: { user: null }, error }
 
       const users = data?.users ?? []
-      const match = users.find((u: any) =>
-        u?.email?.toLowerCase() === target ||
-        u?.identities?.some((i: any) =>
-          i?.identity_data?.email?.toLowerCase?.() === target
-        )
+      const match = users.find(
+        (u: any) =>
+          u?.email?.toLowerCase() === target ||
+          u?.identities?.some((i: any) => i?.identity_data?.email?.toLowerCase?.() === target)
       )
 
       if (match) return { data: { user: match }, error: null }
@@ -55,19 +53,18 @@ export async function POST(request: NextRequest) {
   try {
     console.log("🚀 Starting user creation process...")
 
-    // Validate environment variables
+    // Validate env
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
       console.error("❌ Missing NEXT_PUBLIC_SUPABASE_URL")
       return NextResponse.json({ error: "Server configuration error: Missing Supabase URL" }, { status: 500 })
     }
-
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error("❌ Missing SUPABASE_SERVICE_ROLE_KEY")
       return NextResponse.json({ error: "Server configuration error: Missing service role key" }, { status: 500 })
     }
 
     // Parse request body
-    let requestData
+    let requestData: any
     try {
       requestData = await request.json()
       console.log("📝 Request data received:", {
@@ -86,31 +83,25 @@ export async function POST(request: NextRequest) {
     if (!email || !password || !userData) {
       console.error("❌ Missing required fields:", { email: !!email, password: !!password, userData: !!userData })
       return NextResponse.json(
-        {
-          error: "Missing required fields",
-          details: { email: !!email, password: !!password, userData: !!userData },
-        },
+        { error: "Missing required fields", details: { email: !!email, password: !!password, userData: !!userData } },
         { status: 400 },
       )
     }
 
     // Validate userData fields
     const requiredUserFields = ["name", "surname", "role", "department"]
-    const missingFields = requiredUserFields.filter((field) => !userData[field])
+    const missingFields = requiredUserFields.filter((f) => !userData[f])
     if (missingFields.length > 0) {
       console.error("❌ Missing user data fields:", missingFields)
       return NextResponse.json(
-        {
-          error: "Missing user data fields",
-          details: { missingFields },
-        },
+        { error: "Missing user data fields", details: { missingFields } },
         { status: 400 },
       )
     }
 
     console.log("✅ All required fields present, proceeding with user creation...")
 
-    // 1️⃣ Check if user already exists in auth
+    // 1) Check if user already exists in auth
     console.log("🔍 Checking if user already exists...")
     let existingAuthUser: any = null
 
@@ -157,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     let authUser: any = null
 
-    // 2️⃣ Create auth user if doesn't exist
+    // 2) Create auth user if doesn't exist
     if (!existingAuthUser) {
       console.log("🔐 Creating new auth user...")
       try {
@@ -175,13 +166,12 @@ export async function POST(request: NextRequest) {
         if (authResult.error) {
           console.error("❌ Auth user creation error:", authResult.error)
 
-          // Handle specific error cases
+          // Handle "email already exists"
           if (
             authResult.error.message?.includes("already registered") ||
             authResult.error.message?.includes("email_exists") ||
             (authResult.error as any).code === "email_exists"
           ) {
-            // Try to get the existing user one more time
             try {
               const { data: retryExisting } = await findUserByEmail(supabaseAdmin, email)
               if (retryExisting?.user) {
@@ -189,29 +179,22 @@ export async function POST(request: NextRequest) {
                 console.log("✅ Found existing user on retry:", existingAuthUser.id)
               } else {
                 return NextResponse.json(
-                  {
-                    error: "Email already registered but user not found",
-                    details: { message: "This email is already registered but the user cannot be retrieved." },
-                  },
+                  { error: "Email already registered but user not found",
+                    details: { message: "This email is already registered but the user cannot be retrieved." } },
                   { status: 409 },
                 )
               }
             } catch (retryError) {
               console.error("❌ Retry fetch failed:", retryError)
               return NextResponse.json(
-                {
-                  error: "Email already registered",
-                  details: { message: "This email is already registered in the system." },
-                },
+                { error: "Email already registered",
+                  details: { message: "This email is already registered in the system." } },
                 { status: 409 },
               )
             }
           } else {
             return NextResponse.json(
-              {
-                error: "Failed to create auth user",
-                details: authResult.error,
-              },
+              { error: "Failed to create auth user", details: authResult.error },
               { status: 400 },
             )
           }
@@ -222,29 +205,19 @@ export async function POST(request: NextRequest) {
       } catch (createError) {
         console.error("❌ Exception during auth user creation:", createError)
         return NextResponse.json(
-          {
-            error: "Exception during auth user creation",
-            details: createError,
-          },
+          { error: "Exception during auth user creation", details: createError },
           { status: 500 },
         )
       }
     }
 
-    // Use existing user if found, otherwise use newly created user
+    // 3) Create/update profile in user_profiles
     const finalUser = existingAuthUser || authUser?.user
-
     if (!finalUser) {
       console.error("❌ No auth user available")
-      return NextResponse.json(
-        {
-          error: "Auth user creation failed - no user available",
-        },
-        { status: 500 },
-      )
+      return NextResponse.json({ error: "Auth user creation failed - no user available" }, { status: 500 })
     }
 
-    // 3️⃣ Create/update profile in user_profiles table
     console.log("👤 Creating user profile for user:", finalUser.id)
 
     const profilePayload = {
@@ -252,7 +225,7 @@ export async function POST(request: NextRequest) {
       username: userData.username || `${userData.name.toLowerCase()}.${userData.surname.toLowerCase()}`,
       name: userData.name,
       surname: userData.surname,
-      email: email,
+      email,
       role: userData.role,
       department: userData.department,
       page_access: userData.page_access || [],
@@ -263,20 +236,15 @@ export async function POST(request: NextRequest) {
     console.log("📝 Profile payload:", { ...profilePayload, id: finalUser.id })
 
     try {
-      // Try insert first, then upsert if conflict
       const { data: profile, error: profileError } = await supabaseAdmin
         .from("user_profiles")
-        .upsert(profilePayload, {
-          onConflict: "id",
-          ignoreDuplicates: false,
-        })
+        .upsert(profilePayload, { onConflict: "id", ignoreDuplicates: false })
         .select()
         .single()
 
       if (profileError) {
         console.error("❌ Profile creation error:", profileError)
 
-        // If profile creation fails and we created a new auth user, clean it up
         if (!existingAuthUser && authUser?.user) {
           try {
             await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
@@ -287,26 +255,21 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json(
-          {
-            error: "Failed to create user profile",
-            details: profileError,
-          },
+          { error: "Failed to create user profile", details: profileError },
           { status: 500 },
         )
       }
 
       console.log("✅ User profile created successfully:", profile?.id)
 
-      // Send welcome email if requested
+      // Send welcome email (best-effort)
       try {
         console.log("📧 Sending welcome email...")
         const welcomeEmailResponse = await fetch(
           `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/send-welcome-email`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               userEmail: email,
               userName: userData.name,
@@ -325,7 +288,6 @@ export async function POST(request: NextRequest) {
         }
       } catch (emailError) {
         console.error("❌ Error sending welcome email:", emailError)
-        // Don't fail user creation if email fails
       }
 
       return NextResponse.json({
@@ -340,7 +302,6 @@ export async function POST(request: NextRequest) {
     } catch (profileException) {
       console.error("❌ Exception during profile creation:", profileException)
 
-      // Cleanup auth user if we created it
       if (!existingAuthUser && authUser?.user) {
         try {
           await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
@@ -351,17 +312,12 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        {
-          error: "Exception during profile creation",
-          details: profileException,
-        },
+        { error: "Exception during profile creation", details: profileException },
         { status: 500 },
       )
     }
   } catch (error) {
     console.error("❌ Unexpected error in create-auth-user:", error)
-
-    // Return detailed error information for debugging
     return NextResponse.json(
       {
         error: "Internal server error",
