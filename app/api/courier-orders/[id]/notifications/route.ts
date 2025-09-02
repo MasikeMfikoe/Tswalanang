@@ -1,16 +1,21 @@
 // app/api/courier-orders/[id]/notifications/route.ts
 import { NextResponse } from "next/server"
-import type { RouteContext } from "next"
 import { courierOrdersApi } from "@/lib/api/courierOrdersApi"
 
-// Notifications temporarily disabled: we only verify the order exists.
-export async function GET(_req: Request, ctx: RouteContext<{ id: string }>) {
+// Notifications disabled for now: we just ensure the order exists and return []
+export async function GET(_req: Request, context: any) {
   try {
-    const orderId = ctx.params.id
+    const orderId = context?.params?.id as string | undefined
+    if (!orderId) {
+      return NextResponse.json(
+        { success: false, message: "Missing order id" },
+        { status: 400 }
+      )
+    }
 
-    // Ensure the order exists; otherwise return 404
+    // Ensure the order exists
     const orderResponse = await courierOrdersApi.getCourierOrder(orderId)
-    if (!orderResponse.success || !orderResponse.data) {
+    if (!orderResponse?.success || !orderResponse.data) {
       return NextResponse.json(
         { success: false, message: "Order not found" },
         { status: 404 }
