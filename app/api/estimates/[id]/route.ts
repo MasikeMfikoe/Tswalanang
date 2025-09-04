@@ -14,6 +14,36 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
 })
 
+// --- Add this: simple mock generator to satisfy preview IDs like "est-123" ---
+function generateMockEstimate(id: string) {
+  const now = new Date().toISOString()
+  return {
+    id,
+    display_id: id.toUpperCase(),
+    customer_name: "Sample Customer",
+    customer_email: "customer@example.com",
+    status: "draft",
+    freight_type: "air",
+    commercial_value: 1000,
+    customs_duties: 0,
+    customs_vat: 0,
+    handling_fees: 0,
+    shipping_cost: 0,
+    documentation_fee: 0,
+    communication_fee: 0,
+    total_disbursements: 0,
+    facility_fee: 0,
+    agency_fee: 0,
+    subtotal: 1000,
+    vat: 0,
+    total_amount: 1000,
+    notes: "Sample estimate (mock data)",
+    created_at: now,
+    updated_at: now,
+  }
+}
+// ---------------------------------------------------------------------------
+
 // Helper function to get user ID from request
 const getUserIdFromRequest = async (request: NextRequest): Promise<string | null> => {
   try {
