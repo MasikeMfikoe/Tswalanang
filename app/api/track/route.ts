@@ -3,39 +3,25 @@ import { MultiProviderTrackingService } from "@/lib/services/multi-provider-trac
 import { detectShipmentInfo } from "@/lib/services/container-detection-service"
 import type { ShipmentType } from "@/types/tracking"
 
-// --- CONCEPTUAL: Replace with your actual third-party detection service ---
-// You would create a file like lib/services/third-party-detection-service.ts
-// and implement its logic to call the external API.
+// --- Demo stub for a third-party detector. Replace with your real integration.
 interface DetectedInfoFromThirdParty {
   type: ShipmentType
   carrierHint?: string
-  confidence?: number // Optional: how confident the detection is
+  confidence?: number
 }
 
 class ThirdPartyDetectionService {
   async detect(trackingNumber: string): Promise<DetectedInfoFromThirdParty | null> {
-    // In a real scenario, this would make an API call to a service like AfterShip, ParcelPanel, etc.
-    // For demonstration, let's simulate a detection based on a simple rule.
     console.log(`[ThirdPartyDetectionService] Attempting to detect for: ${trackingNumber}`)
+    if (trackingNumber.startsWith("ABC")) return { type: "air", carrierHint: "SomeAirCarrier", confidence: 0.9 }
+    if (trackingNumber.startsWith("XYZ")) return { type: "ocean", carrierHint: "SomeOceanCarrier", confidence: 0.85 }
 
-    // Example: Simulate a more advanced detection than local rules
-    if (trackingNumber.startsWith("ABC")) {
-      return { type: "air", carrierHint: "SomeAirCarrier", confidence: 0.9 }
-    }
-    if (trackingNumber.startsWith("XYZ")) {
-      return { type: "ocean", carrierHint: "SomeOceanCarrier", confidence: 0.85 }
-    }
-
-    // Fallback to local detection if no specific third-party rule matches
-    const localDetection = detectShipmentInfo(trackingNumber)
-    if (localDetection.type !== "unknown") {
-      return { type: localDetection.type, carrierHint: localDetection.carrierHint, confidence: 0.7 }
-    }
-
-    return null // No detection from third-party or local fallback
+    const local = detectShipmentInfo(trackingNumber)
+    if (local.type !== "unknown") return { type: local.type, carrierHint: local.carrierHint, confidence: 0.7 }
+    return null
   }
 }
-// --- END CONCEPTUAL ---
+// --- End stub ---
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,55 +34,50 @@ export async function POST(request: NextRequest) {
     let shipmentType: ShipmentType = "unknown"
     let carrierHint: string | undefined
 
-    // Step 1: Try to detect using a (hypothetical) third-party detection service
+    // Try third-party detection first
     const thirdPartyDetectionService = new ThirdPartyDetectionService()
     const thirdPartyDetectedInfo = await thirdPartyDetectionService.detect(trackingNumber)
 
     if (thirdPartyDetectedInfo && thirdPartyDetectedInfo.type !== "unknown") {
       shipmentType = thirdPartyDetectedInfo.type
       carrierHint = thirdPartyDetectedInfo.carrierHint
-      console.log(`[API/Track] Detected via Third-Party Service: Type: ${shipmentType}, Carrier Hint: ${carrierHint}`)
+      console.log(`[API/Track] Detected via Third-Party: type=${shipmentType}, carrierHint=${carrierHint}`)
     } else {
-      // Step 2: Fallback to local detection if third-party detection fails or is not used
-      const localDetectedInfo = detectShipmentInfo(trackingNumber)
-      shipmentType = localDetectedInfo.type
-      carrierHint = localDetectedInfo.carrierHint
-      console.log(`[API/Track] Detected via Local Rules: Type: ${shipmentType}, Carrier Hint: ${carrierHint}`)
+      // Fallback to local rules
+      const local = detectShipmentInfo(trackingNumber)
+      shipmentType = local.type
+      carrierHint = local.carrierHint
+      console.log(`[API/Track] Detected via Local Rules: type=${shipmentType}, carrierHint=${carrierHint}`)
     }
 
-    const multiProviderTrackingService = new MultiProviderTrackingService()
-    const result = await multiProviderTrackingService.trackShipment(trackingNumber, {
-      shipmentType,
-      carrierHint,
-      // preferScraping: false, // As per the prompt, we are focusing on API first
-    })
+    const svc = new MultiProviderTrackingService()
+    const result = await svc.trackShipment(trackingNumber, { shipmentType, carrierHint })
 
-    if (result.success) {
-      console.log(`[API/Track] Tracking successful for ${trackingNumber}. Source: ${result.source}`)
+    // Use safe narrowing instead of assuming a discriminated union
+    if (result && result.success === true) {
+      console.log(`[API/Track] Tracking SUCCESS for ${trackingNumber}. Source: ${("source" in result) ? (result as any).source : "unknown"}`)
       return NextResponse.json({
         success: true,
-        data: result.data,
-        source: result.source,
-        isLiveData: result.isLiveData,
-        scrapedAt: result.scrapedAt,
+        data: ("data" in result) ? (result as any).data : undefined,
+        source: ("source" in result) ? (result as any).source : undefined,
+        isLiveData: ("isLiveData" in result) ? (result as any).isLiveData : undefined,
+        scrapedAt: ("scrapedAt" in result) ? (result as any).scrapedAt : undefined,
       })
     } else {
-      console.error(`[API/Track] Tracking failed for ${trackingNumber}. Error: ${result.error}`)
-      return NextResponse.json({
-        success: false,
-        error: result.error,
-        source: result.source,
-        fallbackOptions: result.fallbackOptions,
-      })
+      const errorMsg = (result && "error" in result) ? (result as any).error : "Tracking failed"
+      const source = (result && "source" in result) ? (result as any).source : undefined
+      const fallbackOptions = (result && "fallbackOptions" in result) ? (result as any).fallbackOptions : undefined
+
+      console.error(`[API/Track] Tracking FAILED for ${trackingNumber}. Error: ${errorMsg}`)
+      return NextResponse.json(
+        { success: false, error: errorMsg, source, fallbackOptions },
+        { status: 502 },
+      )
     }
   } catch (error: any) {
     console.error("[API/Track] Uncaught API error:", error)
     return NextResponse.json(
-      {
-        success: false,
-        error: "Internal server error during tracking.",
-        details: error.message || "Unknown error",
-      },
+      { success: false, error: "Internal server error during tracking.", details: error?.message ?? String(error) },
       { status: 500 },
     )
   }
