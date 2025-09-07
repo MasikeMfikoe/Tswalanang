@@ -3,19 +3,19 @@
 export type UserRole = "admin" | "manager" | "employee" | "client" | "guest" | "tracking"
 
 export interface User {
-  id: string                 // user_profiles.id (uuid) – PK
-  user_id?: string           // user_profiles.user_id (uuid) – FK -> auth.users
-  customer_id?: string       // user_profiles.customer_id (uuid)
-  username?: string          // generated username
-  name?: string              // mirrors first_name for compatibility
+  id: string // user_profiles.id (uuid) – PK
+  user_id?: string // user_profiles.user_id (uuid) – FK -> auth.users
+  customer_id?: string // user_profiles.customer_id (uuid)
+  username?: string // generated username
+  name?: string // mirrors first_name for compatibility
   first_name?: string
   surname?: string
   full_name?: string
-  email: string              // required
-  role: UserRole             // required
+  email: string // required
+  role: UserRole // required
   department?: string
-  pageAccess?: string[]      // parsed from page_access
-  page_access?: string       // raw DB column
+  pageAccess?: string[] // parsed from page_access
+  page_access?: string // raw DB column
   created_at?: string
   updated_at?: string
 }
@@ -45,11 +45,11 @@ export const rolePermissions = {
     deliveries: { view: true, create: true, edit: true, delete: false },
     courierOrders: { view: true, create: true, edit: true, delete: false },
     containerTracking: { view: true, create: false, edit: false, delete: false },
-    clientPortal: { view: true, create: false, edit: false, delete: false },
+    clientPortal: { view: true, create: true, edit: true, delete: false },
     currencyConversion: { view: true, create: false, edit: false, delete: false },
     rateCard: { view: true, create: false, edit: false, delete: false },
     auditTrail: { view: true, create: false, edit: false, delete: false },
-    admin: { view: false, create: false, edit: false, delete: false },
+    admin: { view: true, create: true, edit: true, delete: false },
     shipmentTracker: { view: true, create: false, edit: false, delete: false },
     ediStatusInputs: { view: true, create: true, edit: true, delete: false },
   },
