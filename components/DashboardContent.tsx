@@ -6,7 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader"
 import { DashboardTabs } from "@/components/dashboard/DashboardTabs"
 import { ErrorDisplay } from "@/components/ErrorDisplay"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { toast } from "@/lib/toast"
 
 type DateRange = {
@@ -21,8 +20,6 @@ type PeriodOption = {
 }
 
 export default function DashboardContent() {
-  const supabase = createClientComponentClient()
-
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
 
@@ -43,91 +40,87 @@ export default function DashboardContent() {
   const [activeTab, setActiveTab] = useState("overview")
   const [noDataMessage, setNoDataMessage] = useState("")
 
-  // Fetch all necessary data from Supabase
+  // Fetch all necessary data from API route
   useEffect(() => {
     async function fetchData() {
       setIsLoading(true)
       try {
-        // Fetch orders
-        const { data: ordersData, error: ordersError } = await supabase.from("orders").select("*")
-        if (ordersError) {
-          console.error("Error fetching orders:", ordersError)
-          toast({
-            title: "Error fetching orders",
-            description: "Could not retrieve orders from database",
-            variant: "destructive",
-          })
-          setNoDataMessage("Could not retrieve orders from database. Please check your connection.")
-          setAllOrders([])
-        } else if (ordersData && ordersData.length > 0) {
-          setAllOrders(ordersData)
-          setNoDataMessage("")
+        console.log("[v0] Dashboard: Fetching data from API")
+
+        const response = await fetch("/api/dashboard/data")
+        const result = await response.json()
+
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to fetch dashboard data")
+        }
+
+        if (result.success) {
+          const { orders, customers, documents, notifications } = result.data
+
+          console.log("[v0] Dashboard: Received orders:", orders?.length || 0)
+          console.log("[v0] Dashboard: Received customers:", customers?.length || 0)
+          console.log("[v0] Dashboard: Received documents:", documents?.length || 0)
+          console.log("[v0] Dashboard: Received notifications:", notifications?.length || 0)
+
+          // Set orders data
+          if (orders && orders.length > 0) {
+            setAllOrders(orders)
+            setNoDataMessage("")
+          } else {
+            setAllOrders([])
+            setNoDataMessage("No orders found in the database. Please create some orders first.")
+          }
+
+          // Set other data
+          setCustomers(customers || [])
+          setDocuments(documents || [])
+          setNotifications(notifications || [])
+
+          // Check for individual errors
+          if (result.errors?.orders) {
+            console.error("[v0] Dashboard: Orders error:", result.errors.orders)
+            toast({
+              title: "Error fetching orders",
+              description: result.errors.orders,
+              variant: "destructive",
+            })
+          }
+          if (result.errors?.customers) {
+            console.error("[v0] Dashboard: Customers error:", result.errors.customers)
+            toast({
+              title: "Error fetching customers",
+              description: result.errors.customers,
+              variant: "destructive",
+            })
+          }
+          if (result.errors?.documents) {
+            console.error("[v0] Dashboard: Documents error:", result.errors.documents)
+          }
+          if (result.errors?.notifications) {
+            console.error("[v0] Dashboard: Notifications error:", result.errors.notifications)
+          }
         } else {
-          setAllOrders([])
-          setNoDataMessage("No orders found in the database. Please create some orders first.")
-        }
-
-        // Fetch customers
-        const { data: customersData, error: customersError } = await supabase.from("customers").select("*")
-        if (customersError) {
-          console.error("Error fetching customers:", customersError)
-          toast({
-            title: "Error fetching customers",
-            description: "Could not retrieve customers from database",
-            variant: "destructive",
-          })
-          setCustomers([])
-        } else if (customersData && customersData.length > 0) {
-          setCustomers(customersData)
-        } else {
-          setCustomers([])
-        }
-
-        // Fetch documents (assuming a 'documents' table with 'created_at' and 'processed_at')
-        const { data: documentsData, error: documentsError } = await supabase.from("documents").select("*")
-        if (documentsError) {
-          console.error("Error fetching documents:", documentsError)
-          toast({
-            title: "Error fetching documents",
-            description: "Could not retrieve documents from database",
-            variant: "destructive",
-          })
-          setDocuments([])
-        } else if (documentsData) {
-          setDocuments(documentsData)
-        }
-
-        // Fetch notifications (assuming a 'notifications' table)
-        const { data: notificationsData, error: notificationsError } = await supabase
-          .from("notifications")
-          .select("*")
-          .order("created_at", { ascending: false })
-        if (notificationsError) {
-          console.error("Error fetching notifications:", notificationsError)
-          toast({
-            title: "Error fetching notifications",
-            description: "Could not retrieve notifications from database",
-            variant: "destructive",
-          })
-          setNotifications([])
-        } else if (notificationsData) {
-          setNotifications(notificationsData)
+          throw new Error(result.error || "Unknown error occurred")
         }
       } catch (error) {
-        console.error("Error in data fetching:", error)
+        console.error("[v0] Dashboard: Error fetching data:", error)
         toast({
           title: "Error connecting to database",
           description: "Please check your connection and try again",
           variant: "destructive",
         })
         setNoDataMessage("Could not connect to the database. Please check your connection.")
+        setAllOrders([])
+        setCustomers([])
+        setDocuments([])
+        setNotifications([])
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchData()
-  }, [supabase])
+  }, [])
 
   // Predefined period options
   const periodOptions: PeriodOption[] = useMemo(
@@ -338,7 +331,8 @@ export default function DashboardContent() {
       .filter((order) => order.status === "Completed" || order.status === "completed")
       .filter((order) => order.created_at && order.completed_at) // Assuming completed_at exists
 
-    if (completedOrdersWithDates.length === 0) return { value: 0, unit: "days", target: 2, trend: 0 }
+    if (!completedOrdersWithDates || completedOrdersWithDates.length === 0)
+      return { value: 0, unit: "days", target: 2, trend: 0 }
 
     const totalDays = completedOrdersWithDates.reduce((sum, order) => {
       const created = new Date(order.created_at)
@@ -346,8 +340,7 @@ export default function DashboardContent() {
       return sum + differenceInDays(completed, created)
     }, 0)
 
-    const avgDays = totalDays / completedOrdersWithDates.length
-    // For trend, you'd need historical average. For simplicity, let's assume a target and calculate difference.
+    const avgDays = completedOrdersWithDates.length > 0 ? totalDays / completedOrdersWithDates.length : 0
     const targetDays = 2 // Example target
     const trend = avgDays - targetDays // Positive means slower, negative means faster
 
@@ -382,7 +375,7 @@ export default function DashboardContent() {
       }
     })
 
-    const totalOrdersInFiltered = filteredOrders.length
+    const totalOrdersInFiltered = filteredOrders?.length || 0
     return ranges.map((range) => ({
       label: range.label,
       percentage: totalOrdersInFiltered > 0 ? (counts[range.label] / totalOrdersInFiltered) * 100 : 0,
@@ -413,9 +406,9 @@ export default function DashboardContent() {
     }))
 
     const totalNew = data.reduce((sum, item) => sum + item.value, 0)
-    const monthlyAvg = totalNew / data.length
-    // Simple growth calculation: (last month - first month) / first month
-    const growth = data.length > 1 ? ((data[data.length - 1].value - data[0].value) / data[0].value) * 100 : 0
+    const monthlyAvg = data && data.length > 0 ? totalNew / data.length : 0
+    const growth =
+      data.length > 1 && data[0].value > 0 ? ((data[data.length - 1].value - data[0].value) / data[0].value) * 100 : 0
 
     return {
       data,
@@ -471,7 +464,8 @@ export default function DashboardContent() {
       const processed = new Date(doc.processed_at)
       return sum + differenceInDays(processed, created)
     }, 0)
-    const avgDocProcessingDays = processedDocuments.length > 0 ? totalDocProcessingDays / processedDocuments.length : 0
+    const avgDocProcessingDays =
+      processedDocuments && processedDocuments.length > 0 ? totalDocProcessingDays / processedDocuments.length : 0
 
     return [
       {
@@ -601,8 +595,6 @@ export default function DashboardContent() {
 
   // Mark all notifications as read
   const markAllAsRead = useCallback(() => {
-    // In a real app, this would call an API to update the notification status
-    // For now, just update local state
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
     console.log("Marking all notifications as read")
   }, [])
@@ -611,7 +603,6 @@ export default function DashboardContent() {
   const applyDateRange = () => {
     if (startDate && endDate) {
       console.log(`Applying date range: ${startDate} to ${endDate}`)
-      // This would trigger a data fetch in a real application
     }
   }
 

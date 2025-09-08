@@ -68,8 +68,8 @@ export function LiveTrackingStatus() {
     }
   }
 
-  const activeCarriers = trackingStatus.filter((c) => c.status === "active").length
-  const totalSupported = trackingStatus.filter((c) => c.isLiveSupported).length
+  const activeCarriers = trackingStatus?.filter((c) => c.status === "active")?.length || 0
+  const totalSupported = trackingStatus?.filter((c) => c.isLiveSupported)?.length || 0
 
   if (isLoading) {
     return (

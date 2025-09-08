@@ -153,7 +153,7 @@ export function useFileUpload({
           const file = files[i]
 
           // Update progress based on file index
-          const progressPerFile = 100 / files.length
+          const progressPerFile = files && files.length > 0 ? 100 / files.length : 0
           const baseProgress = i * progressPerFile
 
           // Simulate progress within each file upload

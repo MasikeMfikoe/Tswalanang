@@ -184,9 +184,9 @@ export const calculateMetrics = (filteredOrders: any[]) => {
   const totalRevenue = filteredOrders.reduce((sum, order) => sum + order.totalValue, 0)
   const totalVAT = totalRevenue * 0.15
   const totalCustomsDuties = totalRevenue * 0.2
-  const orderCount = filteredOrders.length
-  const completedOrders = filteredOrders.filter((order) => order.status === "Completed").length
-  const inProgressOrders = filteredOrders.filter((order) => order.status !== "Completed").length
+  const orderCount = filteredOrders?.length || 0
+  const completedOrders = filteredOrders?.filter((order) => order.status === "Completed")?.length || 0
+  const inProgressOrders = filteredOrders?.filter((order) => order.status !== "Completed")?.length || 0
 
   return {
     totalRevenue,
