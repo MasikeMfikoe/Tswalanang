@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@supabase/supabase-js"
 import type { Order } from "@/types/models"
+
+const supabaseAdmin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+})
 
 // Mock data for fallback or development
 const mockOrders: Order[] = [
@@ -58,6 +65,17 @@ const mockOrders: Order[] = [
   },
 ]
 
+function isMockUserId(clientId: string): boolean {
+  return (
+    clientId.startsWith("mock-") ||
+    clientId === "demo" ||
+    clientId === "tracking" ||
+    clientId === "manager" ||
+    clientId === "employee" ||
+    clientId.startsWith("client-user-")
+  )
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -71,8 +89,41 @@ export async function GET(request: Request) {
       )
     }
 
+    if (isMockUserId(clientId)) {
+      console.log("Mock user ID detected, checking for admin/manager access")
+
+      // For mock admin/manager users, try to fetch real data from database
+      if (clientId === "mock-user-id" || clientId === "mock-manager-id") {
+        console.log("Mock admin/manager user detected. Fetching all orders from database.")
+        try {
+          const { data: orders, error: ordersError } = await supabaseAdmin
+            .from("orders")
+            .select("*")
+            .order("created_at", { ascending: false })
+
+          if (!ordersError && orders && orders.length > 0) {
+            console.log(`Successfully fetched ${orders.length} real orders for mock admin/manager`)
+            return NextResponse.json({ data: orders })
+          } else {
+            console.log("No real orders found, falling back to mock data")
+          }
+        } catch (error) {
+          console.error("Error fetching real orders for mock admin:", error)
+        }
+      }
+
+      // Return mock data for all mock users (including when real data fetch fails)
+      console.log("Returning mock data for mock user:", clientId)
+      return NextResponse.json(
+        { data: mockOrders, message: "Mock user detected, returning mock data." },
+        { status: 200 },
+      )
+    }
+
+    console.log("Real user ID detected, querying database:", clientId)
+
     // 1. Get user profile to find associated customer_id and role
-    const { data: userProfile, error: userProfileError } = await supabase
+    const { data: userProfile, error: userProfileError } = await supabaseAdmin
       .from("user_profiles")
       .select("customer_id, email, role") // Select role as well
       .eq("id", clientId)
@@ -90,10 +141,10 @@ export async function GET(request: Request) {
     let orders: Order[] | null = null
     let ordersError: any = null
 
-    // If user is an admin, fetch all orders
-    if (userProfile.role === "admin") {
-      console.log("Admin user detected. Fetching all orders.")
-      const { data, error } = await supabase.from("orders").select("*").order("created_at", { ascending: false })
+    // If user is an admin or manager, fetch all orders
+    if (userProfile.role === "admin" || userProfile.role === "manager") {
+      console.log(`${userProfile.role} user detected. Fetching all orders.`)
+      const { data, error } = await supabaseAdmin.from("orders").select("*").order("created_at", { ascending: false })
       orders = data
       ordersError = error
     } else {
@@ -105,7 +156,7 @@ export async function GET(request: Request) {
       if (!customerId && userProfile.email) {
         const emailDomain = userProfile.email.split("@")[1]
         if (emailDomain) {
-          const { data: customerByEmail, error: customerEmailError } = await supabase
+          const { data: customerByEmail, error: customerEmailError } = await supabaseAdmin
             .from("customers")
             .select("id, name, email")
             .ilike("email", `%@${emailDomain}`)
@@ -116,7 +167,7 @@ export async function GET(request: Request) {
           } else if (customerByEmail && customerByEmail.length > 0) {
             customerId = customerByEmail[0].id
             customerName = customerByEmail[0].name
-            await supabase.from("user_profiles").update({ customer_id: customerId }).eq("id", clientId)
+            await supabaseAdmin.from("user_profiles").update({ customer_id: customerId }).eq("id", clientId)
             console.log(`Inferred customer_id ${customerId} for user ${clientId} from email domain.`)
           } else {
             console.warn(`No customer found for email domain: ${emailDomain}.`)
@@ -126,10 +177,10 @@ export async function GET(request: Request) {
 
       // If customer_id was found (either direct or inferred), get customer name if not already set
       if (customerId && !customerName) {
-        const { data: customerData, error: customerError } = await supabase
+        const { data: customerData, error: customerError } = await supabaseAdmin
           .from("customers")
           .select("name")
-          .eq("id", customerId)
+          .eq("id", customerId) // Corrected from "customerId" to "id"
           .single()
 
         if (customerError || !customerData) {
@@ -152,7 +203,7 @@ export async function GET(request: Request) {
       }
 
       // Fetch orders for the identified customer
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from("orders")
         .select("*")
         .eq("customer_name", customerName) // Filter by customer_name

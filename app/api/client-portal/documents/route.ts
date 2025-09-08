@@ -1,5 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabaseClient"
+import { createClient } from "@supabase/supabase-js"
+
+const supabaseAdmin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+})
+
+function isMockUserId(clientId: string): boolean {
+  return (
+    clientId.startsWith("mock-") ||
+    clientId === "demo" ||
+    clientId === "tracking" ||
+    clientId === "manager" ||
+    clientId === "employee" ||
+    clientId.startsWith("client-user-")
+  )
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,8 +30,100 @@ export async function GET(request: NextRequest) {
 
     console.log("Fetching documents for client:", clientId)
 
+    if (isMockUserId(clientId)) {
+      console.log("Mock user ID detected, returning mock documents data")
+
+      // For mock admin/manager users, try to fetch real data from database
+      if (clientId === "mock-user-id" || clientId === "mock-manager-id") {
+        console.log("Mock admin/manager user detected. Attempting to fetch real documents.")
+        try {
+          const { data: documents, error: documentsError } = await supabaseAdmin
+            .from("documents")
+            .select(`
+              *,
+              order:orders!inner(po_number, id)
+            `)
+            .order("created_at", { ascending: false })
+
+          if (!documentsError && documents && documents.length > 0) {
+            console.log(`Successfully fetched ${documents.length} real documents for mock admin/manager`)
+
+            // Calculate statistics for real data
+            const approvedDocs = documents.filter((doc) => doc.status === "Approved")
+            const pendingDocs = documents.filter((doc) => doc.status === "Pending Review")
+            const thisMonthDocs = documents.filter((doc) => {
+              const docDate = new Date(doc.created_at)
+              const now = new Date()
+              return docDate.getMonth() === now.getMonth() && docDate.getFullYear() === now.getFullYear()
+            })
+
+            return NextResponse.json({
+              success: true,
+              data: {
+                documents,
+                statistics: {
+                  totalDocuments: documents.length,
+                  approvedDocuments: approvedDocs.length,
+                  pendingDocuments: pendingDocs.length,
+                  thisMonthDocuments: thisMonthDocs.length,
+                },
+              },
+            })
+          } else {
+            console.log("No real documents found, falling back to mock data")
+          }
+        } catch (error) {
+          console.error("Error fetching real documents for mock admin:", error)
+        }
+      }
+
+      // Return mock data for all mock users (including when real data fetch fails)
+      return NextResponse.json({
+        success: true,
+        data: {
+          documents: [
+            {
+              id: "1",
+              name: "Invoice-2023-001.pdf",
+              type: "Invoice",
+              order: { po_number: "PO-2023-001" },
+              status: "Approved",
+              size: "1.2 MB",
+              created_at: "2023-06-15",
+            },
+            {
+              id: "2",
+              name: "BOL-2023-002.pdf",
+              type: "Bill of Lading",
+              order: { po_number: "PO-2023-002" },
+              status: "Pending Review",
+              size: "0.8 MB",
+              created_at: "2023-06-20",
+            },
+            {
+              id: "3",
+              name: "Packing-List-2023-003.pdf",
+              type: "Packing List",
+              order: { po_number: "PO-2023-003" },
+              status: "Approved",
+              size: "0.5 MB",
+              created_at: "2023-06-25",
+            },
+          ],
+          statistics: {
+            totalDocuments: 3,
+            approvedDocuments: 2,
+            pendingDocuments: 1,
+            thisMonthDocuments: 3,
+          },
+        },
+      })
+    }
+
+    console.log("Real user ID detected, querying database:", clientId)
+
     // Get the user profile
-    const { data: userProfile, error: userError } = await supabase
+    const { data: userProfile, error: userError } = await supabaseAdmin
       .from("user_profiles")
       .select("*")
       .eq("id", clientId)
@@ -74,7 +184,7 @@ export async function GET(request: NextRequest) {
         const emailDomain = userProfile.email.split("@")[1]
 
         // Try to find a customer with matching email domain
-        const { data: customers } = await supabase
+        const { data: customers } = await supabaseAdmin
           .from("customers")
           .select("id, name")
           .ilike("email", `%${emailDomain}%`)
@@ -85,7 +195,7 @@ export async function GET(request: NextRequest) {
           customerName = customers[0].name
 
           // Optionally update the user profile with the found customer_id
-          await supabase.from("user_profiles").update({ customer_id: customerId }).eq("id", clientId)
+          await supabaseAdmin.from("user_profiles").update({ customer_id: customerId }).eq("id", clientId)
         }
       }
     }
@@ -96,40 +206,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: {
-          documents: [
-            {
-              id: "1",
-              name: "Invoice-2023-001.pdf",
-              type: "Invoice",
-              order: { po_number: "PO-2023-001" },
-              status: "Approved",
-              size: "1.2 MB",
-              created_at: "2023-06-15",
-            },
-            {
-              id: "2",
-              name: "BOL-2023-002.pdf",
-              type: "Bill of Lading",
-              order: { po_number: "PO-2023-002" },
-              status: "Pending Review",
-              size: "0.8 MB",
-              created_at: "2023-06-20",
-            },
-            {
-              id: "3",
-              name: "Packing-List-2023-003.pdf",
-              type: "Packing List",
-              order: { po_number: "PO-2023-003" },
-              status: "Approved",
-              size: "0.5 MB",
-              created_at: "2023-06-25",
-            },
-          ],
+          documents: [],
           statistics: {
-            totalDocuments: 3,
-            approvedDocuments: 2,
-            pendingDocuments: 1,
-            thisMonthDocuments: 3,
+            totalDocuments: 0,
+            approvedDocuments: 0,
+            pendingDocuments: 0,
+            thisMonthDocuments: 0,
           },
         },
       })
@@ -137,7 +219,7 @@ export async function GET(request: NextRequest) {
 
     // Get customer info if we don't have it yet
     if (!customerName) {
-      const { data: customer, error: customerError } = await supabase
+      const { data: customer, error: customerError } = await supabaseAdmin
         .from("customers")
         .select("name")
         .eq("id", customerId)
@@ -164,7 +246,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get orders for this customer to get their documents
-    const { data: orders, error: ordersError } = await supabase
+    const { data: orders, error: ordersError } = await supabaseAdmin
       .from("orders")
       .select("id, po_number")
       .eq("customer_name", customerName)
@@ -193,7 +275,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get documents for these orders
-    const { data: documents, error: documentsError } = await supabase
+    const { data: documents, error: documentsError } = await supabaseAdmin
       .from("documents")
       .select(`
         *,

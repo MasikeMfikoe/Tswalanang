@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Package, FileText, Calendar, Truck, Users, ClipboardList, BarChart, MapPin } from 'lucide-react' // Import MapPin
+import { ArrowRight, Package, FileText, Calendar, Truck, Users, ClipboardList, BarChart, MapPin } from "lucide-react" // Import MapPin
 
 import { useAuth } from "@/contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -284,7 +284,7 @@ export default function ClientPortalPage() {
   }
 
   // Redirect if not a client or guest user
-  if (!user || (user.role !== "client" && user.role !== "guest" && user.role !== "admin")) {
+  if (!user || (user.role !== "client" && user.role !== "guest" && user.role !== "admin" && user.role !== "manager")) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Card className="w-96">
@@ -302,7 +302,7 @@ export default function ClientPortalPage() {
     )
   }
 
-  const isAdmin = user?.role === "admin"
+  const isAdmin = user?.role === "admin" || user?.role === "manager"
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -312,7 +312,7 @@ export default function ClientPortalPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              <span className="font-medium">Admin View – Client Portal</span>
+              <span className="font-medium">{user?.role === "admin" ? "Admin" : "Manager"} View – Client Portal</span>
             </div>
             <Button
               variant="outline"
@@ -331,10 +331,14 @@ export default function ClientPortalPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">
-            {isAdmin ? "Admin View - Client Portal" : `Welcome, ${user?.department || "Client"}!`}
+            {isAdmin
+              ? `${user?.role === "admin" ? "Admin" : "Manager"} View - Client Portal`
+              : `Welcome, ${user?.department || "Client"}!`}
           </h1>
           <p className="text-gray-600 mt-1">
-            {isAdmin ? "Admin viewing client portal" : "Your personalized logistics overview."}
+            {isAdmin
+              ? `${user?.role === "admin" ? "Admin" : "Manager"} viewing all client orders`
+              : "Your personalized logistics overview."}
           </p>
           <p className="text-gray-600 text-sm mt-1">
             {new Date().toLocaleDateString("en-GB", {
