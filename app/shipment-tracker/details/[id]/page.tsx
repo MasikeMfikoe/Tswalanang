@@ -324,11 +324,17 @@ export default function ShipmentDetails() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-gray-500">Estimated arrival date</span>
                           <span className="font-semibold">
-                            {new Date(shipment.timeline[shipment.timeline.length - 1].date).toLocaleDateString()}{" "}
-                            {new Date(shipment.timeline[shipment.timeline.length - 1].date).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            {shipment.timeline && shipment.timeline.length > 0 ? (
+                              <>
+                                {new Date(shipment.timeline[shipment.timeline.length - 1].date).toLocaleDateString()}{" "}
+                                {new Date(shipment.timeline[shipment.timeline.length - 1].date).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </>
+                            ) : (
+                              "Unknown"
+                            )}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -346,86 +352,90 @@ export default function ShipmentDetails() {
                       <div className="relative">
                         {/* Timeline events */}
                         <div className="space-y-0">
-                          {shipment.timeline.map((event, index) => {
-                            const isLast = index === shipment.timeline.length - 1
-                            const isFirst = index === 0
-                            const showDottedLine = index < shipment.timeline.length - 2
-                            const showSolidLine = index < shipment.timeline.length - 1 && !showDottedLine
+                          {shipment.timeline && shipment.timeline.length > 0 ? (
+                            shipment.timeline.map((event, index) => {
+                              const isLast = index === shipment.timeline.length - 1
+                              const isFirst = index === 0
+                              const showDottedLine = index < shipment.timeline.length - 2
+                              const showSolidLine = index < shipment.timeline.length - 1 && !showDottedLine
 
-                            return (
-                              <div key={index} className="relative">
-                                {/* Location label on the left */}
-                                <div className="grid grid-cols-[1fr,auto,1fr] items-start gap-4">
-                                  <div className="text-right font-medium">
-                                    {index % 2 === 0 ? (
-                                      <div className="mb-8">
-                                        <div className="font-semibold">{event.location || shipment.origin}</div>
-                                        {event.sublocation && <div className="text-sm">{event.sublocation}</div>}
-                                      </div>
-                                    ) : (
-                                      <div></div>
-                                    )}
-                                  </div>
-
-                                  {/* Timeline icon and line */}
-                                  <div className="flex flex-col items-center">
-                                    <div
-                                      className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full ${event.completed ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-400"}`}
-                                    >
-                                      {event.status.toLowerCase().includes("vessel") ? (
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          width="16"
-                                          height="16"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        >
-                                          <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
-                                          <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76" />
-                                          <path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6" />
-                                        </svg>
+                              return (
+                                <div key={index} className="relative">
+                                  {/* Location label on the left */}
+                                  <div className="grid grid-cols-[1fr,auto,1fr] items-start gap-4">
+                                    <div className="text-right font-medium">
+                                      {index % 2 === 0 ? (
+                                        <div className="mb-8">
+                                          <div className="font-semibold">{event.location || shipment.origin}</div>
+                                          {event.sublocation && <div className="text-sm">{event.sublocation}</div>}
+                                        </div>
                                       ) : (
-                                        getStatusIcon(event.status)
+                                        <div></div>
                                       )}
                                     </div>
 
-                                    {/* Vertical line - solid or dotted based on position */}
-                                    {showSolidLine && <div className="h-16 w-0.5 bg-blue-200"></div>}
-                                    {showDottedLine && (
-                                      <div className="h-16 w-0.5 border-r-2 border-dashed border-blue-200"></div>
-                                    )}
-                                  </div>
-
-                                  {/* Event details on the right */}
-                                  <div>
-                                    {index % 2 !== 0 ? (
-                                      <div className="mb-8">
-                                        <div className="font-semibold">{event.location || shipment.destination}</div>
-                                        {event.sublocation && <div className="text-sm">{event.sublocation}</div>}
+                                    {/* Timeline icon and line */}
+                                    <div className="flex flex-col items-center">
+                                      <div
+                                        className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full ${event.completed ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-400"}`}
+                                      >
+                                        {event.status.toLowerCase().includes("vessel") ? (
+                                          <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          >
+                                            <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+                                            <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76" />
+                                            <path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6" />
+                                          </svg>
+                                        ) : (
+                                          getStatusIcon(event.status)
+                                        )}
                                       </div>
-                                    ) : (
-                                      <div></div>
-                                    )}
 
-                                    <div className="mb-8">
-                                      <div className="font-medium">{event.status}</div>
-                                      <div className="text-sm text-gray-500">
-                                        {new Date(event.date).toLocaleDateString()}{" "}
-                                        {new Date(event.date).toLocaleTimeString([], {
-                                          hour: "2-digit",
-                                          minute: "2-digit",
-                                        })}
+                                      {/* Vertical line - solid or dotted based on position */}
+                                      {showSolidLine && <div className="h-16 w-0.5 bg-blue-200"></div>}
+                                      {showDottedLine && (
+                                        <div className="h-16 w-0.5 border-r-2 border-dashed border-blue-200"></div>
+                                      )}
+                                    </div>
+
+                                    {/* Event details on the right */}
+                                    <div>
+                                      {index % 2 !== 0 ? (
+                                        <div className="mb-8">
+                                          <div className="font-semibold">{event.location || shipment.destination}</div>
+                                          {event.sublocation && <div className="text-sm">{event.sublocation}</div>}
+                                        </div>
+                                      ) : (
+                                        <div></div>
+                                      )}
+
+                                      <div className="mb-8">
+                                        <div className="font-medium">{event.status}</div>
+                                        <div className="text-sm text-gray-500">
+                                          {new Date(event.date).toLocaleDateString()}{" "}
+                                          {new Date(event.date).toLocaleTimeString([], {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                          })}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            )
-                          })}
+                              )
+                            })
+                          ) : (
+                            <div className="text-center text-gray-500 py-8">No timeline data available</div>
+                          )}
                         </div>
                       </div>
                     </CardContent>

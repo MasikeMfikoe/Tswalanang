@@ -26,7 +26,7 @@ export default function TestCredentialsPage() {
 
   const maskCredential = (credential: string) => {
     if (!credential) return "Not found"
-    if (credential.length < 10) return credential
+    if (credential.length < 20) return credential
     return credential.substring(0, 10) + "..." + credential.substring(credential.length - 10)
   }
 

@@ -102,7 +102,7 @@ export async function DELETE(request: NextRequest) {
     if (filePath) {
       try {
         const urlParts = filePath.split("/")
-        const fileName = urlParts[urlParts.length - 1]
+        const fileName = urlParts.length > 0 ? urlParts[urlParts.length - 1] : "unknown"
         const storageFilePath = `documents/${fileName}`
 
         console.log("🗑️ API: Attempting to remove file from storage:", storageFilePath)

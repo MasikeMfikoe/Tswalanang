@@ -83,8 +83,10 @@ function generateMockTrackingData(trackingNumber: string, trackingInfo: Tracking
     },
   ]
 
-  const currentStatus = events[events.length - 1].status
-  const currentLocation = events[events.length - 1].location
+  const lastEvent = events.length > 0 ? events[events.length - 1] : null
+  const currentStatus = lastEvent?.status || "Unknown"
+  const currentLocation = lastEvent?.location || "Unknown"
+  const currentTimestamp = lastEvent?.timestamp || new Date().toISOString()
 
   return {
     containerNumber: trackingNumber,
@@ -92,7 +94,7 @@ function generateMockTrackingData(trackingNumber: string, trackingInfo: Tracking
     trackingNumberType: trackingInfo.type,
     status: currentStatus,
     location: currentLocation,
-    timestamp: events[events.length - 1].timestamp,
+    timestamp: currentTimestamp,
     vessel: "MSC OSCAR",
     voyage: "MS2401E",
     eta: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
