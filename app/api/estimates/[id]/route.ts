@@ -51,7 +51,10 @@ const getUserIdFromRequest = async (request: NextRequest): Promise<string | null
     const authHeader = request.headers.get("authorization")
     if (authHeader) {
       const token = authHeader.replace("Bearer ", "")
-      const { data: { user }, error } = await supabase.auth.getUser(token)
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser(token)
       if (!error && user) return user.id
     }
     // Fallback header
@@ -65,10 +68,7 @@ const getUserIdFromRequest = async (request: NextRequest): Promise<string | null
 }
 
 // GET: Fetch a single estimate by ID
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     console.log("GET /api/estimates/[id] - Fetching estimate:", id)
@@ -91,15 +91,15 @@ export async function GET(
         console.error("Estimates table access error:", tableError)
         return NextResponse.json(
           { error: "Database table access error. Please check if estimates table exists.", success: false },
-          { status: 500 }
+          { status: 500 },
         )
       }
 
-      if (!tableCheck || tableCheck.length === 0) {
+      if (!tableCheck || !Array.isArray(tableCheck) || tableCheck.length === 0) {
         console.log("Estimates table is empty")
         return NextResponse.json(
           { error: "No estimates found in database. Please create an estimate first.", success: false, isEmpty: true },
-          { status: 404 }
+          { status: 404 },
         )
       }
 
@@ -115,8 +115,12 @@ export async function GET(
       }
 
       return NextResponse.json(
-        { error: `Estimate with ID "${id}" not found in database`, success: false, availableCount: tableCheck.length },
-        { status: 404 }
+        {
+          error: `Estimate with ID "${id}" not found in database`,
+          success: false,
+          availableCount: (tableCheck || []).length,
+        },
+        { status: 404 },
       )
     }
 
@@ -132,16 +136,13 @@ export async function GET(
     console.error("Error in estimates/[id] GET route:", error)
     return NextResponse.json(
       { error: "An unexpected error occurred", details: (error as Error).message, success: false },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
 
 // PUT: Update an existing estimate
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const estimateData = await request.json()
@@ -155,7 +156,7 @@ export async function PUT(
     if (id.startsWith("est-") && /^est-\d+$/.test(id)) {
       return NextResponse.json(
         { error: "Cannot update sample data. Please create a real estimate first.", success: false },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -204,16 +205,13 @@ export async function PUT(
     console.error("Error in estimates/[id] PUT route:", error)
     return NextResponse.json(
       { error: "An unexpected error occurred", details: (error as Error).message, success: false },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
 
 // DELETE: Delete an estimate
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const userId = await getUserIdFromRequest(request)
@@ -258,7 +256,7 @@ export async function DELETE(
     console.error("Error in estimates/[id] DELETE route:", error)
     return NextResponse.json(
       { error: "An unexpected error occurred", details: (error as Error).message, success: false },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

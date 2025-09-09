@@ -35,17 +35,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (!result) {
-      return NextResponse.json(
-        { success: false, error: "Failed to track vessel" },
-        { status: 500 },
-      )
+      return NextResponse.json({ success: false, error: "Failed to track vessel" }, { status: 500 })
     }
 
     // Optionally include recent port calls
     if (result.success && result.data && includePorts && result.data.vessel?.imo) {
-      const portCallsResult = await marineTrafficService.getVesselPortCalls(
-        String(result.data.vessel.imo),
-      )
+      const portCallsResult = await marineTrafficService.getVesselPortCalls(String(result.data.vessel.imo))
       if (portCallsResult.success && portCallsResult.port_calls) {
         result.data.port_calls = portCallsResult.port_calls
       }
@@ -78,10 +73,7 @@ export async function POST(request: NextRequest) {
     const vessels = body?.vessels
 
     if (!Array.isArray(vessels)) {
-      return NextResponse.json(
-        { success: false, error: "Vessels array is required" },
-        { status: 400 },
-      )
+      return NextResponse.json({ success: false, error: "Vessels array is required" }, { status: 400 })
     }
 
     const marineTrafficService = new MarineTrafficService(MARINETRAFFIC_API_KEY)
@@ -100,11 +92,14 @@ export async function POST(request: NextRequest) {
       }),
     )
 
+    const safeResults = Array.isArray(results) ? results : []
+    const successfulResults = safeResults.filter((r) => r.result?.success)
+
     return NextResponse.json({
       success: true,
-      results,
-      total: results.length,
-      successful: results.filter((r) => r.result?.success).length,
+      results: safeResults,
+      total: safeResults.length,
+      successful: successfulResults.length,
     })
   } catch (error) {
     console.error("MarineTraffic batch vessel API error:", error)

@@ -17,7 +17,7 @@ export function useFocusTrap(active = true) {
       'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])',
     )
 
-    if (focusableEls.length === 0) return
+    if (!focusableEls || focusableEls.length === 0) return
 
     const firstFocusableEl = focusableEls[0] as HTMLElement
     const lastFocusableEl = focusableEls[focusableEls.length - 1] as HTMLElement

@@ -12,7 +12,6 @@ import { Activity, Banknote, Clock, TrendingUp, Ship } from "lucide-react"
 import { BarChart } from "@/components/Charts"
 import { toast } from "@/lib/toast"
 import CargoStatusTab from "@/components/CargoStatusTab"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Customer, Order } from "@/types/models"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -43,7 +42,6 @@ interface OrderWithTracking extends Order {
 export default function CustomerSummary() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createClientComponentClient()
   const { user } = useAuth()
 
   const [selectedCustomer, setSelectedCustomer] = useState<string>("")
@@ -84,15 +82,24 @@ export default function CustomerSummary() {
 
   const fetchCustomers = async () => {
     try {
-      const { data, error } = await supabase.from("customers").select("*").order("name")
+      console.log("[v0] Customer Summary: Fetching customers from API")
 
-      if (error) {
-        throw error
+      const response = await fetch("/api/customers")
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      setCustomers(data || [])
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch customers")
+      }
+
+      console.log("[v0] Customer Summary: Successfully fetched customers:", result.data?.length || 0)
+      setCustomers(result.data || [])
     } catch (error) {
-      console.error("Error fetching customers:", error)
+      console.error("[v0] Customer Summary: Error fetching customers:", error)
       toast({
         title: "Error",
         description: "Failed to load customers. Please try again.",
@@ -198,29 +205,40 @@ export default function CustomerSummary() {
     setIsLoading(true)
 
     try {
-      let query = supabase.from("orders").select("*")
+      console.log("[v0] Customer Summary: Fetching orders from API")
+
+      const params = new URLSearchParams()
 
       if (selectedCustomer && selectedCustomer !== "all") {
-        query = query.eq("importer", selectedCustomer)
+        params.append("importer", selectedCustomer)
       }
 
       if (startDate) {
-        query = query.gte("created_at", startDate)
+        params.append("startDate", startDate)
       }
 
       if (endDate) {
         const nextDay = new Date(endDate)
         nextDay.setDate(nextDay.getDate() + 1)
-        query = query.lt("created_at", nextDay.toISOString().split("T")[0])
+        params.append("endDate", nextDay.toISOString().split("T")[0])
       }
 
-      const { data: orders, error } = await query
+      const response = await fetch(`/api/orders?${params.toString()}`)
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const enrichedOrders = await enrichOrdersWithTracking(orders || [])
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch orders")
+      }
+
+      const orders = result.data || []
+      console.log("[v0] Customer Summary: Successfully fetched orders:", orders.length)
+
+      const enrichedOrders = await enrichOrdersWithTracking(orders)
       setFilteredOrders(enrichedOrders)
 
       const totalRevenue = enrichedOrders?.reduce((sum, order) => sum + (order.totalValue || 0), 0) || 0
@@ -276,7 +294,7 @@ export default function CustomerSummary() {
 
       setMonthlyOrderData(monthlyData)
     } catch (error) {
-      console.error("Error fetching orders:", error)
+      console.error("[v0] Customer Summary: Error fetching orders:", error)
       toast({
         title: "Error",
         description: "Failed to load order data. Please try again.",
@@ -285,7 +303,7 @@ export default function CustomerSummary() {
     } finally {
       setIsLoading(false)
     }
-  }, [selectedCustomer, startDate, endDate, supabase])
+  }, [selectedCustomer, startDate, endDate])
 
   useEffect(() => {
     if (startDate && endDate) {

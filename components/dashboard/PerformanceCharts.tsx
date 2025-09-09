@@ -31,7 +31,7 @@ export function PerformanceCharts({
             <div>
               <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Current</p>
               <p className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                {deliveryPerformanceData.length > 0
+                {Array.isArray(deliveryPerformanceData) && deliveryPerformanceData.length > 0
                   ? deliveryPerformanceData[deliveryPerformanceData.length - 1].value.toFixed(0)
                   : 0}
                 %
@@ -44,9 +44,9 @@ export function PerformanceCharts({
             <div>
               <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Trend</p>
               <p
-                className={`text-lg font-bold ${deliveryPerformanceData.length > 1 && deliveryPerformanceData[deliveryPerformanceData.length - 1].value > deliveryPerformanceData[deliveryPerformanceData.length - 2].value ? "text-green-500" : "text-red-500"}`}
+                className={`text-lg font-bold ${Array.isArray(deliveryPerformanceData) && deliveryPerformanceData.length > 1 && deliveryPerformanceData[deliveryPerformanceData.length - 1].value > deliveryPerformanceData[deliveryPerformanceData.length - 2].value ? "text-green-500" : "text-red-500"}`}
               >
-                {deliveryPerformanceData.length > 1
+                {Array.isArray(deliveryPerformanceData) && deliveryPerformanceData.length > 1
                   ? `${(deliveryPerformanceData[deliveryPerformanceData.length - 1].value - deliveryPerformanceData[deliveryPerformanceData.length - 2].value).toFixed(1)}%`
                   : "N/A"}
               </p>
@@ -71,7 +71,7 @@ export function PerformanceCharts({
               <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Current</p>
               <p className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                 R{" "}
-                {operationalEfficiencyData.length > 0
+                {Array.isArray(operationalEfficiencyData) && operationalEfficiencyData.length > 0
                   ? operationalEfficiencyData[operationalEfficiencyData.length - 1].value.toFixed(0)
                   : 0}
               </p>
@@ -83,9 +83,9 @@ export function PerformanceCharts({
             <div>
               <p className={`text-xs ${isDarkMode ? "text-zinc-400" : "text-gray-500"}`}>Trend</p>
               <p
-                className={`text-lg font-bold ${operationalEfficiencyData.length > 1 && operationalEfficiencyData[operationalEfficiencyData.length - 1].value < operationalEfficiencyData[operationalEfficiencyData.length - 2].value ? "text-green-500" : "text-red-500"}`}
+                className={`text-lg font-bold ${Array.isArray(operationalEfficiencyData) && operationalEfficiencyData.length > 1 && operationalEfficiencyData[operationalEfficiencyData.length - 1].value < operationalEfficiencyData[operationalEfficiencyData.length - 2].value ? "text-green-500" : "text-red-500"}`}
               >
-                {operationalEfficiencyData.length > 1
+                {Array.isArray(operationalEfficiencyData) && operationalEfficiencyData.length > 1
                   ? `${(operationalEfficiencyData[operationalEfficiencyData.length - 1].value - operationalEfficiencyData[operationalEfficiencyData.length - 2].value).toFixed(1)}`
                   : "N/A"}
               </p>
