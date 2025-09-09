@@ -5,13 +5,17 @@ export async function GET() {
   try {
     const carriers = getLiveTrackingStatus()
 
+    const carriersLength = Array.isArray(carriers) ? carriers.length : 0
+    const activeLength = Array.isArray(carriers) ? carriers.filter((c) => c.status === "active").length : 0
+    const supportedLength = Array.isArray(carriers) ? carriers.filter((c) => c.isLiveSupported).length : 0
+
     return NextResponse.json({
       success: true,
       carriers,
       summary: {
-        total: carriers.length,
-        active: carriers.filter((c) => c.status === "active").length,
-        supported: carriers.filter((c) => c.isLiveSupported).length,
+        total: carriersLength,
+        active: activeLength,
+        supported: supportedLength,
       },
       timestamp: new Date().toISOString(),
     })

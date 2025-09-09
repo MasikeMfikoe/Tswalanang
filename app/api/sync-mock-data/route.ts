@@ -225,13 +225,17 @@ export async function GET(request: NextRequest) {
       throw authError
     }
 
+    const profilesLength = Array.isArray(profiles) ? profiles.length : 0
+    const authUsersLength = Array.isArray(authUsers?.users) ? authUsers.users.length : 0
+    const mockUsersLength = Array.isArray(MOCK_USERS) ? MOCK_USERS.length : 0
+
     return NextResponse.json({
       success: true,
-      mockUsers: MOCK_USERS.length,
-      supabaseProfiles: profiles?.length || 0,
-      supabaseAuthUsers: authUsers?.users?.length || 0,
+      mockUsers: mockUsersLength,
+      supabaseProfiles: profilesLength,
+      supabaseAuthUsers: authUsersLength,
       profiles: profiles,
-      needsSync: profiles?.length !== MOCK_USERS.length,
+      needsSync: profilesLength !== mockUsersLength,
     })
   } catch (error) {
     console.error("❌ Status check error:", error)

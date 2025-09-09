@@ -2,7 +2,14 @@ import { createClient } from "@supabase/supabase-js"
 import { type NextRequest, NextResponse } from "next/server"
 import { AuditLogger } from "@/lib/audit-logger"
 
-const supabaseAdmin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error("Missing required Supabase environment variables")
+}
+
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,
@@ -12,7 +19,10 @@ const supabaseAdmin = createClient(process.env.SUPABASE_URL!, process.env.SUPABA
 // Helper function to get user ID from request
 const getUserIdFromRequest = async (request: NextRequest): Promise<string | null> => {
   try {
-    const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!)
+    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !anonKey) return null
+
+    const supabase = createClient(supabaseUrl, anonKey)
     const {
       data: { user },
       error,

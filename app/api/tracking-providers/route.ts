@@ -6,11 +6,16 @@ export async function GET() {
     const trackingService = new MultiProviderTrackingService()
     const providerStatus = trackingService.getProviderStatus()
 
+    const providersLength = Array.isArray(providerStatus) ? providerStatus.length : 0
+    const availableProvidersLength = Array.isArray(providerStatus)
+      ? providerStatus.filter((p) => p.available).length
+      : 0
+
     return NextResponse.json({
       success: true,
       providers: providerStatus,
-      totalProviders: providerStatus.length,
-      availableProviders: providerStatus.filter((p) => p.available).length,
+      totalProviders: providersLength,
+      availableProviders: availableProvidersLength,
     })
   } catch (error) {
     return NextResponse.json({ success: false, error: "Failed to get provider status" }, { status: 500 })
