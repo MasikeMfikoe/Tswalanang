@@ -33,6 +33,10 @@ export default function TrackingUserCreator() {
     setIsLoading(true)
 
     try {
+      if (!userData.name || !userData.surname || !userData.username || !userData.password) {
+        throw new Error("Please fill in all required fields")
+      }
+
       // 1. Create auth user in Supabase
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email || `${userData.username}@example.com`,
@@ -41,9 +45,13 @@ export default function TrackingUserCreator() {
 
       if (authError) throw authError
 
+      if (!authData?.user?.id) {
+        throw new Error("Failed to create user - no user ID returned")
+      }
+
       // 2. Create user profile with tracking-only permissions
       const { error: profileError } = await supabase.from("user_profiles").insert({
-        id: authData.user?.id,
+        id: authData.user.id,
         username: userData.username,
         name: userData.name,
         surname: userData.surname,
@@ -57,11 +65,26 @@ export default function TrackingUserCreator() {
 
       if (profileError) throw profileError
 
-      // Additional code can be added here if needed
+      toast({
+        title: "Success",
+        description: "Tracking user created successfully",
+      })
+
+      // Reset form
+      setUserData({
+        name: "",
+        surname: "",
+        username: "",
+        email: "",
+        password: "",
+        companyName: "",
+        orderId: "",
+      })
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
       toast({
         title: "Error",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
