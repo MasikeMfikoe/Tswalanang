@@ -37,12 +37,16 @@ export default function ShipmentTrackerPage() {
   // ----- life-cycle --------------------------------------------------------
   useEffect(() => {
     inputRef.current?.focus()
-    const stored = localStorage.getItem(RECENT_KEY)
-    if (stored) setRecent(JSON.parse(stored))
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(RECENT_KEY)
+      if (stored) setRecent(JSON.parse(stored))
+    }
   }, [])
 
   // close autocomplete when clicking outside
   useEffect(() => {
+    if (typeof document === "undefined") return
+
     const handler = (e: MouseEvent) => {
       if (
         suggestionBoxRef.current &&
@@ -60,7 +64,9 @@ export default function ShipmentTrackerPage() {
   const saveRecent = (value: string) => {
     setRecent((prev) => {
       const updated = [value, ...prev.filter((v) => v !== value)].slice(0, 5)
-      localStorage.setItem(RECENT_KEY, JSON.stringify(updated))
+      if (typeof window !== "undefined") {
+        localStorage.setItem(RECENT_KEY, JSON.stringify(updated))
+      }
       return updated
     })
   }

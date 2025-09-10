@@ -50,7 +50,9 @@ export default function ClientPackDocuments({ orderId, freightType }: ClientPack
       alert("This is a mock document. In a real application, this would open the document.")
       return
     }
-    window.open(document.url, "_blank")
+    if (typeof window !== "undefined") {
+      window.open(document.url, "_blank")
+    }
   }
 
   const handleDownloadDocument = (document: ClientPackDocument) => {
@@ -59,12 +61,14 @@ export default function ClientPackDocuments({ orderId, freightType }: ClientPack
       return
     }
 
-    const link = document.createElement("a")
-    link.href = document.url
-    link.download = document.name
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    if (typeof document !== "undefined" && typeof window !== "undefined") {
+      const link = document.createElement("a")
+      link.href = document.url
+      link.download = document.name
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
   }
 
   const handleDownloadAll = () => {
@@ -154,7 +158,12 @@ export default function ClientPackDocuments({ orderId, freightType }: ClientPack
                       </span>
                     </td>
                     <td className="p-4">
-                      <Button variant="outline" size="sm" className="mr-2" onClick={() => handleViewDocument(doc)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mr-2 bg-transparent"
+                        onClick={() => handleViewDocument(doc)}
+                      >
                         View
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => handleDownloadDocument(doc)}>
