@@ -18,7 +18,7 @@ export default function TestSupabaseConnection() {
     // Get Supabase URL and key (masked)
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "Not set"
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      ? `${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.substring(0, 5)}...${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.substring(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.length - 5)}`
+      ? `${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.substring(0, 5)}...${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.substring((process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length || 0) - 5)}`
       : "Not set"
 
     setSupabaseUrl(url)

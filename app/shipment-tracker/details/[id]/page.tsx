@@ -324,7 +324,7 @@ export default function ShipmentDetails() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-gray-500">Estimated arrival date</span>
                           <span className="font-semibold">
-                            {shipment?.timeline && shipment.timeline.length > 0 ? (
+                            {shipment?.timeline && Array.isArray(shipment.timeline) && shipment.timeline.length > 0 ? (
                               <>
                                 {new Date(shipment.timeline[shipment.timeline.length - 1].date).toLocaleDateString()}{" "}
                                 {new Date(shipment.timeline[shipment.timeline.length - 1].date).toLocaleTimeString([], {
@@ -352,7 +352,7 @@ export default function ShipmentDetails() {
                       <div className="relative">
                         {/* Timeline events */}
                         <div className="space-y-0">
-                          {shipment?.timeline && shipment.timeline.length > 0 ? (
+                          {shipment?.timeline && Array.isArray(shipment.timeline) && shipment.timeline.length > 0 ? (
                             shipment.timeline.map((event, index) => {
                               const isLast = index === shipment.timeline.length - 1
                               const isFirst = index === 0

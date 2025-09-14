@@ -202,7 +202,7 @@ export class SeaRatesService {
     if (timeline.length > 0) {
       const lastGroup = timeline[timeline.length - 1]
       if (lastGroup?.events && Array.isArray(lastGroup.events) && lastGroup.events.length > 0) {
-        lastLocationName = lastGroup.events[lastGroup.events.length - 1].location
+        lastLocationName = lastGroup.events[lastGroup.events.length - 1]?.location || "N/A"
       }
     }
 
