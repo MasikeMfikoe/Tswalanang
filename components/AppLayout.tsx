@@ -75,7 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isClient = user.role === "client"
 
   const hasPageAccess = (pageKey: string) => {
-    if (!user?.pageAccess || user.pageAccess.length === 0) return true
+    if (!user?.pageAccess || (user.pageAccess && user.pageAccess.length === 0)) return true
     return user.pageAccess.includes(pageKey)
   }
 

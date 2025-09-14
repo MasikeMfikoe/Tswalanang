@@ -112,7 +112,7 @@ export default function CargoStatusTab({ customerId, startDate, endDate }: Cargo
     )
   }
 
-  if (orders.length === 0) {
+  if (!orders || orders.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center p-6 text-center">
@@ -145,7 +145,7 @@ export default function CargoStatusTab({ customerId, startDate, endDate }: Cargo
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map((order) => (
+            {(orders || []).map((order) => (
               <TableRow key={order.id}>
                 <TableCell className="font-medium">{order.importer}</TableCell>
                 <TableCell>{order.po_number || "N/A"}</TableCell>

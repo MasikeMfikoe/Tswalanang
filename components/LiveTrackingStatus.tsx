@@ -68,8 +68,8 @@ export function LiveTrackingStatus() {
     }
   }
 
-  const activeCarriers = trackingStatus?.filter((c) => c.status === "active")?.length || 0
-  const totalSupported = trackingStatus?.filter((c) => c.isLiveSupported)?.length || 0
+  const activeCarriers = (trackingStatus || []).filter((c) => c.status === "active").length
+  const totalSupported = (trackingStatus || []).filter((c) => c.isLiveSupported).length
 
   if (isLoading) {
     return (
@@ -97,7 +97,7 @@ export function LiveTrackingStatus() {
       </CardHeader>
       <CardContent className="pt-2">
         <div className="space-y-2">
-          {trackingStatus.map((carrier) => (
+          {(trackingStatus || []).map((carrier) => (
             <div key={carrier.carrierName} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {getStatusIcon(carrier.status)}

@@ -420,7 +420,7 @@ export default function ClientPortalPage() {
               <CardDescription>Your latest shipment activities.</CardDescription>
             </CardHeader>
             <CardContent>
-              {recentOrders.length === 0 ? (
+              {!recentOrders || recentOrders.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">No recent orders to display.</div>
               ) : (
                 <div className="overflow-x-auto">
@@ -437,7 +437,7 @@ export default function ClientPortalPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {recentOrders.map((order) => (
+                      {(recentOrders || []).map((order) => (
                         <TableRow key={order.id}>
                           <TableCell className="font-medium">{order.po_number}</TableCell>
                           {isAdmin && <TableCell>{order.customer_name}</TableCell>}
