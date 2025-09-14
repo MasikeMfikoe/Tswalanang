@@ -253,7 +253,11 @@ export default function DashboardContent() {
   // --- Real-time Data Calculations and Aggregations ---
 
   // Calculate order statistics
-  const totalOrderValue = filteredOrders.reduce((sum, order) => sum + (order.totalValue || order.total_value || 0), 0)
+  const totalOrderValue = filteredOrders.reduce((sum, order) => {
+    console.log("[v0] Order value calculation:", order.id, order.total_value || 0)
+    return sum + (order.total_value || 0)
+  }, 0)
+
   const activeOrders = filteredOrders.filter(
     (order) => order.status === "In Progress" || order.status === "in_progress",
   )
@@ -276,7 +280,7 @@ export default function DashboardContent() {
     const customerTotalValues: { [customerId: string]: number } = {}
     allOrders.forEach((order) => {
       const customerId = order.customer_id // Assuming orders have customer_id
-      const orderValue = order.totalValue || order.total_value || 0
+      const orderValue = order.total_value || 0
       if (customerId) {
         customerTotalValues[customerId] = (customerTotalValues[customerId] || 0) + orderValue
       }
@@ -366,7 +370,7 @@ export default function DashboardContent() {
     ranges.forEach((range) => (counts[range.label] = 0))
 
     filteredOrders.forEach((order) => {
-      const value = order.total_value || order.totalValue || 0
+      const value = order.total_value || 0
       for (const range of ranges) {
         if (value >= range.min && value <= range.max) {
           counts[range.label]++
@@ -555,7 +559,7 @@ export default function DashboardContent() {
       const orderDate = new Date(order.created_at || order.createdAt)
       if (orderDate >= oneYearAgo) {
         const month = format(orderDate, "MMM")
-        monthlyData[month].totalValue += order.total_value || order.totalValue || 0
+        monthlyData[month].totalValue += order.total_value || 0
         monthlyData[month].count++
       }
     })

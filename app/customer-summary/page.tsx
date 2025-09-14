@@ -286,7 +286,7 @@ export default function CustomerSummary() {
       console.log(`[v0] Updating URL with dates: ${startDate} to ${endDate}`)
       updateURL(selectedCustomer, startDate, endDate)
     }
-  }, [selectedCustomer, startDate, endDate]) // Remove updateURL from dependencies
+  }, [selectedCustomer, startDate, endDate]) // Removed updateURL from dependencies to prevent infinite loop
 
   const handleCustomDateSubmit = () => {
     if (startDate && endDate) {

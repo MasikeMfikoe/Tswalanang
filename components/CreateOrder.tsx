@@ -13,7 +13,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { NewOrderDocumentUpload } from "@/components/NewOrderDocumentUpload"
 import EDISubmissionStatus from "@/components/EDISubmissionStatus"
-import { supabase } from "@/lib/supabase"
 import type { Order, Customer, Status, CargoStatus, FreightType } from "@/types/models"
 import { Textarea } from "@/components/ui/textarea"
 import { v4 as uuidv4 } from "uuid" // Import uuidv4
@@ -180,6 +179,7 @@ export default function CreateOrder() {
   const calculateFinancials = () => {
     const customsVAT = financials.commercialValue * 0.15
     const totalDisbursements =
+      financials.commercialValue + // Include commercial value in total disbursements
       financials.customsDuties +
       customsVAT +
       financials.handlingFees +
@@ -205,6 +205,11 @@ export default function CreateOrder() {
 
   // Handle financial field changes
   const handleFinancialChange = (field: string, value: string) => {
+    if (field === "notes") {
+      setFinancials((prev) => ({ ...prev, [field]: value }))
+      return
+    }
+
     const numericValue = Number.parseFloat(value) || 0
     setFinancials((prev) => {
       const updated = { ...prev, [field]: numericValue }
@@ -246,57 +251,82 @@ export default function CreateOrder() {
     }
   }, [order.importer, order.freightType, customers])
 
-  // Handle form submission - Save directly to Supabase
   const handleSubmit = async (e: React.MouseEvent) => {
     e.preventDefault()
     if (!validateForm()) return
 
     setLoading(true)
     try {
-      // Prepare order data for Supabase - include all required fields
+      const calculatedFinancials = calculateFinancials()
+
       const orderData = {
-        order_number: order.poNumber,
-        po_number: order.poNumber,
-        supplier: order.supplier,
-        importer: order.importer,
-        origin: order.origin || "Unknown", // Provide default value
-        destination: order.destination || "Unknown", // Provide default value
+        order_number: order.poNumber || "",
+        po_number: order.poNumber || "",
+        supplier: order.supplier || "",
+        importer: order.importer || "",
+        origin: order.origin || "Unknown",
+        destination: order.destination || "Unknown",
         status: order.status || "Pending",
         cargo_status: order.cargoStatus || "instruction-sent",
         freight_type: order.freightType || "Sea Freight",
         cargo_status_comment: order.cargoStatusComment || "",
-        total_value: 0,
-        customer_name: order.importer,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        tracking_number: order.tracking_number || null, // Include tracking number
+        customer_name: order.importer || "",
+        tracking_number: order.tracking_number || null,
+        currency: "ZAR",
+        // Financial fields mapped to exact database columns
+        value: financials.commercialValue,
+        total_value: calculatedFinancials.total,
+        commercial_value: financials.commercialValue,
+        customs_duties: financials.customsDuties,
+        handling_fees: financials.handlingFees,
+        shipping_cost: financials.shippingCost,
+        documentation_fee: financials.documentationFee,
+        communication_fee: financials.communicationFee,
+        financial_notes: financials.notes,
+        total_amount: calculatedFinancials.total,
+        vat_amount: calculatedFinancials.vat,
+        discount_amount: 0.0,
+        customs_vat: calculatedFinancials.customsVAT,
+        total_disbursements: calculatedFinancials.totalDisbursements,
+        facility_fee: calculatedFinancials.facilityFeeAmount,
+        agency_fee: calculatedFinancials.agencyFeeAmount,
+        subtotal_amount: calculatedFinancials.subtotal,
       }
 
-      const { data, error } = await supabase.from("orders").insert([orderData]).select().single()
+      console.log("[v0] Creating order with all financial fields mapped to database schema:", orderData)
 
-      if (error) {
-        console.error("Supabase error:", error)
-        toast({
-          title: "Error",
-          description: `Failed to create order: ${error.message}`,
-          variant: "destructive",
-        })
-        return
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(orderData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
 
-      setCreatedOrderId(data.id)
+      const result = await response.json()
+
+      if (!result.success || !result.data) {
+        throw new Error(result.error || "No data returned from API")
+      }
+
+      setCreatedOrderId(result.data.id)
 
       toast({
         title: "Success",
-        description: `Order ${orderData.order_number} created successfully!`,
+        description: `Order ${orderData.order_number} created successfully with total value R ${calculatedFinancials.total.toFixed(2)}!`,
       })
 
       router.push("/orders")
     } catch (error) {
-      console.error("Error creating order:", error)
+      console.error("[v0] ❌ Error creating order:", error)
       toast({
         title: "Error",
-        description: "Failed to create order. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create order. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -617,6 +647,14 @@ export default function CreateOrder() {
                     <div className="border-t pt-6">
                       <h3 className="text-lg font-semibold mb-4">Financial Summary</h3>
                       <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                        <div className="flex justify-between">
+                          <span>Commercial Value:</span>
+                          <span>R {financials.commercialValue.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Customs VAT (15%):</span>
+                          <span>R {calculateFinancials().customsVAT.toFixed(2)}</span>
+                        </div>
                         <div className="flex justify-between">
                           <span>Total Disbursements:</span>
                           <span>R {calculateFinancials().totalDisbursements.toFixed(2)}</span>
