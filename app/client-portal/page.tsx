@@ -172,8 +172,8 @@ export default function ClientPortalPage() {
       // Fallback to mock data if user is not logged in or ID is not available
       console.warn("User ID not available, using mock data for client portal.")
       setTotalOrders(mockRecentOrders.length)
-      setActiveOrders(mockRecentOrders.filter((o) => o.status === "In Progress").length)
-      setCompletedOrders(mockRecentOrders.filter((o) => o.status === "Completed").length)
+      setActiveOrders((mockRecentOrders || []).filter((o) => o.status === "In Progress").length)
+      setCompletedOrders((mockRecentOrders || []).filter((o) => o.status === "Completed").length)
       setTotalDocuments(5) // Mock number of documents
       setRecentOrders(mockRecentOrders)
       setIsLoadingData(false)
@@ -190,10 +190,10 @@ export default function ClientPortalPage() {
       if (ordersResponse.ok && ordersResult.data) {
         const fetchedOrders: Order[] = ordersResult.data
         setTotalOrders(fetchedOrders.length)
-        setActiveOrders(fetchedOrders.filter((o) => o.status === "In Progress").length)
-        setCompletedOrders(fetchedOrders.filter((o) => o.status === "Completed").length)
+        setActiveOrders((fetchedOrders || []).filter((o) => o.status === "In Progress").length)
+        setCompletedOrders((fetchedOrders || []).filter((o) => o.status === "Completed").length)
         // Sort recent orders by created_at descending
-        const sortedRecentOrders = fetchedOrders
+        const sortedRecentOrders = (fetchedOrders || [])
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           .slice(0, 5) // Get top 5 recent orders
         setRecentOrders(sortedRecentOrders)
@@ -202,8 +202,8 @@ export default function ClientPortalPage() {
         setError(ordersResult.error || ordersResult.message || "Failed to load orders.")
         // Fallback to mock data on API error
         setTotalOrders(mockRecentOrders.length)
-        setActiveOrders(mockRecentOrders.filter((o) => o.status === "In Progress").length)
-        setCompletedOrders(mockRecentOrders.filter((o) => o.status === "Completed").length)
+        setActiveOrders((mockRecentOrders || []).filter((o) => o.status === "In Progress").length)
+        setCompletedOrders((mockRecentOrders || []).filter((o) => o.status === "Completed").length)
         setRecentOrders(mockRecentOrders)
       }
 
@@ -225,8 +225,8 @@ export default function ClientPortalPage() {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.")
       // Fallback to mock data on any error
       setTotalOrders(mockRecentOrders.length)
-      setActiveOrders(mockRecentOrders.filter((o) => o.status === "In Progress").length)
-      setCompletedOrders(mockRecentOrders.filter((o) => o.status === "Completed").length)
+      setActiveOrders((mockRecentOrders || []).filter((o) => o.status === "In Progress").length)
+      setCompletedOrders((mockRecentOrders || []).filter((o) => o.status === "Completed").length)
       setTotalDocuments(5)
       setRecentOrders(mockRecentOrders)
     } finally {
