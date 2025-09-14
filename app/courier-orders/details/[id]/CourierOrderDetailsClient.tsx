@@ -242,10 +242,10 @@ export default function CourierOrderDetailsClient({ id }: { id: string }) {
         <TabsContent value="items">
           <Card>
             <CardHeader>
-              <CardTitle>Package Items ({items.length})</CardTitle>
+              <CardTitle>Package Items ({items?.length || 0})</CardTitle>
             </CardHeader>
             <CardContent>
-              {items.length === 0 ? (
+              {!items || items.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">No package items found for this order</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -281,7 +281,7 @@ export default function CourierOrderDetailsClient({ id }: { id: string }) {
               <CardTitle>Tracking History</CardTitle>
             </CardHeader>
             <CardContent>
-              {trackingEvents.length === 0 ? (
+              {!trackingEvents || trackingEvents.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">No tracking events found for this order</p>
               ) : (
                 <div className="space-y-4">

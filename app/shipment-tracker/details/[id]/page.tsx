@@ -33,7 +33,7 @@ const mockShipmentData = {
     {
       date: "2023-03-31T15:57:00",
       status: "Gate in",
-      location: "FOS SUR MER",
+      location: "Fos sur Mer",
       sublocation: "SEAYARD 2XL",
       completed: true,
     },

@@ -326,7 +326,9 @@ export function VesselTracker({ onVesselFound }: VesselTrackerProps) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {vesselData.port_calls && Array.isArray(vesselData.port_calls) && vesselData.port_calls.length > 0 ? (
+                  {vesselData?.port_calls &&
+                  Array.isArray(vesselData.port_calls) &&
+                  vesselData.port_calls.length > 0 ? (
                     <div className="space-y-4">
                       {vesselData.port_calls.map((portCall, index) => (
                         <div key={index} className="border rounded-lg p-4">
