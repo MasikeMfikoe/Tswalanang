@@ -142,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-      if (!supabaseUrl || !supabaseAnonKey) {
+      if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.trim() === "" || supabaseAnonKey.trim() === "") {
         console.warn("⚠️ Supabase environment variables not configured, using mock authentication")
         setUser(null)
         setIsLoading(false)
@@ -240,7 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-      if (!supabaseUrl || !supabaseAnonKey) {
+      if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.trim() === "" || supabaseAnonKey.trim() === "") {
         console.warn("⚠️ Supabase not configured, using mock authentication")
         return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
       }

@@ -6,7 +6,25 @@ interface TrackingNumberInfo {
 }
 
 export function analyzeTrackingNumber(trackingNumber: string): TrackingNumberInfo {
+  if (!trackingNumber || typeof trackingNumber !== "string") {
+    return {
+      type: "unknown",
+      shippingLine: null,
+      prefix: "",
+      isValid: false,
+    }
+  }
+
   const cleanNumber = trackingNumber.trim().toUpperCase().replace(/[\s-]/g, "")
+
+  if (cleanNumber.length === 0) {
+    return {
+      type: "unknown",
+      shippingLine: null,
+      prefix: "",
+      isValid: false,
+    }
+  }
 
   // Container number pattern: 4 letters + 7 digits (+ optional check digit)
   const containerPattern = /^[A-Z]{4}[0-9]{6,7}[0-9]?$/

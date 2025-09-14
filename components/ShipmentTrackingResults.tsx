@@ -152,8 +152,8 @@ export default function ShipmentTrackingResults({
       >
         <div className="absolute inset-0 bg-black/50 rounded-lg" />
         <div className="relative z-10 text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">Check your browser New Tab for tracking results</h2>
-          <p className="text-lg text-white/80 mb-2">Your shipment tracking has been opened in a new browser tab</p>
+          <h2 className="text-4xl font-bold text-white mb-4">Error Fetching Tracking Data</h2>
+          <p className="text-lg text-white/80 mb-2">{error}</p>
           {source && <p className="text-sm text-white/60">Source: {source}</p>}
         </div>
       </div>
