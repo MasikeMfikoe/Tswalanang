@@ -8,12 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, CalendarDays, ArrowRight, MapPin } from 'lucide-react' // Import MapPin
+import { Search, CalendarDays, ArrowRight, MapPin, ExternalLink } from "lucide-react" // Import MapPin and ExternalLink
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast" // Import useToast
+import { analyzeTrackingNumber, getShippingLineInfo } from "@/lib/shipping-line-utils" // Import shipping line utilities
 
 export default function ClientPortalOrdersPage() {
   const { user } = useAuth()
@@ -83,6 +84,23 @@ export default function ClientPortalOrdersPage() {
 
   const handleTrackShipment = (trackingNumber?: string | null) => {
     if (trackingNumber) {
+      router.push(`/shipment-tracker/results/${trackingNumber}`)
+    } else {
+      toast({
+        title: "No Tracking Number",
+        description: "This order does not have a tracking number available.",
+        variant: "default",
+      })
+    }
+  }
+
+  const handleShippingLineTrack = (trackingNumber?: string | null) => {
+    if (trackingNumber) {
+      const trackingInfo = analyzeTrackingNumber(trackingNumber)
+      const shippingLineInfo = getShippingLineInfo(trackingInfo, trackingNumber)
+
+      // Open shipping line URL in new tab and also navigate to internal tracker
+      window.open(shippingLineInfo.url, "_blank")
       router.push(`/shipment-tracker/results/${trackingNumber}`)
     } else {
       toast({
@@ -194,6 +212,23 @@ export default function ClientPortalOrdersPage() {
                             <MapPin className="h-4 w-4 mr-1" />
                             Track
                           </Button>
+                          {order.tracking_number && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleShippingLineTrack(order.tracking_number)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              {(() => {
+                                const trackingInfo = analyzeTrackingNumber(order.tracking_number)
+                                const shippingLineInfo = getShippingLineInfo(trackingInfo, order.tracking_number)
+                                return shippingLineInfo.name !== "Unknown Shipping Line"
+                                  ? shippingLineInfo.name
+                                  : "Shipping Line"
+                              })()}
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

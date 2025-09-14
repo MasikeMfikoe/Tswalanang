@@ -51,12 +51,32 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "created_at"
     const sortOrder = searchParams.get("sortOrder") || "desc"
     const customerId = searchParams.get("customerId")
+    const from = searchParams.get("from")
+    const to = searchParams.get("to")
+    const excludeStatus = searchParams.get("excludeStatus")
 
     let query = supabaseAdmin.from("orders").select("*", { count: "exact" })
 
-    // Apply customer filter if provided
-    if (customerId) {
-      query = query.eq("customer_id", customerId)
+    // Apply date range filtering
+    if (from) {
+      query = query.gte("created_at", from)
+    }
+
+    if (to) {
+      // Add one day to include the end date
+      const endDate = new Date(to)
+      endDate.setDate(endDate.getDate() + 1)
+      query = query.lt("created_at", endDate.toISOString().split("T")[0])
+    }
+
+    if (excludeStatus) {
+      const statusesToExclude = excludeStatus
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+      for (const status of statusesToExclude) {
+        query = query.neq("status", status)
+      }
     }
 
     // Apply search filter if provided
@@ -75,8 +95,21 @@ export async function GET(request: NextRequest) {
     } = await query.order(sortBy, { ascending: sortOrder === "asc" }).range(startRow, startRow + pageSize - 1)
 
     if (error) {
-      console.error("[v0] ❌ Error fetching orders:", error)
-      return NextResponse.json({ error: "Failed to fetch orders", details: error.message }, { status: 500 })
+      console.error("[v0] ❌ Error fetching orders:", error.message)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to fetch orders",
+          details: error.message,
+        },
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache", // Fix headers error by ensuring all header values are defined
+          },
+        },
+      )
     }
 
     console.log(`[v0] ✅ Successfully fetched ${orders?.length || 0} orders`)
@@ -84,19 +117,37 @@ export async function GET(request: NextRequest) {
     // Calculate total pages
     const totalPages = count ? Math.ceil(count / pageSize) : 0
 
-    return NextResponse.json({
+    const responseData = {
       data: orders || [],
       total: count || 0,
-      page,
-      pageSize,
-      totalPages,
+      page: page,
+      pageSize: pageSize,
+      totalPages: totalPages,
       success: true,
+    }
+
+    return NextResponse.json(responseData, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache", // Fix headers error by ensuring all header values are defined
+      },
     })
   } catch (error) {
     console.error("[v0] ❌ Unexpected error in orders GET route:", error)
     return NextResponse.json(
-      { error: "An unexpected error occurred", details: (error as Error).message },
-      { status: 500 },
+      {
+        success: false,
+        error: "An unexpected error occurred",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache", // Fix headers error by ensuring all header values are defined
+        },
+      },
     )
   }
 }

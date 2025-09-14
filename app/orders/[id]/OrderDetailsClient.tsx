@@ -1,101 +1,104 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import DocumentManagement from "@/components/DocumentManagement";
-import PODManagement from "@/components/PODManagement";
-import ClientPackDocuments from "@/components/ClientPackDocuments";
-import EDISubmissionStatus from "@/components/EDISubmissionStatus";
-import { Download, Loader2, Search } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/lib/supabase";
+import type React from "react"
 
-type CustomerOption = { id: string | number; name: string };
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import DocumentManagement from "@/components/DocumentManagement"
+import PODManagement from "@/components/PODManagement"
+import ClientPackDocuments from "@/components/ClientPackDocuments"
+import EDISubmissionStatus from "@/components/EDISubmissionStatus"
+import { Download, Loader2, Search, ExternalLink } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { supabase } from "@/lib/supabase"
+import { analyzeTrackingNumber, getShippingLineInfo } from "@/lib/shipping-line-utils"
+
+type CustomerOption = { id: string | number; name: string }
 
 interface OrderData {
-  id: string;
-  order_number?: string;
-  po_number?: string;
-  supplier?: string;
-  importer?: string;
-  status?: string;
-  cargo_status?: string;
-  freight_type?: string;
-  cargo_status_comment?: string;
-  total_value?: number;
-  customer_name?: string;
-  origin?: string;
-  destination?: string;
-  created_at: string;
-  updated_at?: string;
-  tracking_number?: string | null;
+  id: string
+  order_number?: string
+  po_number?: string
+  supplier?: string
+  importer?: string
+  status?: string
+  cargo_status?: string
+  freight_type?: string
+  cargo_status_comment?: string
+  total_value?: number
+  customer_name?: string
+  origin?: string
+  destination?: string
+  created_at: string
+  updated_at?: string
+  tracking_number?: string | null
   // financials (optional presence)
-  commercial_value?: number;
-  customs_duties?: number;
-  handling_fees?: number;
-  shipping_cost?: number;
-  documentation_fee?: number;
-  communication_fee?: number;
-  financial_notes?: string;
-  customs_vat?: number;
-  total_disbursements?: number;
-  facility_fee?: number;
-  agency_fee?: number;
-  subtotal_amount?: number;
-  vat_amount?: number;
-  total_amount?: number;
+  commercial_value?: number
+  customs_duties?: number
+  handling_fees?: number
+  shipping_cost?: number
+  documentation_fee?: number
+  communication_fee?: number
+  financial_notes?: string
+  customs_vat?: number
+  total_disbursements?: number
+  facility_fee?: number
+  agency_fee?: number
+  subtotal_amount?: number
+  vat_amount?: number
+  total_amount?: number
 }
 
 interface CargoHistoryRow {
-  id: string;
-  status: string;
-  comment: string;
-  timestamp: string;
-  user: { name: string; surname: string };
+  id: string
+  status: string
+  comment: string
+  timestamp: string
+  user: { name: string; surname: string }
 }
 
 export default function OrderDetailsClient({ id }: { id: string }) {
-  const router = useRouter();
-  const { toast } = useToast();
+  const router = useRouter()
+  const { toast } = useToast()
 
-  const [order, setOrder] = useState<OrderData | null>(null);
-  const [tempOrder, setTempOrder] = useState<OrderData | null>(null);
-  const [customers, setCustomers] = useState<CustomerOption[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState("documents");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hasFinancialColumns, setHasFinancialColumns] = useState(false);
-  const [hasCalculatedFinancialColumns, setHasCalculatedFinancialColumns] = useState(false);
+  const [order, setOrder] = useState<OrderData | null>(null)
+  const [tempOrder, setTempOrder] = useState<OrderData | null>(null)
+  const [customers, setCustomers] = useState<CustomerOption[]>([])
+  const [isEditing, setIsEditing] = useState(false)
+  const [activeTab, setActiveTab] = useState("documents")
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [hasFinancialColumns, setHasFinancialColumns] = useState(false)
+  const [hasCalculatedFinancialColumns, setHasCalculatedFinancialColumns] = useState(false)
 
-  const [cargoStatusHistory, setCargoStatusHistory] = useState<CargoHistoryRow[]>([]);
+  const [cargoStatusHistory, setCargoStatusHistory] = useState<CargoHistoryRow[]>([])
 
-  const statuses = ["Pending", "In Progress", "Completed", "Cancelled"];
+  const statuses = ["Pending", "In Progress", "Completed", "Cancelled"]
 
   // ---------- Data fetching ----------
   const fetchOrderDetails = async () => {
     try {
-      setIsLoading(true);
-      setError(null);
+      setIsLoading(true)
+      setError(null)
 
-      const response = await fetch(`/api/orders/${id}`);
-      const data = await response.json();
+      const response = await fetch(`/api/orders/${id}`)
+      const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch order details");
+        throw new Error(data.error || "Failed to fetch order details")
       }
 
-      setOrder(data.order);
-      setTempOrder(data.order);
-      setHasFinancialColumns(Boolean(data.hasFinancialColumns));
-      setHasCalculatedFinancialColumns(Boolean(data.hasCalculatedFinancialColumns));
+      setOrder(data.order)
+      setTempOrder(data.order)
+      setHasFinancialColumns(Boolean(data.hasFinancialColumns))
+      setHasCalculatedFinancialColumns(Boolean(data.hasCalculatedFinancialColumns))
       setCargoStatusHistory([
         {
           id: "1",
@@ -104,29 +107,29 @@ export default function OrderDetailsClient({ id }: { id: string }) {
           timestamp: data.order.created_at,
           user: { name: "System", surname: "User" },
         },
-      ]);
+      ])
     } catch (e: any) {
-      setError(e.message || "Failed to fetch order details");
-      toast({ title: "Error", description: "Failed to load order details", variant: "destructive" });
+      setError(e.message || "Failed to fetch order details")
+      toast({ title: "Error", description: "Failed to load order details", variant: "destructive" })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const fetchCustomers = async () => {
     try {
-      const res = await fetch("/api/customers");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json();
+      const res = await fetch("/api/customers")
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const result = await res.json()
 
       if (result.success && result.data) {
         const mapped: CustomerOption[] = result.data.map((c: any) => ({
           id: c.id,
           name: c.name || c.company_name || `Customer ${c.id}`,
-        }));
-        setCustomers(mapped);
+        }))
+        setCustomers(mapped)
       } else {
-        throw new Error("Invalid customers response");
+        throw new Error("Invalid customers response")
       }
     } catch {
       // Fallback
@@ -135,227 +138,243 @@ export default function OrderDetailsClient({ id }: { id: string }) {
         { id: 2, name: "Global Traders" },
         { id: 3, name: "Tech Innovators" },
         { id: 4, name: "Default Customer" },
-      ]);
+      ])
     }
-  };
+  }
 
   useEffect(() => {
-    fetchOrderDetails();
-    fetchCustomers();
+    fetchOrderDetails()
+    fetchCustomers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id])
 
   useEffect(() => {
     if (!isEditing && activeTab === "upload") {
-      setActiveTab("documents");
+      setActiveTab("documents")
     }
-  }, [isEditing, activeTab]);
+  }, [isEditing, activeTab])
 
   // ---------- Handlers ----------
   const handleChange = (field: keyof OrderData, value: any) => {
-    setTempOrder((prev) => (prev ? { ...prev, [field]: value } : prev));
-  };
+    setTempOrder((prev) => (prev ? { ...prev, [field]: value } : prev))
+  }
 
   const handleCancel = () => {
-    setTempOrder(order);
-    setIsEditing(false);
-  };
+    setTempOrder(order)
+    setIsEditing(false)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tempOrder || !order) return;
+    e.preventDefault()
+    if (!tempOrder || !order) return
 
     try {
-      setIsSaving(true);
+      setIsSaving(true)
 
-      const { data: existingOrder, error: checkError } = await supabase
-        .from("orders")
-        .select("id")
-        .eq("id", id)
-        .maybeSingle();
-
-      if (checkError) throw new Error("Failed to verify order exists");
-      if (!existingOrder) throw new Error("Order not found. It may have been deleted.");
-
-      const updateData: Partial<OrderData> = { ...tempOrder };
-      delete updateData.id;
-      delete updateData.created_at;
-      updateData.updated_at = new Date().toISOString();
+      const updateData: Partial<OrderData> = { ...tempOrder }
+      delete updateData.id
+      delete updateData.created_at
+      updateData.updated_at = new Date().toISOString()
 
       if (hasFinancialColumns) {
-        updateData.financial_notes = tempOrder.financial_notes || null;
+        updateData.financial_notes = tempOrder.financial_notes || null
 
         if (hasCalculatedFinancialColumns) {
-          const commercialValue = tempOrder.commercial_value || 0;
-          const customsDuties = tempOrder.customs_duties || 0;
-          const customsVAT = commercialValue * 0.15;
-          const handlingFees = tempOrder.handling_fees || 0;
-          const shippingCost = tempOrder.shipping_cost || 0;
-          const documentationFee = tempOrder.documentation_fee || 0;
-          const communicationFee = tempOrder.communication_fee || 0;
+          const commercialValue = tempOrder.commercial_value || 0
+          const customsDuties = tempOrder.customs_duties || 0
+          const customsVAT = commercialValue * 0.15
+          const handlingFees = tempOrder.handling_fees || 0
+          const shippingCost = tempOrder.shipping_cost || 0
+          const documentationFee = tempOrder.documentation_fee || 0
+          const communicationFee = tempOrder.communication_fee || 0
 
           const totalDisbursements =
-            customsDuties + customsVAT + handlingFees + shippingCost + documentationFee + communicationFee;
-          const facilityFee = totalDisbursements * 0.025;
-          const agencyFee = totalDisbursements * 0.035;
-          const subtotal = totalDisbursements + facilityFee + agencyFee;
-          const vat = subtotal * 0.15;
-          const total = subtotal + vat;
+            customsDuties + customsVAT + handlingFees + shippingCost + documentationFee + communicationFee
+          const facilityFee = totalDisbursements * 0.025
+          const agencyFee = totalDisbursements * 0.035
+          const subtotal = totalDisbursements + facilityFee + agencyFee
+          const vat = subtotal * 0.15
+          const total = subtotal + vat
 
-          updateData.customs_vat = customsVAT;
-          updateData.total_disbursements = totalDisbursements;
-          updateData.facility_fee = facilityFee;
-          updateData.agency_fee = agencyFee;
-          updateData.subtotal_amount = subtotal;
-          updateData.vat_amount = vat;
-          updateData.total_amount = total;
+          updateData.customs_vat = customsVAT
+          updateData.total_disbursements = totalDisbursements
+          updateData.facility_fee = facilityFee
+          updateData.agency_fee = agencyFee
+          updateData.subtotal_amount = subtotal
+          updateData.vat_amount = vat
+          updateData.total_amount = total
         }
       } else {
-        delete updateData.commercial_value;
-        delete updateData.customs_duties;
-        delete updateData.handling_fees;
-        delete updateData.shipping_cost;
-        delete updateData.documentation_fee;
-        delete updateData.communication_fee;
-        delete updateData.financial_notes;
-        delete updateData.customs_vat;
-        delete updateData.total_disbursements;
-        delete updateData.facility_fee;
-        delete updateData.agency_fee;
-        delete updateData.subtotal_amount;
-        delete updateData.vat_amount;
-        delete updateData.total_amount;
+        delete updateData.commercial_value
+        delete updateData.customs_duties
+        delete updateData.handling_fees
+        delete updateData.shipping_cost
+        delete updateData.documentation_fee
+        delete updateData.communication_fee
+        delete updateData.financial_notes
+        delete updateData.customs_vat
+        delete updateData.total_disbursements
+        delete updateData.facility_fee
+        delete updateData.agency_fee
+        delete updateData.subtotal_amount
+        delete updateData.vat_amount
+        delete updateData.total_amount
       }
 
-      const { error: updateError, count } = await supabase
-        .from("orders")
-        .update(updateData)
-        .eq("id", id)
-        .select("*", { count: "exact" });
+      console.log("[v0] Updating order via API:", id, updateData)
 
-      if (updateError) throw updateError;
-      if (!count) throw new Error("No order was updated.");
+      const response = await fetch(`/api/orders/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      })
 
-      const { data: updatedOrder } = await supabase.from("orders").select("*").eq("id", id).single();
-      const finalOrderData = updatedOrder || tempOrder;
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to update order")
+      }
+
+      console.log("[v0] Order updated successfully:", result.data)
 
       // If cargo status changed, add history row
       if (order.cargo_status !== tempOrder.cargo_status) {
+        try {
+          const historyEntry = {
+            order_id: id,
+            status: tempOrder.cargo_status || "pending",
+            comment: tempOrder.cargo_status_comment || "",
+            created_at: new Date().toISOString(),
+            user_name: "Current User",
+          }
+          const { error: historyError } = await supabase.from("cargo_status_history").insert(historyEntry)
+          if (historyError) {
+            console.warn("Failed to create cargo status history:", historyError)
+          }
+          setCargoStatusHistory((prev) => [
+            {
+              id: Date.now().toString(),
+              status: tempOrder.cargo_status || "pending",
+              comment: tempOrder.cargo_status_comment || "",
+              timestamp: new Date().toISOString(),
+              user: { name: "Current", surname: "User" },
+            },
+            ...prev,
+          ])
+          // clear comment after saving
+          setTempOrder((prev) => (prev ? { ...prev, cargo_status_comment: "" } : prev))
+        } catch (historyError) {
+          console.warn("Failed to update cargo status history:", historyError)
+        }
+      }
+
+      const finalOrderData = result.data || tempOrder
+      setOrder(finalOrderData)
+      setTempOrder(finalOrderData)
+      setIsEditing(false)
+
+      toast({ title: "Success", description: "Order updated successfully" })
+      await fetchOrderDetails()
+    } catch (e: any) {
+      console.error("[v0] Error updating order:", e)
+      toast({ title: "Error", description: e.message || "Failed to update order", variant: "destructive" })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handlePaymentReceived = async () => {
+    if (!order) return
+
+    try {
+      console.log("[v0] Marking payment as received for order:", id)
+
+      const response = await fetch(`/api/orders/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: "Completed",
+          updated_at: new Date().toISOString(),
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to update payment status")
+      }
+
+      console.log("[v0] Payment status updated successfully:", result.data)
+
+      // add history
+      try {
         const historyEntry = {
           order_id: id,
-          status: tempOrder.cargo_status || "pending",
-          comment: tempOrder.cargo_status_comment || "",
+          status: "delivered",
+          comment: "Payment received and order completed",
           created_at: new Date().toISOString(),
           user_name: "Current User",
-        };
-        const { error: historyError } = await supabase.from("cargo_status_history").insert(historyEntry);
-        if (historyError) {
-          // log only
-          console.warn("Failed to create cargo status history:", historyError);
         }
+        const { error: historyError } = await supabase.from("cargo_status_history").insert(historyEntry)
+        if (historyError) console.warn("Failed to create cargo status history:", historyError)
+
         setCargoStatusHistory((prev) => [
           {
             id: Date.now().toString(),
-            status: tempOrder.cargo_status || "pending",
-            comment: tempOrder.cargo_status_comment || "",
+            status: "delivered",
+            comment: "Payment received and order completed",
             timestamp: new Date().toISOString(),
             user: { name: "Current", surname: "User" },
           },
           ...prev,
-        ]);
-        // clear comment after saving
-        setTempOrder((prev) => (prev ? { ...prev, cargo_status_comment: "" } : prev));
+        ])
+      } catch (historyError) {
+        console.warn("Failed to update cargo status history:", historyError)
       }
-
-      setOrder(finalOrderData);
-      setTempOrder(finalOrderData);
-      setIsEditing(false);
-
-      toast({ title: "Success", description: "Order updated successfully" });
-      await fetchOrderDetails();
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message || "Failed to update order", variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handlePaymentReceived = async () => {
-    if (!order) return;
-
-    try {
-      const { data: existingOrder, error: checkError } = await supabase
-        .from("orders")
-        .select("id")
-        .eq("id", id)
-        .maybeSingle();
-
-      if (checkError) throw new Error("Failed to verify order exists");
-      if (!existingOrder) throw new Error("Order not found. It may have been deleted.");
-
-      const { error: updateError, count } = await supabase
-        .from("orders")
-        .update({ status: "Completed", updated_at: new Date().toISOString() })
-        .eq("id", id)
-        .select("*", { count: "exact" });
-
-      if (updateError) throw updateError;
-      if (!count) throw new Error("No order was updated.");
-
-      const { data: updatedOrder, error: fetchError } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (fetchError || !updatedOrder) throw new Error("Failed to fetch updated order data");
-
-      // add history
-      const historyEntry = {
-        order_id: id,
-        status: "delivered",
-        comment: "Payment received and order completed",
-        created_at: new Date().toISOString(),
-        user_name: "Current User",
-      };
-      const { error: historyError } = await supabase.from("cargo_status_history").insert(historyEntry);
-      if (historyError) console.warn("Failed to create cargo status history:", historyError);
-
-      setCargoStatusHistory((prev) => [
-        {
-          id: Date.now().toString(),
-          status: "delivered",
-          comment: "Payment received and order completed",
-          timestamp: new Date().toISOString(),
-          user: { name: "Current", surname: "User" },
-        },
-        ...prev,
-      ]);
 
       toast({
         title: "Payment Received",
         description: `Order ${order.order_number || order.po_number} has been marked as completed`,
-      });
+      })
 
-      setOrder(updatedOrder);
-      setTempOrder(updatedOrder);
+      const finalOrderData = result.data || { ...order, status: "Completed" }
+      setOrder(finalOrderData)
+      setTempOrder(finalOrderData)
     } catch (e: any) {
-      toast({ title: "Error", description: e.message || "Failed to update payment status", variant: "destructive" });
+      console.error("[v0] Error updating payment status:", e)
+      toast({ title: "Error", description: e.message || "Failed to update payment status", variant: "destructive" })
     }
-  };
+  }
 
   const handleTrackShipment = () => {
     if (order?.tracking_number) {
-      router.push(`/shipment-tracker/results/${order.tracking_number}`);
+      router.push(`/shipment-tracker/results/${order.tracking_number}`)
     } else {
-      toast({ title: "No Tracking Number", description: "This order does not have a tracking number to track." });
+      toast({ title: "No Tracking Number", description: "This order does not have a tracking number to track." })
     }
-  };
+  }
+
+  const handleShippingLineTrack = () => {
+    if (order?.tracking_number) {
+      const trackingInfo = analyzeTrackingNumber(order.tracking_number)
+      const shippingLineInfo = getShippingLineInfo(trackingInfo, order.tracking_number)
+
+      // Open shipping line URL in new tab and also navigate to internal tracker
+      window.open(shippingLineInfo.url, "_blank")
+      router.push(`/shipment-tracker/results/${order.tracking_number}`)
+    } else {
+      toast({ title: "No Tracking Number", description: "This order does not have a tracking number to track." })
+    }
+  }
 
   const exportToExcel = () => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined") return
     try {
-      const headers = ["Status", "Comment", "Timestamp", "User"];
+      const headers = ["Status", "Comment", "Timestamp", "User"]
       const csvData = cargoStatusHistory.map((h) => [
         h.status
           .split("-")
@@ -364,29 +383,26 @@ export default function OrderDetailsClient({ id }: { id: string }) {
         h.comment || "",
         new Date(h.timestamp).toLocaleString(),
         `${h.user.name} ${h.user.surname}`,
-      ]);
+      ])
 
       const csvContent = [
         headers.join(","),
         ...csvData.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
-      ].join("\n");
+      ].join("\n")
 
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute(
-        "download",
-        `cargo_status_report_${order?.order_number || order?.po_number || id}.csv`
-      );
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const link = document.createElement("a")
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      link.setAttribute("download", `cargo_status_report_${order?.order_number || order?.po_number || id}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
     } catch {
-      toast({ title: "Error", description: "Failed to export cargo status report", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to export cargo status report", variant: "destructive" })
     }
-  };
+  }
 
   // ---------- Render states ----------
   if (isLoading) {
@@ -397,7 +413,7 @@ export default function OrderDetailsClient({ id }: { id: string }) {
           <span>Loading order details...</span>
         </div>
       </div>
-    );
+    )
   }
 
   if (error || !order) {
@@ -414,7 +430,7 @@ export default function OrderDetailsClient({ id }: { id: string }) {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   // ---------- Main UI ----------
@@ -422,9 +438,7 @@ export default function OrderDetailsClient({ id }: { id: string }) {
     <div className="h-full overflow-y-auto">
       <div className="p-6">
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">
-            Order Details: {order.order_number || order.po_number || order.id}
-          </h1>
+          <h1 className="text-2xl font-bold">Order Details: {order.order_number || order.po_number || order.id}</h1>
           <div className="flex space-x-2">
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               Return to Dashboard
@@ -451,6 +465,22 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                 <Search className="h-4 w-4" />
                 Track Shipment
               </Button>
+              {order.tracking_number && (
+                <Button
+                  variant="outline"
+                  onClick={handleShippingLineTrack}
+                  className="flex items-center gap-2 text-blue-600 hover:text-blue-800 bg-transparent"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {(() => {
+                    const trackingInfo = analyzeTrackingNumber(order.tracking_number)
+                    const shippingLineInfo = getShippingLineInfo(trackingInfo, order.tracking_number)
+                    return shippingLineInfo.name !== "Unknown Shipping Line"
+                      ? `Track on ${shippingLineInfo.name}`
+                      : "Track on Shipping Line"
+                  })()}
+                </Button>
+              )}
               {!isEditing && (
                 <Button type="button" onClick={() => setIsEditing(true)}>
                   Edit Order
@@ -463,7 +493,11 @@ export default function OrderDetailsClient({ id }: { id: string }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { label: "Order Number", key: "order_number", value: order.order_number || "N/A" },
+                  {
+                    label: "Order Number",
+                    key: "order_number",
+                    value: order.order_number || "N/A",
+                  },
                   { label: "PO Number", key: "po_number", value: order.po_number || "N/A" },
                   { label: "Supplier", key: "supplier", value: order.supplier || "N/A" },
                   { label: "Importer", key: "importer", value: order.importer || "N/A" },
@@ -510,10 +544,7 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                           </SelectContent>
                         </Select>
                       ) : key === "status" ? (
-                        <Select
-                          value={tempOrder?.status || ""}
-                          onValueChange={(val) => handleChange("status", val)}
-                        >
+                        <Select value={tempOrder?.status || ""} onValueChange={(val) => handleChange("status", val)}>
                           <SelectTrigger>
                             <SelectValue placeholder="Select status" />
                           </SelectTrigger>
@@ -606,11 +637,7 @@ export default function OrderDetailsClient({ id }: { id: string }) {
               <TabsTrigger value="financials">Order Financials</TabsTrigger>
               <TabsTrigger value="pod">Proof of Delivery</TabsTrigger>
               <TabsTrigger value="cargo-history">Cargo Status Report</TabsTrigger>
-              <TabsTrigger
-                value="edi-submission"
-              >
-                EDI Submission Status
-              </TabsTrigger>
+              <TabsTrigger value="edi-submission">EDI Submission Status</TabsTrigger>
               <TabsTrigger
                 value="client-pack"
                 disabled={isEditing}
@@ -756,13 +783,13 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                         <h3 className="text-lg font-semibold mb-4">Financial Summary</h3>
                         <div className="bg-gray-50 p-4 rounded-lg space-y-3">
                           {(() => {
-                            const commercialValue = tempOrder?.commercial_value || 0;
-                            const customsDuties = tempOrder?.customs_duties || 0;
-                            const customsVAT = commercialValue * 0.15;
-                            const handlingFees = tempOrder?.handling_fees || 0;
-                            const shippingCost = tempOrder?.shipping_cost || 0;
-                            const documentationFee = tempOrder?.documentation_fee || 0;
-                            const communicationFee = tempOrder?.communication_fee || 0;
+                            const commercialValue = tempOrder?.commercial_value || 0
+                            const customsDuties = tempOrder?.customs_duties || 0
+                            const customsVAT = commercialValue * 0.15
+                            const handlingFees = tempOrder?.handling_fees || 0
+                            const shippingCost = tempOrder?.shipping_cost || 0
+                            const documentationFee = tempOrder?.documentation_fee || 0
+                            const communicationFee = tempOrder?.communication_fee || 0
 
                             const totalDisbursements =
                               customsDuties +
@@ -770,12 +797,12 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                               handlingFees +
                               shippingCost +
                               documentationFee +
-                              communicationFee;
-                            const facilityFee = totalDisbursements * 0.025;
-                            const agencyFee = totalDisbursements * 0.035;
-                            const subtotal = totalDisbursements + facilityFee + agencyFee;
-                            const vat = subtotal * 0.15;
-                            const total = subtotal + vat;
+                              communicationFee
+                            const facilityFee = totalDisbursements * 0.025
+                            const agencyFee = totalDisbursements * 0.035
+                            const subtotal = totalDisbursements + facilityFee + agencyFee
+                            const vat = subtotal * 0.15
+                            const total = subtotal + vat
 
                             return (
                               <>
@@ -804,7 +831,7 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                                   <span className="text-green-600">R {total.toFixed(2)}</span>
                                 </div>
                               </>
-                            );
+                            )
                           })()}
                         </div>
                       </div>
@@ -901,5 +928,5 @@ export default function OrderDetailsClient({ id }: { id: string }) {
         </div>
       </div>
     </div>
-  );
+  )
 }

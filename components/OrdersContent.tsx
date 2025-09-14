@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
-import { ArrowLeft, Eye, RefreshCw, Search, MapPin } from "lucide-react"
+import { ArrowLeft, Eye, RefreshCw, Search, MapPin, ExternalLink } from "lucide-react"
+import { analyzeTrackingNumber, getShippingLineInfo } from "@/lib/shipping-line-utils"
 
 // Define the Order type to match Supabase data
 type Order = {
@@ -163,6 +164,23 @@ export function OrdersContent() {
 
   const handleTrackShipment = (trackingNumber?: string | null) => {
     if (trackingNumber) {
+      router.push(`/shipment-tracker/results/${trackingNumber}`)
+    } else {
+      toast({
+        title: "No Tracking Number",
+        description: "This order does not have a tracking number available.",
+        variant: "default",
+      })
+    }
+  }
+
+  const handleShippingLineTrack = (trackingNumber?: string | null) => {
+    if (trackingNumber) {
+      const trackingInfo = analyzeTrackingNumber(trackingNumber)
+      const shippingLineInfo = getShippingLineInfo(trackingInfo, trackingNumber)
+
+      // Open shipping line URL in new tab and also navigate to internal tracker
+      window.open(shippingLineInfo.url, "_blank")
       router.push(`/shipment-tracker/results/${trackingNumber}`)
     } else {
       toast({
@@ -339,6 +357,23 @@ export function OrdersContent() {
                             <MapPin className="h-4 w-4 mr-1" />
                             Track
                           </Button>
+                          {order.tracking_number && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleShippingLineTrack(order.tracking_number)}
+                              className="hover:bg-muted text-blue-600 hover:text-blue-800"
+                            >
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              {(() => {
+                                const trackingInfo = analyzeTrackingNumber(order.tracking_number)
+                                const shippingLineInfo = getShippingLineInfo(trackingInfo, order.tracking_number)
+                                return shippingLineInfo.name !== "Unknown Shipping Line"
+                                  ? shippingLineInfo.name
+                                  : "Line"
+                              })()}
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

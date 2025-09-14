@@ -1,4 +1,4 @@
-import type { TrackingResult, ShipmentType, DetectedShipmentInfo } from "@/types/tracking"
+import type { TrackingResult, ShipmentType } from "@/types/tracking"
 import { SeaRatesService } from "./searates-service"
 import { GocometService } from "./gocomet-service"
 
@@ -23,29 +23,54 @@ export class MultiProviderTrackingService {
   }
 
   private initializeProviders() {
-    // Register Gocomet with highest priority
-    this.registerProvider({
-      name: "Gocomet",
-      priority: 1, // Highest priority
-      service: new GocometService(),
-      track: (trackingNumber, options) =>
-        new GocometService().trackShipment(trackingNumber, {
-          shipmentType: options?.shipmentType,
-          carrierHint: options?.carrierHint,
-        }),
-    })
+    try {
+      // Register Gocomet with highest priority
+      this.registerProvider({
+        name: "Gocomet",
+        priority: 1, // Highest priority
+        service: new GocometService(),
+        track: (trackingNumber, options) =>
+          new GocometService().trackShipment(trackingNumber, {
+            shipmentType: options?.shipmentType,
+            carrierHint: options?.carrierHint,
+          }),
+      })
+    } catch (error) {
+      console.warn("[v0] ⚠️ Failed to initialize Gocomet service:", error)
+      // Continue without Gocomet if initialization fails
+    }
 
-    // Register SeaRates with lower priority
-    this.registerProvider({
-      name: "SeaRates",
-      priority: 2, // Lower priority
-      service: new SeaRatesService(),
-      track: (trackingNumber, options) =>
-        new SeaRatesService().trackShipment(trackingNumber, {
-          sealine: options?.carrierHint,
-          type: this.mapShipmentTypeToSeaRatesType(options?.shipmentType),
+    try {
+      // Register SeaRates with lower priority
+      this.registerProvider({
+        name: "SeaRates",
+        priority: 2, // Lower priority
+        service: new SeaRatesService(),
+        track: (trackingNumber, options) =>
+          new SeaRatesService().trackShipment(trackingNumber, {
+            sealine: options?.carrierHint,
+            type: this.mapShipmentTypeToSeaRatesType(options?.shipmentType),
+          }),
+      })
+    } catch (error) {
+      console.warn("[v0] ⚠️ Failed to initialize SeaRates service:", error)
+      // Continue without SeaRates if initialization fails
+    }
+
+    if (this.providers.length === 0) {
+      console.warn("[v0] ⚠️ No tracking providers available. Adding fallback mock provider.")
+      this.registerProvider({
+        name: "MockProvider",
+        priority: 99,
+        service: null,
+        track: async (trackingNumber) => ({
+          success: false,
+          error: "No tracking providers available. Please configure API credentials.",
+          source: "MockProvider",
+          fallbackOptions: ["Configure Gocomet or SeaRates API credentials"],
         }),
-    })
+      })
+    }
   }
 
   private registerProvider(provider: TrackingProvider) {
@@ -67,12 +92,12 @@ export class MultiProviderTrackingService {
     }
   }
 
-  async trackShipment(
-    trackingNumber: string,
-    options?: TrackingOptions
-  ): Promise<TrackingResult> {
+  async trackShipment(trackingNumber: string, options?: TrackingOptions): Promise<TrackingResult> {
     console.log(`Starting multi-provider tracking for: ${trackingNumber}`)
-    console.log(`Available providers (in priority order):`, this.providers.map(p => `${p.name} (priority: ${p.priority})`))
+    console.log(
+      `Available providers (in priority order):`,
+      this.providers.map((p) => `${p.name} (priority: ${p.priority})`),
+    )
 
     const errors: string[] = []
 
@@ -80,7 +105,7 @@ export class MultiProviderTrackingService {
       try {
         console.log(`Attempting tracking with ${provider.name}...`)
         const result = await provider.track(trackingNumber, options)
-        
+
         if (result.success) {
           console.log(`✅ Successfully tracked with ${provider.name}`)
           return result
@@ -100,16 +125,16 @@ export class MultiProviderTrackingService {
       success: false,
       error: `All tracking providers failed. Errors: ${errors.join("; ")}`,
       source: "MultiProviderTrackingService",
-      fallbackOptions: this.providers.map(p => p.name),
+      fallbackOptions: this.providers.map((p) => p.name),
     }
   }
 
   getAvailableProviders(): string[] {
-    return this.providers.map(p => p.name)
+    return this.providers.map((p) => p.name)
   }
 
   getProviderPriority(providerName: string): number | null {
-    const provider = this.providers.find(p => p.name === providerName)
+    const provider = this.providers.find((p) => p.name === providerName)
     return provider ? provider.priority : null
   }
 }

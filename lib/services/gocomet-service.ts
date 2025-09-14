@@ -54,6 +54,12 @@ export class GocometService implements TrackingProvider {
       return this.accessToken
     }
 
+    if (!this.credentials.email || !this.credentials.password) {
+      throw new Error(
+        "Gocomet credentials not configured. Please set GOCOMET_EMAIL and GOCOMET_PASSWORD environment variables.",
+      )
+    }
+
     try {
       console.log("[v0] 🔐 Attempting Gocomet authentication...")
       console.log("[v0] API URL:", `${this.baseUrl}/auth/login`)
@@ -73,6 +79,17 @@ export class GocometService implements TrackingProvider {
       if (!response.ok) {
         const errorText = await response.text()
         console.log("[v0] ❌ Gocomet API error response:", errorText)
+
+        if (response.status === 404) {
+          throw new Error(
+            `Gocomet API endpoint not found (404). The API URL may have changed or the service may be unavailable.`,
+          )
+        } else if (response.status === 401) {
+          throw new Error(`Gocomet authentication failed (401). Please verify your credentials.`)
+        } else if (response.status >= 500) {
+          throw new Error(`Gocomet server error (${response.status}). The service may be temporarily unavailable.`)
+        }
+
         throw new Error(`Authentication failed: ${response.status} ${response.statusText} - ${errorText}`)
       }
 

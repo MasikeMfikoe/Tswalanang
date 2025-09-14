@@ -220,47 +220,109 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { userAgent, ipAddress } = getClientInfo()
 
+      if (
+        !username ||
+        !password ||
+        typeof username !== "string" ||
+        typeof password !== "string" ||
+        username.trim() === "" ||
+        password.trim() === ""
+      ) {
+        console.error("❌ Invalid username or password provided")
+        return false
+      }
+
+      // Clean inputs
+      const cleanUsername = username.trim()
+      const cleanPassword = password.trim()
+
       // Check if Supabase is configured
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
       if (!supabaseUrl || !supabaseAnonKey) {
         console.warn("⚠️ Supabase not configured, using mock authentication")
-        return await handleMockLogin(username, password, userAgent, ipAddress)
+        return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
       }
 
-      // Try database authentication first
       try {
+        console.log("🔍 Looking up user profile by username:", cleanUsername)
+
+        // First, try to find user by username
         const { data: profiles, error: profileError } = await supabase
           .from("user_profiles")
           .select("*")
-          .eq("username", username)
+          .eq("username", cleanUsername)
           .single()
 
-        if (!profileError && profiles) {
-          console.log("✅ Found user profile, trying Supabase auth with email:", profiles.email)
+        if (profileError || !profiles) {
+          console.log("⚠️ Username not found, trying email-based login:", cleanUsername)
 
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: profiles.email,
-            password: password,
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+          if (!emailRegex.test(cleanUsername)) {
+            console.log("❌ Invalid email format and username not found, trying mock authentication")
+            return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
+          }
+
+          // If username lookup fails, try direct email authentication
+          const { data: emailAuth, error: emailError } = await supabase.auth.signInWithPassword({
+            email: cleanUsername,
+            password: cleanPassword,
           })
 
-          if (!error && data.user) {
-            console.log("✅ Supabase authentication successful")
-            const userData = mapUserProfile(profiles, data.user.id)
-            setUser(userData)
+          if (!emailError && emailAuth.user) {
+            console.log("✅ Direct email authentication successful")
 
-            await safeAuditLog(() => AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent))
-            redirectUserByRole(userData.role)
-            return true
+            // Look up profile by user_id from auth
+            const { data: profileByUserId, error: profileByUserIdError } = await supabase
+              .from("user_profiles")
+              .select("*")
+              .eq("user_id", emailAuth.user.id)
+              .single()
+
+            if (!profileByUserIdError && profileByUserId) {
+              const userData = mapUserProfile(profileByUserId, emailAuth.user.id)
+              setUser(userData)
+              await safeAuditLog(() => AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent))
+              redirectUserByRole(userData.role)
+              return true
+            }
           }
+
+          console.log("❌ Email authentication failed, trying mock authentication")
+          return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
+        }
+
+        if (!profiles.email || typeof profiles.email !== "string" || profiles.email.trim() === "") {
+          console.error("❌ User profile has no valid email address")
+          return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
+        }
+
+        const cleanEmail = profiles.email.trim()
+        console.log("✅ Found user profile, trying Supabase auth with email:", cleanEmail)
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword,
+        })
+
+        if (!error && data.user) {
+          console.log("✅ Supabase authentication successful")
+          const userData = mapUserProfile(profiles, data.user.id)
+          setUser(userData)
+
+          await safeAuditLog(() => AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent))
+          redirectUserByRole(userData.role)
+          return true
+        } else {
+          console.error("❌ Supabase authentication failed:", error?.message)
+          console.log("🔄 Falling back to mock authentication")
+          return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
         }
       } catch (supabaseError) {
         console.log("⚠️ Database authentication failed, trying mock:", supabaseError)
+        return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
       }
-
-      // Fallback to mock authentication
-      return await handleMockLogin(username, password, userAgent, ipAddress)
     } catch (error) {
       console.error("❌ Login error:", error)
       return false
@@ -613,6 +675,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     userAgent: any,
     ipAddress: any,
   ): Promise<boolean> => {
+    console.log("🎭 Attempting mock authentication for:", username)
+
     const mockUser = MOCK_USERS.find((u) => u.username === username)
     if (mockUser && isValidMockCredentials(username, password)) {
       console.log("✅ Using mock authentication for:", username)
@@ -621,6 +685,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       redirectUserByRole(mockUser.role)
       return true
     }
+
+    console.log("❌ Mock authentication failed for:", username)
     return false
   }
 
@@ -628,6 +694,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const validCredentials = [
       { username: "demo", password: "demo" },
       { username: "tracking", password: "tracking" },
+      { username: "manager", password: "manager" },
+      { username: "employee", password: "employee" },
       { username: "client1", password: "client1" },
       { username: "client2", password: "client2" },
     ]

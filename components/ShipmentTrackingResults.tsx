@@ -12,9 +12,8 @@ import {
   FileText,
   ArrowRight,
   Loader2,
-  XCircle,
   CheckCircle,
-  Container as ContainerIcon,
+  ContainerIcon,
   Hourglass,
   CircleDot,
 } from "lucide-react"
@@ -147,18 +146,17 @@ export default function ShipmentTrackingResults({
 
   if (error) {
     return (
-      <Card className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-red-600 flex items-center gap-2">
-            <XCircle className="h-6 w-6" /> Tracking Error
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <p className="text-gray-700 mb-2">{error}</p>
-          {source && <p className="text-sm text-gray-500">Source: {source}</p>}
-          <p className="text-sm text-gray-500 mt-2">Please double-check your tracking number and try again.</p>
-        </CardContent>
-      </Card>
+      <div
+        className="relative min-h-[400px] w-full flex flex-col items-center justify-center p-8 bg-cover bg-center rounded-lg"
+        style={{ backgroundImage: "url('/images/world-map.jpg')" }}
+      >
+        <div className="absolute inset-0 bg-black/50 rounded-lg" />
+        <div className="relative z-10 text-center">
+          <h2 className="text-4xl font-bold text-white mb-4">Check your browser New Tab for tracking results</h2>
+          <p className="text-lg text-white/80 mb-2">Your shipment tracking has been opened in a new browser tab</p>
+          {source && <p className="text-sm text-white/60">Source: {source}</p>}
+        </div>
+      </div>
     )
   }
 
@@ -238,28 +236,28 @@ export default function ShipmentTrackingResults({
             <strong>Destination:</strong> {destination}
           </div>
 
-        {(estimatedDeparture || estimatedArrival) && (
-          <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {estimatedDeparture && (
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-gray-500" />
-                <strong>Est. Departure:</strong>
-                <span className={formattedEstimatedDeparture === "--" ? "text-gray-400 italic" : ""}>
-                  {formattedEstimatedDeparture}
-                </span>
-              </div>
-            )}
-            {estimatedArrival && (
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-gray-500" />
-                <strong>Est. Arrival:</strong>
-                <span className={formattedEstimatedArrival === "--" ? "text-gray-400 italic" : ""}>
-                  {formattedEstimatedArrival}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+          {(estimatedDeparture || estimatedArrival) && (
+            <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {estimatedDeparture && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-gray-500" />
+                  <strong>Est. Departure:</strong>
+                  <span className={formattedEstimatedDeparture === "--" ? "text-gray-400 italic" : ""}>
+                    {formattedEstimatedDeparture}
+                  </span>
+                </div>
+              )}
+              {estimatedArrival && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-gray-500" />
+                  <strong>Est. Arrival:</strong>
+                  <span className={formattedEstimatedArrival === "--" ? "text-gray-400 italic" : ""}>
+                    {formattedEstimatedArrival}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {lastLocation && lastLocation !== "N/A" && (
             <div className="flex items-center gap-2">
@@ -312,7 +310,11 @@ export default function ShipmentTrackingResults({
                     <div
                       className={cn(
                         "w-6 h-6 rounded-full flex items-center justify-center border-2",
-                        completed ? (delayed ? "bg-red-500 border-red-500" : "bg-green-500 border-green-500") : "bg-white border-gray-300",
+                        completed
+                          ? delayed
+                            ? "bg-red-500 border-red-500"
+                            : "bg-green-500 border-green-500"
+                          : "bg-white border-gray-300",
                       )}
                     >
                       <StatusIcon className={cn("w-4 h-4", completed ? "text-white" : "text-gray-500")} />
