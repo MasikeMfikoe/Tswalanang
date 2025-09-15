@@ -3,13 +3,11 @@
 import type React from "react"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Package, BarChartIcon, Users, TrendingUp } from "lucide-react"
+import { Package, BarChartIcon, TrendingUp } from "lucide-react"
 import { KPISummaryCards } from "./KPISummaryCards"
 import { OrderStatusCharts } from "./OrderStatusCharts"
 import { RecentOrdersList } from "./RecentOrdersList"
 import { OrderStatistics } from "./OrderStatistics"
-import { TopCustomers } from "./TopCustomers"
-import { CustomerStatistics } from "./CustomerStatistics"
 import { PerformanceMetrics } from "./PerformanceMetrics"
 import { PerformanceCharts } from "./PerformanceCharts"
 
@@ -98,10 +96,6 @@ export function DashboardTabs({
           <Package className="h-4 w-4" />
           <span>Orders</span>
         </TabsTrigger>
-        <TabsTrigger value="customers" className="flex items-center gap-2">
-          <Users className="h-4 w-4" />
-          <span>Customers</span>
-        </TabsTrigger>
         <TabsTrigger value="performance" className="flex items-center gap-2">
           <TrendingUp className="h-4 w-4" />
           <span>Performance</span>
@@ -143,22 +137,6 @@ export function DashboardTabs({
               isDarkMode={isDarkMode}
               averageProcessingTime={averageProcessingTime}
               orderValueDistribution={orderValueDistribution}
-            />
-          </>
-        )}
-      </TabsContent>
-
-      {/* Customers Tab Content */}
-      <TabsContent value="customers" className="mt-4">
-        {isLoading ? (
-          renderSkeleton()
-        ) : (
-          <>
-            <TopCustomers isDarkMode={isDarkMode} topCustomers={topCustomers} />
-            <CustomerStatistics
-              isDarkMode={isDarkMode}
-              customerAcquisitionData={customerAcquisitionData}
-              customerRetentionRate={customerRetentionRate}
             />
           </>
         )}

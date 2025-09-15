@@ -205,7 +205,7 @@ export default function DashboardContent() {
         }),
       },
     ],
-    [startDate, endDate],
+    [], // Removed [startDate, endDate] dependency to prevent infinite loop
   )
 
   // Handle period change
@@ -254,7 +254,6 @@ export default function DashboardContent() {
 
   // Calculate order statistics
   const totalOrderValue = filteredOrders.reduce((sum, order) => {
-    console.log("[v0] Order value calculation:", order.id, order.total_value || 0)
     return sum + (order.total_value || 0)
   }, 0)
 

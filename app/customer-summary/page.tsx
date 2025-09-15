@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { format, parseISO } from "date-fns"
-import { Ship, Download } from "lucide-react"
+import { Ship, Download, FileText } from "lucide-react"
 import { BarChart } from "@/components/Charts"
 import { toast } from "@/lib/toast"
 import CargoStatusTab from "@/components/CargoStatusTab"
@@ -35,6 +36,7 @@ interface TrackingData {
   actualDeparture?: string
   currentStatus?: string
   demurrageDays?: number
+  vessel_name?: string
 }
 
 interface OrderWithTracking extends Order {
@@ -77,6 +79,7 @@ export default function CustomerSummary() {
   const [monthlyOrderData, setMonthlyOrderData] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<string>("overview")
   const [isExporting, setIsExporting] = useState<boolean>(false)
+  const [showStatusReport, setShowStatusReport] = useState<boolean>(false)
 
   const { data: customersData, error: customersError } = useSWR("/api/customers", fetcher)
   const customers = customersData?.data || []
@@ -234,6 +237,7 @@ export default function CustomerSummary() {
           actualDeparture: result.data.actualDeparture,
           currentStatus: result.data.currentStatus,
           demurrageDays: result.data.demurrageDays,
+          vessel_name: result.data.vessel_name,
         }
       }
     } catch (error) {
@@ -350,6 +354,103 @@ export default function CustomerSummary() {
       setIsExporting(false)
     }
   }, [filteredOrders, customers, selectedCustomer, startDate, endDate, user?.role])
+
+  const handleStatusReportExport = useCallback(async () => {
+    if (filteredOrders.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No orders to export for the selected customer.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const selectedCustomerName = customers.find((c) => c.id === selectedCustomer)?.name || "AllCustomers"
+      const filename = `status_report_${selectedCustomerName}_${new Date().toISOString().split("T")[0]}.csv`
+
+      // Map orders to status report format
+      const statusReportData = filteredOrders.map((order) => {
+        // Determine vessel name from tracking data or order details
+        const vesselName = order.trackingData?.vessel_name || order.vessel_name || order.vessel || ""
+
+        // Determine master bill and container number based on tracking number type
+        let masterBill = ""
+        let containerNumber = ""
+
+        if (order.tracking_number) {
+          // Check if tracking number looks like a container number (format: 4 letters + 7 digits)
+          const containerPattern = /^[A-Z]{4}\d{7}$/
+          // Check if tracking number looks like a bill of lading (various formats)
+          const bolPattern = /^[A-Z0-9]{8,20}$/
+
+          if (containerPattern.test(order.tracking_number)) {
+            containerNumber = order.tracking_number
+          } else if (bolPattern.test(order.tracking_number) && !containerPattern.test(order.tracking_number)) {
+            masterBill = order.tracking_number
+          }
+        }
+
+        // Also check dedicated fields if available
+        if (order.container_number) {
+          containerNumber = order.container_number
+        }
+        if (order.master_bill || order.bill_of_lading) {
+          masterBill = order.master_bill || order.bill_of_lading || ""
+        }
+
+        return {
+          "PO/Invoice No.": order.po_number || "N/A",
+          "SS P/N.": "", // Set to blank as requested since it's not captured
+          Supplier: order.supplier || "N/A",
+          Consignee: order.importer || "N/A",
+          ETD: order.etd ? format(parseISO(order.etd), "yyyy-MM-dd") : "TBD",
+          "Original ETA": order.eta ? format(parseISO(order.eta), "yyyy-MM-dd") : "TBD",
+          "New ETA": order.trackingData?.estimatedArrival
+            ? format(parseISO(order.trackingData.estimatedArrival), "yyyy-MM-dd")
+            : "TBD",
+          Origin: order.origin || order.origin_port || "N/A",
+          Volume: order.volume || order.volume_cbm || "N/A",
+          Commodity: order.commodity || "N/A",
+          "Vessel Details": vesselName || "N/A", // Use vessel name from tracking data or order details
+          "Master Bill": masterBill || "N/A", // Use bill of lading from tracking analysis
+          "Container No.": containerNumber || "N/A", // Use container number from tracking analysis
+          Status: order.status || "N/A",
+          "Cargo Status": order.cargo_status || "N/A",
+        }
+      })
+
+      // Create CSV content
+      const headers = Object.keys(statusReportData[0] || {})
+      const csvContent = [
+        headers.join(","),
+        ...statusReportData.map((row) => headers.map((header) => `"${row[header] || ""}"`).join(",")),
+      ].join("\n")
+
+      // Download CSV
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const link = document.createElement("a")
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      link.setAttribute("download", filename)
+      link.style.visibility = "hidden"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast({
+        title: "Export Successful",
+        description: `Downloaded status report for ${filteredOrders.length} orders`,
+      })
+    } catch (error) {
+      console.error("Status report export error:", error)
+      toast({
+        title: "Export Failed",
+        description: "Failed to export status report. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }, [filteredOrders, customers, selectedCustomer])
 
   useEffect(() => {
     if (!ordersData?.data) {
@@ -541,13 +642,136 @@ export default function CustomerSummary() {
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
-        <TabsList className="mb-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="cargo-status" className="flex items-center">
-            <Ship className="h-4 w-4 mr-2" />
-            Cargo Status
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between mb-4">
+          <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="cargo-status" className="flex items-center">
+              <Ship className="h-4 w-4 mr-2" />
+              Cargo Status
+            </TabsTrigger>
+          </TabsList>
+
+          <Dialog open={showStatusReport} onOpenChange={setShowStatusReport}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                className="flex items-center gap-2 bg-transparent"
+                disabled={!selectedCustomer || selectedCustomer === "all" || filteredOrders.length === 0}
+              >
+                <FileText className="h-4 w-4" />
+                Status Report
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-7xl max-h-[90vh] overflow-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center justify-between">
+                  <span>Status Report - {customers.find((c) => c.id === selectedCustomer)?.name || "Customer"}</span>
+                  <Button onClick={handleStatusReportExport} size="sm" variant="outline">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="mt-4">
+                <div className="rounded-md border">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="p-2 text-left font-medium min-w-[120px]">PO/Invoice No.</th>
+                          <th className="p-2 text-left font-medium min-w-[100px]">SS P/N.</th>
+                          <th className="p-2 text-left font-medium min-w-[150px]">Supplier</th>
+                          <th className="p-2 text-left font-medium min-w-[150px]">Consignee</th>
+                          <th className="p-2 text-left font-medium min-w-[100px]">ETD</th>
+                          <th className="p-2 text-left font-medium min-w-[120px]">Original ETA</th>
+                          <th className="p-2 text-left font-medium min-w-[100px]">New ETA</th>
+                          <th className="p-2 text-left font-medium min-w-[100px]">Origin</th>
+                          <th className="p-2 text-left font-medium min-w-[80px]">Volume</th>
+                          <th className="p-2 text-left font-medium min-w-[120px]">Commodity</th>
+                          <th className="p-2 text-left font-medium min-w-[150px]">Vessel Details</th>
+                          <th className="p-2 text-left font-medium min-w-[120px]">Master Bill</th>
+                          <th className="p-2 text-left font-medium min-w-[120px]">Container No.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredOrders.map((order) => {
+                          const vesselName = order.trackingData?.vessel_name || order.vessel_name || order.vessel || ""
+
+                          let masterBill = ""
+                          let containerNumber = ""
+
+                          if (order.tracking_number) {
+                            const containerPattern = /^[A-Z]{4}\d{7}$/
+                            const bolPattern = /^[A-Z0-9]{8,20}$/
+
+                            if (containerPattern.test(order.tracking_number)) {
+                              containerNumber = order.tracking_number
+                            } else if (
+                              bolPattern.test(order.tracking_number) &&
+                              !containerPattern.test(order.tracking_number)
+                            ) {
+                              masterBill = order.tracking_number
+                            }
+                          }
+
+                          if (order.container_number) {
+                            containerNumber = order.container_number
+                          }
+                          if (order.master_bill || order.bill_of_lading) {
+                            masterBill = order.master_bill || order.bill_of_lading || ""
+                          }
+
+                          return (
+                            <tr key={order.id} className="border-b hover:bg-muted/30">
+                              <td className="p-2">{order.po_number || "N/A"}</td>
+                              <td className="p-2"></td> {/* SS P/N column left blank */}
+                              <td className="p-2">{order.supplier || "N/A"}</td>
+                              <td className="p-2">{order.importer || "N/A"}</td>
+                              <td className="p-2">{order.etd ? format(parseISO(order.etd), "MMM dd, yyyy") : "TBD"}</td>
+                              <td className="p-2">{order.eta ? format(parseISO(order.eta), "MMM dd, yyyy") : "TBD"}</td>
+                              <td className="p-2">
+                                {order.trackingData?.estimatedArrival
+                                  ? format(parseISO(order.trackingData.estimatedArrival), "MMM dd, yyyy")
+                                  : "TBD"}
+                              </td>
+                              <td className="p-2">{order.origin || order.origin_port || "N/A"}</td>
+                              <td className="p-2">{order.volume || order.volume_cbm || "N/A"}</td>
+                              <td className="p-2">{order.commodity || "N/A"}</td>
+                              <td className="p-2">{vesselName || "N/A"}</td> {/* Use vessel name from tracking */}
+                              <td className="p-2">{masterBill || "N/A"}</td>{" "}
+                              {/* Use master bill from tracking analysis */}
+                              <td className="p-2">{containerNumber || "N/A"}</td>{" "}
+                              {/* Use container number from tracking analysis */}
+                            </tr>
+                          )
+                        })}
+                        {filteredOrders.length === 0 && (
+                          <tr>
+                            <td colSpan={13} className="p-4 text-center text-muted-foreground">
+                              No orders found for the selected customer
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {filteredOrders.length > 0 && (
+                  <div className="mt-4 p-3 bg-muted/20 rounded-md">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Total Orders:</strong> {filteredOrders.length} |<strong> Date Range:</strong>{" "}
+                      {startDate && endDate
+                        ? `${format(parseISO(startDate), "MMM dd, yyyy")} to ${format(parseISO(endDate), "MMM dd, yyyy")}`
+                        : "All time"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
 
         <TabsContent value="overview">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
