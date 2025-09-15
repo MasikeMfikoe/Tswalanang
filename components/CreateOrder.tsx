@@ -1,7 +1,6 @@
 "use client"
 
 import React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,6 +15,8 @@ import EDISubmissionStatus from "@/components/EDISubmissionStatus"
 import type { Order, Customer, Status, CargoStatus, FreightType } from "@/types/models"
 import { Textarea } from "@/components/ui/textarea"
 import { v4 as uuidv4 } from "uuid" // Import uuidv4
+import { detectShipmentTrackingInfo, type ShipmentType } from "@/lib/services/container-detection-service"
+import { Ship, Plane } from "lucide-react"
 
 export default function CreateOrder() {
   const router = useRouter()
@@ -24,6 +25,9 @@ export default function CreateOrder() {
   // State for freight types
   const [freightTypes, setFreightTypes] = useState<Array<{ id: string; name: string; code: string }>>([])
   const [isLoadingFreightTypes, setIsLoadingFreightTypes] = useState(true)
+
+  const [detectedCarrier, setDetectedCarrier] = useState<string | null>(null)
+  const [detectedType, setDetectedType] = useState<ShipmentType>("unknown")
 
   // State for order form
   const [order, setOrder] = useState<Partial<Order>>({
@@ -163,6 +167,38 @@ export default function CreateOrder() {
   const handleChange = (field: string, value: string) => {
     setOrder((prev) => ({ ...prev, [field]: value }))
     setErrors((prev) => ({ ...prev, [field]: "" }))
+
+    if (field === "tracking_number" && value.trim().length >= 3) {
+      const detection = detectShipmentTrackingInfo(value)
+      console.log("[v0] Tracking number detection result:", detection)
+
+      if (detection.carrierDetails) {
+        setDetectedCarrier(detection.carrierDetails.name)
+        setDetectedType(detection.carrierDetails.type)
+
+        // Auto-update freight type based on detection
+        if (detection.carrierDetails.type === "air" && order.freightType !== "Air Freight") {
+          setOrder((prev) => ({ ...prev, freightType: "Air Freight" }))
+          toast({
+            title: "Freight Type Updated",
+            description: `Detected ${detection.carrierDetails?.name} - switched to Air Freight`,
+          })
+        } else if (detection.carrierDetails.type === "ocean" && order.freightType !== "Sea Freight") {
+          setOrder((prev) => ({ ...prev, freightType: "Sea Freight" }))
+          toast({
+            title: "Freight Type Updated",
+            description: `Detected ${detection.carrierDetails?.name} - switched to Sea Freight`,
+          })
+        }
+      } else {
+        setDetectedCarrier(null)
+        setDetectedType("unknown")
+      }
+    } else if (field === "tracking_number" && value.trim().length < 3) {
+      // Clear detection when tracking number is too short
+      setDetectedCarrier(null)
+      setDetectedType("unknown")
+    }
   }
 
   // Validate form fields
@@ -471,6 +507,16 @@ export default function CreateOrder() {
                           onChange={(e) => handleChange("tracking_number", e.target.value)}
                           placeholder="Enter tracking number (optional)"
                         />
+                        {detectedCarrier && (
+                          <div className="flex items-center gap-2 text-sm text-green-600">
+                            {detectedType === "air" ? (
+                              <Plane className="h-4 w-4" />
+                            ) : detectedType === "ocean" ? (
+                              <Ship className="h-4 w-4" />
+                            ) : null}
+                            <span>Detected: {detectedCarrier}</span>
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="freightType">Freight Type</Label>

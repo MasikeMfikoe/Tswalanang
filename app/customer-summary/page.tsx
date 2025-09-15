@@ -18,6 +18,7 @@ import { exportToCSV } from "@/lib/exportToCSV" // Import handleExport function
 import type { Order } from "@/types/models"
 import { useAuth } from "@/contexts/AuthContext"
 import { Badge } from "@/components/ui/badge"
+import { analyzeTrackingNumber, getShippingLineInfo } from "@/lib/shipping-line-utils"
 
 type DateRange = {
   startDate: Date | null
@@ -542,6 +543,44 @@ export default function CustomerSummary() {
     processOrdersData()
   }, [ordersData, selectedCustomer, customers, startDate, endDate])
 
+  const detectAndUpdateCarriers = async (orders: any[]) => {
+    const ordersToUpdate = orders.filter(
+      (order) => order.tracking_number && !order.shipping_line && order.tracking_number.trim() !== "",
+    )
+
+    if (ordersToUpdate.length === 0) return
+
+    console.log(`[v0] Detecting carriers for ${ordersToUpdate.length} existing orders...`)
+
+    for (const order of ordersToUpdate) {
+      try {
+        const trackingInfo = analyzeTrackingNumber(order.tracking_number!)
+        const shippingLineInfo = getShippingLineInfo(trackingInfo, order.tracking_number!)
+
+        if (shippingLineInfo.name !== "Unknown Shipping Line") {
+          // Update the order with detected carrier
+          const response = await fetch(`/api/orders/${order.id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ...order,
+              shipping_line: shippingLineInfo.name,
+              carrier: shippingLineInfo.name,
+            }),
+          })
+
+          if (response.ok) {
+            console.log(`[v0] Updated carrier for order ${order.id}: ${shippingLineInfo.name}`)
+          }
+        }
+      } catch (error) {
+        console.error(`[v0] Error updating carrier for order ${order.id}:`, error)
+      }
+    }
+  }
+
   useEffect(() => {
     const fetchOrders = async () => {
       setIsLoading(true)
@@ -557,6 +596,10 @@ export default function CustomerSummary() {
             throw new Error(result.error || "API request failed")
           }
           setOrdersData(result)
+
+          if (result.data && result.data.length > 0) {
+            detectAndUpdateCarriers(result.data)
+          }
         } else {
           setOrdersData(null)
         }
@@ -807,7 +850,7 @@ export default function CustomerSummary() {
                             <tr key={order.id} className="border-b hover:bg-muted/30">
                               <td className="p-2">{order.importer}</td>
                               <td className="p-2">{order.freight_type || "N/A"}</td>
-                              <td className="p-2">
+                              <td className="p-2 text-center">
                                 <div className="space-y-2">
                                   <div className="text-sm">
                                     <div className="text-muted-foreground text-xs font-medium">ETD</div>
@@ -996,7 +1039,7 @@ export default function CustomerSummary() {
                           <tr key={order.id} className="border-b hover:bg-muted/30">
                             <td className="p-2">{order.importer}</td>
                             <td className="p-2">{order.freight_type || "N/A"}</td>
-                            <td className="p-2">
+                            <td className="p-2 text-center">
                               <div className="space-y-2">
                                 <div className="text-sm">
                                   <div className="text-muted-foreground text-xs font-medium">ETD</div>

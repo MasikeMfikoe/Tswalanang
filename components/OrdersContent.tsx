@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { ArrowLeft, Eye, RefreshCw, Search, MapPin, ExternalLink } from "lucide-react"
-import { analyzeTrackingNumber, getShippingLineInfo } from "@/lib/shipping-line-utils"
+import { detectShipmentTrackingInfo } from "@/lib/services/container-detection-service"
 
 // Define the Order type to match Supabase data
 type Order = {
@@ -31,6 +31,8 @@ type Order = {
   tracking_number?: string
   etd?: string
   eta?: string
+  shipping_line?: string
+  carrier?: string
 }
 
 export function OrdersContent() {
@@ -42,6 +44,41 @@ export function OrdersContent() {
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const detectAndUpdateCarriers = async (orders: Order[]) => {
+    const ordersToUpdate = orders.filter(
+      (order) => order.tracking_number && !order.shipping_line && order.tracking_number.trim() !== "",
+    )
+
+    if (ordersToUpdate.length === 0) return
+
+    console.log(`[v0] Detecting carriers for ${ordersToUpdate.length} existing orders...`)
+
+    for (const order of ordersToUpdate) {
+      try {
+        const detectionResult = detectShipmentTrackingInfo(order.tracking_number!)
+
+        if (detectionResult.carrierDetails && detectionResult.isValidFormat) {
+          const response = await fetch(`/api/orders/${order.id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ...order,
+              shipping_line: detectionResult.carrierDetails.name,
+            }),
+          })
+
+          if (response.ok) {
+            console.log(`[v0] Updated carrier for order ${order.id}: ${detectionResult.carrierDetails.name}`)
+          }
+        }
+      } catch (error) {
+        console.error(`[v0] Error updating carrier for order ${order.id}:`, error)
+      }
+    }
+  }
 
   const fetchOrders = async () => {
     try {
@@ -62,9 +99,14 @@ export function OrdersContent() {
         throw new Error(data.error)
       }
 
-      setOrders(data.data || [])
+      const fetchedOrders = data.data || []
+      setOrders(fetchedOrders)
 
-      if (data.data && data.data.length === 0) {
+      if (fetchedOrders.length > 0) {
+        detectAndUpdateCarriers(fetchedOrders)
+      }
+
+      if (fetchedOrders.length === 0) {
         toast({
           title: "No Orders Found",
           description: "No orders have been created yet. Create your first order!",
@@ -84,12 +126,10 @@ export function OrdersContent() {
     }
   }
 
-  // Initialize component and fetch orders
   useEffect(() => {
     fetchOrders()
   }, [])
 
-  // Filter orders whenever search term, status filter, or orders change
   useEffect(() => {
     filterOrders()
   }, [searchTerm, statusFilter, orders])
@@ -97,7 +137,6 @@ export function OrdersContent() {
   const filterOrders = () => {
     let filtered = orders
 
-    // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter(
         (order) =>
@@ -111,7 +150,6 @@ export function OrdersContent() {
       )
     }
 
-    // Filter by status
     if (statusFilter !== "all") {
       filtered = filtered.filter((order) => order.status?.toLowerCase() === statusFilter.toLowerCase())
     }
@@ -119,7 +157,6 @@ export function OrdersContent() {
     setFilteredOrders(filtered)
   }
 
-  // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return new Intl.DateTimeFormat("en-ZA", {
@@ -129,7 +166,6 @@ export function OrdersContent() {
     }).format(date)
   }
 
-  // Get badge variant based on status
   const getCargoStatusBadge = (status: string | null) => {
     if (!status) {
       return {
@@ -138,7 +174,6 @@ export function OrdersContent() {
       }
     }
 
-    // Normalize status for matching - convert to lowercase and trim
     const normalizeStatus = (str: string) => {
       return str.toLowerCase().trim()
     }
@@ -221,12 +256,39 @@ export function OrdersContent() {
 
   const handleShippingLineTrack = (trackingNumber?: string | null) => {
     if (trackingNumber) {
-      const trackingInfo = analyzeTrackingNumber(trackingNumber)
-      const shippingLineInfo = getShippingLineInfo(trackingInfo, trackingNumber)
+      const detectionResult = detectShipmentTrackingInfo(trackingNumber)
 
-      // Open shipping line URL in new tab and also navigate to internal tracker
-      window.open(shippingLineInfo.url, "_blank")
-      router.push(`/shipment-tracker/results/${trackingNumber}`)
+      if (detectionResult.carrierDetails?.trackingUrl) {
+        let trackingUrl = detectionResult.carrierDetails.trackingUrl
+
+        // For carriers that need the tracking number appended to the URL
+        if (detectionResult.carrierDetails.code === "MAERSK") {
+          trackingUrl = `${trackingUrl}${trackingNumber}`
+        } else if (detectionResult.carrierDetails.code === "MSC") {
+          trackingUrl = `${trackingUrl}?searchNumber=${trackingNumber}`
+        } else if (
+          detectionResult.carrierDetails.code === "QATAR_AIRWAYS" ||
+          detectionResult.carrierDetails.code === "QATAR_AIRWAYS_157"
+        ) {
+          trackingUrl = `${trackingUrl}?awb=${trackingNumber}`
+        } else if (detectionResult.carrierDetails.code === "ETHIOPIAN_AIRLINES") {
+          trackingUrl = `${trackingUrl}?awb=${trackingNumber}`
+        } else if (detectionResult.type === "awb") {
+          // For other air freight carriers, append AWB parameter
+          trackingUrl = `${trackingUrl}${trackingNumber}`
+        } else {
+          // For other ocean carriers, append tracking number
+          trackingUrl = `${trackingUrl}${trackingNumber}`
+        }
+
+        window.open(trackingUrl, "_blank")
+      } else {
+        toast({
+          title: "No Tracking URL",
+          description: "This carrier does not have a tracking URL available.",
+          variant: "default",
+        })
+      }
     } else {
       toast({
         title: "No Tracking Number",
@@ -236,16 +298,13 @@ export function OrdersContent() {
     }
   }
 
-  // Add this new function to refresh data when returning from order details
   const handleReturnFromOrder = () => {
-    fetchOrders() // Refresh the orders list
+    fetchOrders()
   }
 
-  // Add useEffect to refresh when component becomes visible again
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        // Page became visible again, refresh data
         fetchOrders()
       }
     }
@@ -280,7 +339,6 @@ export function OrdersContent() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      {/* Header Section */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">All Shipment Orders</h1>
@@ -303,7 +361,6 @@ export function OrdersContent() {
 
       <Card>
         <CardContent>
-          {/* Error Display */}
           {error && (
             <div className="mb-4 p-4 bg-red-100 text-red-800 rounded-md">
               <p className="font-semibold">Error loading orders</p>
@@ -311,7 +368,6 @@ export function OrdersContent() {
             </div>
           )}
 
-          {/* Filters and Controls Row */}
           <div className="mt-6 mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -336,7 +392,6 @@ export function OrdersContent() {
             </Select>
           </div>
 
-          {/* Data Table */}
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -391,7 +446,7 @@ export function OrdersContent() {
                           )
                         })()}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">
                         <div className="space-y-2">
                           <div className="text-sm">
                             <div className="text-muted-foreground text-xs font-medium">ETD</div>
@@ -438,11 +493,8 @@ export function OrdersContent() {
                             >
                               <ExternalLink className="h-4 w-4 mr-1" />
                               {(() => {
-                                const trackingInfo = analyzeTrackingNumber(order.tracking_number)
-                                const shippingLineInfo = getShippingLineInfo(trackingInfo, order.tracking_number)
-                                return shippingLineInfo.name !== "Unknown Shipping Line"
-                                  ? shippingLineInfo.name
-                                  : "Line"
+                                const detectionResult = detectShipmentTrackingInfo(order.tracking_number!)
+                                return detectionResult.carrierDetails?.name || "Line"
                               })()}
                             </Button>
                           )}
@@ -455,7 +507,6 @@ export function OrdersContent() {
             </Table>
           </div>
 
-          {/* Results Summary */}
           {filteredOrders.length > 0 && (
             <div className="mt-4 text-sm text-muted-foreground">
               Showing {filteredOrders.length} of {orders.length} shipment orders

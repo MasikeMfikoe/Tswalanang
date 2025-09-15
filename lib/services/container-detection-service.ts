@@ -47,7 +47,7 @@ const carriers: Record<string, CarrierDetails> = {
   MSCU: {
     name: "MSC",
     code: "MSC",
-    trackingUrl: "https://www.msc.com/track-a-shipment?agencyPath=msc&searchType=container&searchNumber=",
+    trackingUrl: "https://www.msc.com/en/track-a-shipment",
     apiSupported: true,
     prefixes: ["MSCU", "MEDU", "MSCI", "MEDI"], // Added BL prefixes
     type: "ocean",
@@ -138,7 +138,7 @@ const carriers: Record<string, CarrierDetails> = {
   "071": {
     name: "Ethiopian Airlines",
     code: "ETHIOPIAN_AIRLINES",
-    trackingUrl: "https://www.ethiopianairlines.com/aa/trackyourshipment?awb=",
+    trackingUrl: "https://ethiopiancargo.azurewebsites.net/my-cargo/track-your-shipment",
     apiSupported: false,
     prefixes: ["071"],
     type: "air",
@@ -165,7 +165,7 @@ const carriers: Record<string, CarrierDetails> = {
   "086": {
     name: "Qatar Airways Cargo",
     code: "QATAR_AIRWAYS",
-    trackingUrl: "https://www.qrcargo.com/track-shipment?awb=",
+    trackingUrl: "https://www.qrcargo.com/s/track-your-shipment",
     apiSupported: false,
     prefixes: ["086"],
     type: "air",
@@ -192,7 +192,7 @@ const carriers: Record<string, CarrierDetails> = {
   "157": {
     name: "Qatar Airways Cargo",
     code: "QATAR_AIRWAYS_157",
-    trackingUrl: "https://www.qrcargo.com/track-shipment?awb=",
+    trackingUrl: "https://www.qrcargo.com/s/track-your-shipment",
     apiSupported: false,
     prefixes: ["157"],
     type: "air",
