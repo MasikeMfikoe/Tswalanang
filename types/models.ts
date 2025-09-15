@@ -39,6 +39,8 @@ export interface Order {
   last_event_description: string | null
   documents: Document[] // Changed to Document[]
   freight_type: string | null // Added missing property
+  etd: string | null // Estimated Time of Departure
+  eta: string | null // Estimated Time of Arrival
   // Financial columns
   base_freight_cost?: number
   fuel_surcharge?: number

@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { type NextRequest, NextResponse } from "next/server"
 import { AuditLogger } from "@/lib/audit-logger"
+import { detectShipmentTrackingInfo } from "@/lib/services/container-detection-service"
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -168,6 +169,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (orderData.tracking_number) {
+      console.log(`[v0] 🔍 Processing tracking number: ${orderData.tracking_number}`)
+      const trackingInfo = detectShipmentTrackingInfo(orderData.tracking_number)
+
+      console.log(`[v0] 📊 Tracking detection result:`, {
+        type: trackingInfo.type,
+        carrier: trackingInfo.carrierDetails?.name,
+        carrierType: trackingInfo.carrierDetails?.type,
+        isValid: trackingInfo.isValidFormat,
+      })
+
+      if (trackingInfo.carrierDetails) {
+        // Set carrier information based on detected type
+        if (trackingInfo.carrierDetails.type === "air") {
+          orderData.airline = trackingInfo.carrierDetails.name
+          orderData.carrier = trackingInfo.carrierDetails.name
+          console.log(`[v0] ✈️ Set airline: ${trackingInfo.carrierDetails.name}`)
+        } else if (trackingInfo.carrierDetails.type === "ocean" || trackingInfo.carrierDetails.type === "lcl") {
+          orderData.shipping_line = trackingInfo.carrierDetails.name
+          orderData.carrier = trackingInfo.carrierDetails.name
+          console.log(`[v0] 🚢 Set shipping line: ${trackingInfo.carrierDetails.name}`)
+        }
+
+        console.log(
+          `[v0] ✅ Auto-detected carrier: ${trackingInfo.carrierDetails.name} (${trackingInfo.carrierDetails.type})`,
+        )
+      } else {
+        console.log(`[v0] ❌ No carrier detected for tracking number: ${orderData.tracking_number}`)
+      }
+    }
+
     const { data: newOrder, error } = await supabaseAdmin
       .from("orders")
       .insert({
@@ -222,6 +254,37 @@ export async function PUT(request: NextRequest) {
 
     if (!orderData.id) {
       return NextResponse.json({ error: "Order ID is required" }, { status: 400 })
+    }
+
+    if (orderData.tracking_number) {
+      console.log(`[v0] 🔍 Processing tracking number: ${orderData.tracking_number}`)
+      const trackingInfo = detectShipmentTrackingInfo(orderData.tracking_number)
+
+      console.log(`[v0] 📊 Tracking detection result:`, {
+        type: trackingInfo.type,
+        carrier: trackingInfo.carrierDetails?.name,
+        carrierType: trackingInfo.carrierDetails?.type,
+        isValid: trackingInfo.isValidFormat,
+      })
+
+      if (trackingInfo.carrierDetails) {
+        // Set carrier information based on detected type
+        if (trackingInfo.carrierDetails.type === "air") {
+          orderData.airline = trackingInfo.carrierDetails.name
+          orderData.carrier = trackingInfo.carrierDetails.name
+          console.log(`[v0] ✈️ Set airline: ${trackingInfo.carrierDetails.name}`)
+        } else if (trackingInfo.carrierDetails.type === "ocean" || trackingInfo.carrierDetails.type === "lcl") {
+          orderData.shipping_line = trackingInfo.carrierDetails.name
+          orderData.carrier = trackingInfo.carrierDetails.name
+          console.log(`[v0] 🚢 Set shipping line: ${trackingInfo.carrierDetails.name}`)
+        }
+
+        console.log(
+          `[v0] ✅ Auto-detected carrier: ${trackingInfo.carrierDetails.name} (${trackingInfo.carrierDetails.type})`,
+        )
+      } else {
+        console.log(`[v0] ❌ No carrier detected for tracking number: ${orderData.tracking_number}`)
+      }
     }
 
     // Get old order data for audit logging

@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
 import { AuditLogger } from "@/lib/audit-logger"
+import { detectShipmentTrackingInfo } from "@/lib/services/container-detection-service"
 
 const supabaseUrl = process.env.SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -113,6 +114,25 @@ export async function POST(request: NextRequest) {
       orderData.waybill_no = `WB${Date.now()}`
     }
 
+    if (orderData.tracking_number) {
+      const trackingInfo = detectShipmentTrackingInfo(orderData.tracking_number)
+
+      if (trackingInfo.carrierDetails) {
+        // Set carrier information based on detected type
+        if (trackingInfo.carrierDetails.type === "air") {
+          orderData.airline = trackingInfo.carrierDetails.name
+          orderData.carrier = trackingInfo.carrierDetails.name
+        } else if (trackingInfo.carrierDetails.type === "ocean" || trackingInfo.carrierDetails.type === "lcl") {
+          orderData.shipping_line = trackingInfo.carrierDetails.name
+          orderData.carrier = trackingInfo.carrierDetails.name
+        }
+
+        console.log(
+          `[v0] ✅ Auto-detected carrier: ${trackingInfo.carrierDetails.name} (${trackingInfo.carrierDetails.type})`,
+        )
+      }
+    }
+
     // Use service role client to bypass RLS issues
     const { data: newOrder, error } = await supabaseAdmin
       .from("courier_orders")
@@ -168,6 +188,25 @@ export async function PUT(request: NextRequest) {
 
     if (!orderData.id) {
       return NextResponse.json({ error: "Courier order ID is required" }, { status: 400 })
+    }
+
+    if (orderData.tracking_number) {
+      const trackingInfo = detectShipmentTrackingInfo(orderData.tracking_number)
+
+      if (trackingInfo.carrierDetails) {
+        // Set carrier information based on detected type
+        if (trackingInfo.carrierDetails.type === "air") {
+          orderData.airline = trackingInfo.carrierDetails.name
+          orderData.carrier = trackingInfo.carrierDetails.name
+        } else if (trackingInfo.carrierDetails.type === "ocean" || trackingInfo.carrierDetails.type === "lcl") {
+          orderData.shipping_line = trackingInfo.carrierDetails.name
+          orderData.carrier = trackingInfo.carrierDetails.name
+        }
+
+        console.log(
+          `[v0] ✅ Auto-detected carrier: ${trackingInfo.carrierDetails.name} (${trackingInfo.carrierDetails.type})`,
+        )
+      }
     }
 
     // Get old order data for audit logging

@@ -40,7 +40,7 @@ const carriers: Record<string, CarrierDetails> = {
     code: "MAERSK",
     trackingUrl: "https://www.maersk.com/tracking/",
     apiSupported: true,
-    prefixes: ["MAEU", "MRKU", "MSKU", "MAEU"], // Added BL prefix
+    prefixes: ["MAEU", "MRKU", "MSKU", "MRSU"], // Added MRSU prefix
     type: "ocean",
     color: "#0091da",
   },
@@ -189,6 +189,24 @@ const carriers: Record<string, CarrierDetails> = {
     type: "air",
     color: "#002060",
   },
+  "157": {
+    name: "Qatar Airways Cargo",
+    code: "QATAR_AIRWAYS_157",
+    trackingUrl: "https://www.qrcargo.com/track-shipment?awb=",
+    apiSupported: false,
+    prefixes: ["157"],
+    type: "air",
+    color: "#8b0000",
+  },
+  "297": {
+    name: "China Airlines Cargo",
+    code: "CHINA_AIRLINES",
+    trackingUrl: "https://www.china-airlines.com/cargo/tracking?awb=",
+    apiSupported: false,
+    prefixes: ["297", "CHN"],
+    type: "air",
+    color: "#ff6600",
+  },
 }
 
 // Define known carrier prefixes and AWB patterns
@@ -203,6 +221,9 @@ const AIR_PREFIXES: Record<string, string> = {
   "071": "Ethiopian",
   "176": "Emirates",
   "014": "American Airlines",
+  "157": "Qatar Airways",
+  "297": "China Airlines",
+  CHN: "China Airlines",
 }
 
 const KNOWN_CARRIERS: CarrierSuggestion[] = [
@@ -242,6 +263,8 @@ export function detectShipmentTrackingInfo(trackingNumber: string): DetectedTrac
   const originalInput = trackingNumber.trim()
   const cleanNumber = originalInput.toUpperCase().replace(/[\s-]/g, "")
 
+  console.log(`[v0] 🔍 Detecting tracking info for: "${originalInput}" -> cleaned: "${cleanNumber}"`)
+
   let detectedType: "container" | "bl" | "awb" | "booking" | "unknown" = "unknown"
   let carrierDetails: CarrierDetails | null = null
   let isValidFormat = false
@@ -251,10 +274,23 @@ export function detectShipmentTrackingInfo(trackingNumber: string): DetectedTrac
   const awbMatch = cleanNumber.match(awbPattern)
   if (awbMatch) {
     const prefix = awbMatch[1]
+    console.log(`[v0] 🛩️ AWB pattern matched with prefix: ${prefix}`)
     carrierDetails = getCarrierByPrefix(prefix)
     if (carrierDetails && carrierDetails.type === "air") {
       detectedType = "awb"
       isValidFormat = true
+      console.log(`[v0] ✅ Air carrier detected: ${carrierDetails.name}`)
+    }
+  }
+
+  // Special handling for CHN prefix (non-standard format)
+  if (!isValidFormat && cleanNumber.startsWith("CHN")) {
+    console.log(`[v0] 🛩️ CHN prefix detected`)
+    carrierDetails = getCarrierByPrefix("CHN")
+    if (carrierDetails && carrierDetails.type === "air") {
+      detectedType = "awb"
+      isValidFormat = true
+      console.log(`[v0] ✅ China Airlines detected via CHN prefix`)
     }
   }
 
@@ -265,10 +301,12 @@ export function detectShipmentTrackingInfo(trackingNumber: string): DetectedTrac
     const containerMatch = cleanNumber.match(containerPattern)
     if (containerMatch) {
       const prefix = containerMatch[1]
+      console.log(`[v0] 🚢 Container pattern matched with prefix: ${prefix}`)
       carrierDetails = getCarrierByPrefix(prefix)
       if (carrierDetails && (carrierDetails.type === "ocean" || carrierDetails.type === "lcl")) {
         detectedType = "container"
         isValidFormat = true
+        console.log(`[v0] ✅ Ocean carrier detected: ${carrierDetails.name}`)
       }
     }
   }
@@ -302,6 +340,10 @@ export function detectShipmentTrackingInfo(trackingNumber: string): DetectedTrac
       carrierDetails = null
     }
   }
+
+  console.log(
+    `[v0] 📊 Final detection result: type=${detectedType}, carrier=${carrierDetails?.name || "none"}, valid=${isValidFormat}`,
+  )
 
   return {
     cleanNumber,

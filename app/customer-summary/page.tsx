@@ -17,6 +17,7 @@ import CargoStatusTab from "@/components/CargoStatusTab"
 import { exportToCSV } from "@/lib/exportToCSV" // Import handleExport function
 import type { Order } from "@/types/models"
 import { useAuth } from "@/contexts/AuthContext"
+import { Badge } from "@/components/ui/badge"
 
 type DateRange = {
   startDate: Date | null
@@ -80,6 +81,9 @@ export default function CustomerSummary() {
   const [activeTab, setActiveTab] = useState<string>("overview")
   const [isExporting, setIsExporting] = useState<boolean>(false)
   const [showStatusReport, setShowStatusReport] = useState<boolean>(false)
+  const [ordersData, setOrdersData] = useState<any>(null)
+  const [ordersError, setOrdersError] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState<boolean>(false)
 
   const { data: customersData, error: customersError } = useSWR("/api/customers", fetcher)
   const customers = customersData?.data || []
@@ -91,19 +95,10 @@ export default function CustomerSummary() {
     params.append("from", startDate)
     params.append("to", endDate)
     params.append("excludeStatus", "cancelled,draft")
+    params.append("include", "etd,eta,cargo_status")
 
     return `/api/orders?${params.toString()}`
   }, [startDate, endDate])
-
-  const {
-    data: ordersData,
-    error: ordersError,
-    isLoading,
-  } = useSWR(ordersApiUrl(), fetcher, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    dedupingInterval: 5000, // Prevent duplicate requests within 5 seconds
-  })
 
   const handleTabChange = (value: string) => {
     setActiveTab(value)
@@ -172,6 +167,7 @@ export default function CustomerSummary() {
           console.log(`[v0] Setting date range: ${startDateStr} to ${endDateStr}`)
           setStartDate(startDateStr)
           setEndDate(endDateStr)
+          updateURL(selectedCustomer, startDateStr, endDateStr)
         }
       }
     }
@@ -288,13 +284,12 @@ export default function CustomerSummary() {
   useEffect(() => {
     if (startDate && endDate && startDate !== "0002-08-13") {
       console.log(`[v0] Updating URL with dates: ${startDate} to ${endDate}`)
-      updateURL(selectedCustomer, startDate, endDate)
     }
   }, [selectedCustomer, startDate, endDate]) // Removed updateURL from dependencies to prevent infinite loop
 
   const handleCustomDateSubmit = () => {
     if (startDate && endDate) {
-      updateURL(undefined, startDate, endDate)
+      updateURL(selectedCustomer, startDate, endDate)
     } else {
       toast({
         title: "Invalid Date Range",
@@ -369,19 +364,14 @@ export default function CustomerSummary() {
       const selectedCustomerName = customers.find((c) => c.id === selectedCustomer)?.name || "AllCustomers"
       const filename = `status_report_${selectedCustomerName}_${new Date().toISOString().split("T")[0]}.csv`
 
-      // Map orders to status report format
       const statusReportData = filteredOrders.map((order) => {
-        // Determine vessel name from tracking data or order details
         const vesselName = order.trackingData?.vessel_name || order.vessel_name || order.vessel || ""
 
-        // Determine master bill and container number based on tracking number type
         let masterBill = ""
         let containerNumber = ""
 
         if (order.tracking_number) {
-          // Check if tracking number looks like a container number (format: 4 letters + 7 digits)
           const containerPattern = /^[A-Z]{4}\d{7}$/
-          // Check if tracking number looks like a bill of lading (various formats)
           const bolPattern = /^[A-Z0-9]{8,20}$/
 
           if (containerPattern.test(order.tracking_number)) {
@@ -391,7 +381,6 @@ export default function CustomerSummary() {
           }
         }
 
-        // Also check dedicated fields if available
         if (order.container_number) {
           containerNumber = order.container_number
         }
@@ -401,7 +390,7 @@ export default function CustomerSummary() {
 
         return {
           "PO/Invoice No.": order.po_number || "N/A",
-          "SS P/N.": "", // Set to blank as requested since it's not captured
+          "SS P/N.": "",
           Supplier: order.supplier || "N/A",
           Consignee: order.importer || "N/A",
           ETD: order.etd ? format(parseISO(order.etd), "yyyy-MM-dd") : "TBD",
@@ -412,22 +401,20 @@ export default function CustomerSummary() {
           Origin: order.origin || order.origin_port || "N/A",
           Volume: order.volume || order.volume_cbm || "N/A",
           Commodity: order.commodity || "N/A",
-          "Vessel Details": vesselName || "N/A", // Use vessel name from tracking data or order details
-          "Master Bill": masterBill || "N/A", // Use bill of lading from tracking analysis
-          "Container No.": containerNumber || "N/A", // Use container number from tracking analysis
+          "Vessel Details": vesselName || "N/A",
+          "Master Bill": masterBill || "N/A",
+          "Container No.": containerNumber || "N/A",
           Status: order.status || "N/A",
           "Cargo Status": order.cargo_status || "N/A",
         }
       })
 
-      // Create CSV content
       const headers = Object.keys(statusReportData[0] || {})
       const csvContent = [
         headers.join(","),
         ...statusReportData.map((row) => headers.map((header) => `"${row[header] || ""}"`).join(",")),
       ].join("\n")
 
-      // Download CSV
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
       const link = document.createElement("a")
       const url = URL.createObjectURL(blob)
@@ -555,6 +542,34 @@ export default function CustomerSummary() {
     processOrdersData()
   }, [ordersData, selectedCustomer, customers, startDate, endDate])
 
+  useEffect(() => {
+    const fetchOrders = async () => {
+      setIsLoading(true)
+      try {
+        const url = ordersApiUrl()
+        if (url) {
+          const response = await fetch(url)
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+          const result = await response.json()
+          if (!result.success) {
+            throw new Error(result.error || "API request failed")
+          }
+          setOrdersData(result)
+        } else {
+          setOrdersData(null)
+        }
+      } catch (error) {
+        setOrdersError(error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchOrders()
+  }, [ordersApiUrl])
+
   if (customersError) {
     console.error("[v0] Customer Summary: Error loading customers:", customersError)
   }
@@ -585,6 +600,96 @@ export default function CustomerSummary() {
     }).format(amount)
   }
 
+  const getCargoStatusBadge = (status: string | null) => {
+    if (!status) {
+      return {
+        label: "Unknown",
+        className: "bg-gray-100 text-gray-800 border-gray-300",
+      }
+    }
+
+    // Normalize status for matching - convert to lowercase and trim
+    const normalizeStatus = (str: string) => {
+      return str.toLowerCase().trim()
+    }
+
+    const normalizedStatus = normalizeStatus(status)
+
+    const statusMap = {
+      "instruction-sent": {
+        label: "Instruction Sent to Agent",
+        className: "border",
+        style: { backgroundColor: "#FEE2E2", color: "#991B1B", borderColor: "#FCA5A5" },
+      },
+      "agent-response": {
+        label: "Agent Response",
+        className: "border",
+        style: { backgroundColor: "#EF4444", color: "#7F1D1D", borderColor: "#F87171" },
+      },
+      "at-origin": {
+        label: "At Origin",
+        className: "border",
+        style: { backgroundColor: "#DBEAFE", color: "#1E3A8A", borderColor: "#93C5FD" },
+      },
+      "cargo-departed": {
+        label: "Cargo Departed",
+        className: "border",
+        style: { backgroundColor: "#3B82F6", color: "#1E40AF", borderColor: "#60A5FA" },
+      },
+      "in-transit": {
+        label: "In Transit",
+        className: "border",
+        style: { backgroundColor: "#F59E0B", color: "#7C2D12", borderColor: "#FDBA74" },
+      },
+      "at-destination": {
+        label: "At Destination",
+        className: "border",
+        style: { backgroundColor: "#D1FAE5", color: "#065F46", borderColor: "#86EFAC" },
+      },
+      delivered: {
+        label: "Delivered",
+        className: "border",
+        style: { backgroundColor: "#10B981", color: "#064E3B", borderColor: "#34D399" },
+      },
+    }
+
+    return (
+      statusMap[normalizedStatus] || {
+        label: status,
+        className: "bg-gray-100 text-gray-800 border-gray-300",
+      }
+    )
+  }
+
+  const formatETDETA = (dateString: string | null) => {
+    if (!dateString) return "—"
+
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return "—"
+
+      const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0
+
+      if (hasTime) {
+        return date.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      } else {
+        return date.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      }
+    } catch (error) {
+      return "—"
+    }
+  }
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -592,7 +697,13 @@ export default function CustomerSummary() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+        <Select
+          value={selectedCustomer}
+          onValueChange={(value) => {
+            setSelectedCustomer(value)
+            updateURL(value, startDate, endDate)
+          }}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Select Customer" />
           </SelectTrigger>
@@ -679,77 +790,64 @@ export default function CustomerSummary() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          <th className="p-2 text-left font-medium min-w-[120px]">PO/Invoice No.</th>
-                          <th className="p-2 text-left font-medium min-w-[100px]">SS P/N.</th>
-                          <th className="p-2 text-left font-medium min-w-[150px]">Supplier</th>
-                          <th className="p-2 text-left font-medium min-w-[150px]">Consignee</th>
-                          <th className="p-2 text-left font-medium min-w-[100px]">ETD</th>
-                          <th className="p-2 text-left font-medium min-w-[120px]">Original ETA</th>
-                          <th className="p-2 text-left font-medium min-w-[100px]">New ETA</th>
-                          <th className="p-2 text-left font-medium min-w-[100px]">Origin</th>
-                          <th className="p-2 text-left font-medium min-w-[80px]">Volume</th>
-                          <th className="p-2 text-left font-medium min-w-[120px]">Commodity</th>
-                          <th className="p-2 text-left font-medium min-w-[150px]">Vessel Details</th>
-                          <th className="p-2 text-left font-medium min-w-[120px]">Master Bill</th>
-                          <th className="p-2 text-left font-medium min-w-[120px]">Container No.</th>
+                          <th className="p-2 text-left font-medium min-w-[150px]">Customer</th>
+                          <th className="p-2 text-left font-medium min-w-[150px]">Freight Type</th>
+                          <th className="p-2 text-left font-medium min-w-[160px]">ETD / ETA</th>
+                          <th className="p-2 text-left font-medium min-w-[120px]">Status</th>
+                          {user?.role !== "employee" && (
+                            <th className="p-2 text-right font-medium min-w-[120px]">Total Value</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredOrders.map((order) => {
-                          const vesselName = order.trackingData?.vessel_name || order.vessel_name || order.vessel || ""
-
-                          let masterBill = ""
-                          let containerNumber = ""
-
-                          if (order.tracking_number) {
-                            const containerPattern = /^[A-Z]{4}\d{7}$/
-                            const bolPattern = /^[A-Z0-9]{8,20}$/
-
-                            if (containerPattern.test(order.tracking_number)) {
-                              containerNumber = order.tracking_number
-                            } else if (
-                              bolPattern.test(order.tracking_number) &&
-                              !containerPattern.test(order.tracking_number)
-                            ) {
-                              masterBill = order.tracking_number
-                            }
-                          }
-
-                          if (order.container_number) {
-                            containerNumber = order.container_number
-                          }
-                          if (order.master_bill || order.bill_of_lading) {
-                            masterBill = order.master_bill || order.bill_of_lading || ""
-                          }
+                        {filteredOrders.slice(0, 10).map((order) => {
+                          const cargoStatusBadge = getCargoStatusBadge(order.cargo_status)
 
                           return (
                             <tr key={order.id} className="border-b hover:bg-muted/30">
-                              <td className="p-2">{order.po_number || "N/A"}</td>
-                              <td className="p-2"></td> {/* SS P/N column left blank */}
-                              <td className="p-2">{order.supplier || "N/A"}</td>
-                              <td className="p-2">{order.importer || "N/A"}</td>
-                              <td className="p-2">{order.etd ? format(parseISO(order.etd), "MMM dd, yyyy") : "TBD"}</td>
-                              <td className="p-2">{order.eta ? format(parseISO(order.eta), "MMM dd, yyyy") : "TBD"}</td>
+                              <td className="p-2">{order.importer}</td>
+                              <td className="p-2">{order.freight_type || "N/A"}</td>
                               <td className="p-2">
-                                {order.trackingData?.estimatedArrival
-                                  ? format(parseISO(order.trackingData.estimatedArrival), "MMM dd, yyyy")
-                                  : "TBD"}
+                                <div className="space-y-2">
+                                  <div className="text-sm">
+                                    <div className="text-muted-foreground text-xs font-medium">ETD</div>
+                                    <div>{formatETDETA(order.etd)}</div>
+                                  </div>
+                                  <div className="text-sm">
+                                    <div className="text-muted-foreground text-xs font-medium">ETA</div>
+                                    <div>{formatETDETA(order.eta)}</div>
+                                  </div>
+                                </div>
                               </td>
-                              <td className="p-2">{order.origin || order.origin_port || "N/A"}</td>
-                              <td className="p-2">{order.volume || order.volume_cbm || "N/A"}</td>
-                              <td className="p-2">{order.commodity || "N/A"}</td>
-                              <td className="p-2">{vesselName || "N/A"}</td> {/* Use vessel name from tracking */}
-                              <td className="p-2">{masterBill || "N/A"}</td>{" "}
-                              {/* Use master bill from tracking analysis */}
-                              <td className="p-2">{containerNumber || "N/A"}</td>{" "}
-                              {/* Use container number from tracking analysis */}
+                              <td className="p-2">
+                                {cargoStatusBadge.style ? (
+                                  <div
+                                    className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                    style={cargoStatusBadge.style}
+                                  >
+                                    {cargoStatusBadge.label}
+                                  </div>
+                                ) : (
+                                  <Badge variant="secondary" className={cargoStatusBadge.className}>
+                                    {cargoStatusBadge.label}
+                                  </Badge>
+                                )}
+                              </td>
+                              {user?.role !== "employee" && (
+                                <td className="p-2 text-right">{formatCurrency(order.value || 0)}</td>
+                              )}
                             </tr>
                           )
                         })}
                         {filteredOrders.length === 0 && (
                           <tr>
-                            <td colSpan={13} className="p-4 text-center text-muted-foreground">
-                              No orders found for the selected customer
+                            <td
+                              colSpan={user?.role !== "employee" ? 5 : 4}
+                              className="p-4 text-center text-muted-foreground"
+                            >
+                              {selectedCustomer && selectedCustomer !== "all"
+                                ? "No orders found for the selected customer and date range"
+                                : "No orders found for the selected criteria"}
                             </td>
                           </tr>
                         )}
@@ -806,9 +904,11 @@ export default function CustomerSummary() {
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Recent Orders</CardTitle>
-                <p className="text-sm text-muted-foreground">Past 7 days</p>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Recent Orders</CardTitle>
+                  <p className="text-sm text-muted-foreground">Past 7 days</p>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -820,15 +920,16 @@ export default function CustomerSummary() {
                           <p className="text-sm text-muted-foreground">
                             {format(parseISO(order.created_at), "MMM dd, yyyy")}
                           </p>
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${
+                          <Badge
+                            variant="secondary"
+                            className={
                               order.status === "Completed"
                                 ? "bg-green-100 text-green-800"
                                 : "bg-yellow-100 text-yellow-800"
-                            }`}
+                            }
                           >
                             {order.status}
-                          </span>
+                          </Badge>
                         </div>
                       </div>
                       {user?.role !== "employee" && (
@@ -880,45 +981,57 @@ export default function CustomerSummary() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="p-2 text-left font-medium">Order Number</th>
-                        <th className="p-2 text-left font-medium">Date</th>
                         <th className="p-2 text-left font-medium">Customer</th>
                         <th className="p-2 text-left font-medium">Freight Type</th>
-                        <th className="p-2 text-left font-medium">ETA</th>
-                        <th className="p-2 text-left font-medium">ETD</th>
+                        <th className="p-2 text-left font-medium min-w-[160px]">ETD / ETA</th>
+                        <th className="p-2 text-left font-medium">Status</th>
                         {user?.role !== "employee" && <th className="p-2 text-right font-medium">Total Value</th>}
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredOrders.slice(0, 10).map((order) => (
-                        <tr key={order.id} className="border-b hover:bg-muted/30">
-                          <td className="p-2">{order.po_number}</td>
-                          <td className="p-2">{format(parseISO(order.created_at), "MMM dd, yyyy")}</td>
-                          <td className="p-2">{order.importer}</td>
-                          <td className="p-2">{order.freight_type || "N/A"}</td>
-                          <td className="p-2">
-                            {order.trackingData?.estimatedArrival
-                              ? format(parseISO(order.trackingData.estimatedArrival), "MMM dd, yyyy")
-                              : order.eta
-                                ? format(parseISO(order.eta), "MMM dd, yyyy")
-                                : "TBD"}
-                          </td>
-                          <td className="p-2">
-                            {order.trackingData?.estimatedDeparture
-                              ? format(parseISO(order.trackingData.estimatedDeparture), "MMM dd, yyyy")
-                              : order.etd
-                                ? format(parseISO(order.etd), "MMM dd, yyyy")
-                                : "TBD"}
-                          </td>
-                          {user?.role !== "employee" && (
-                            <td className="p-2 text-right">{formatCurrency(order.value || 0)}</td>
-                          )}
-                        </tr>
-                      ))}
+                      {filteredOrders.slice(0, 10).map((order) => {
+                        const cargoStatusBadge = getCargoStatusBadge(order.cargo_status)
+
+                        return (
+                          <tr key={order.id} className="border-b hover:bg-muted/30">
+                            <td className="p-2">{order.importer}</td>
+                            <td className="p-2">{order.freight_type || "N/A"}</td>
+                            <td className="p-2">
+                              <div className="space-y-2">
+                                <div className="text-sm">
+                                  <div className="text-muted-foreground text-xs font-medium">ETD</div>
+                                  <div>{formatETDETA(order.etd)}</div>
+                                </div>
+                                <div className="text-sm">
+                                  <div className="text-muted-foreground text-xs font-medium">ETA</div>
+                                  <div>{formatETDETA(order.eta)}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-2">
+                              {cargoStatusBadge.style ? (
+                                <div
+                                  className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                  style={cargoStatusBadge.style}
+                                >
+                                  {cargoStatusBadge.label}
+                                </div>
+                              ) : (
+                                <Badge variant="secondary" className={cargoStatusBadge.className}>
+                                  {cargoStatusBadge.label}
+                                </Badge>
+                              )}
+                            </td>
+                            {user?.role !== "employee" && (
+                              <td className="p-2 text-right">{formatCurrency(order.value || 0)}</td>
+                            )}
+                          </tr>
+                        )
+                      })}
                       {filteredOrders.length === 0 && (
                         <tr>
                           <td
-                            colSpan={user?.role !== "employee" ? 7 : 6}
+                            colSpan={user?.role !== "employee" ? 5 : 4}
                             className="p-4 text-center text-muted-foreground"
                           >
                             {selectedCustomer && selectedCustomer !== "all"

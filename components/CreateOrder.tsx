@@ -37,6 +37,8 @@ export default function CreateOrder() {
     origin: "", // Add origin field
     destination: "", // Add destination field
     tracking_number: "", // Add tracking_number field
+    etd: null, // Add ETD field
+    eta: null, // Add ETA field
   })
 
   // State for order financials
@@ -272,6 +274,8 @@ export default function CreateOrder() {
         cargo_status_comment: order.cargoStatusComment || "",
         customer_name: order.importer || "",
         tracking_number: order.tracking_number || null,
+        etd: order.etd || null, // Include ETD in order data
+        eta: order.eta || null, // Include ETA in order data
         currency: "ZAR",
         // Financial fields mapped to exact database columns
         value: financials.commercialValue,
@@ -542,6 +546,30 @@ export default function CreateOrder() {
                           value={order.cargoStatusComment || ""}
                           onChange={(e) => handleChange("cargoStatusComment", e.target.value)}
                           className="resize-y"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="etd">ETD (Estimated Time of Departure)</Label>
+                        <Input
+                          id="etd"
+                          type="datetime-local"
+                          value={order.etd ? new Date(order.etd).toISOString().slice(0, 16) : ""}
+                          onChange={(e) =>
+                            handleChange("etd", e.target.value ? new Date(e.target.value).toISOString() : "")
+                          }
+                          placeholder="Select departure date and time"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="eta">ETA (Estimated Time of Arrival)</Label>
+                        <Input
+                          id="eta"
+                          type="datetime-local"
+                          value={order.eta ? new Date(order.eta).toISOString().slice(0, 16) : ""}
+                          onChange={(e) =>
+                            handleChange("eta", e.target.value ? new Date(e.target.value).toISOString() : "")
+                          }
+                          placeholder="Select arrival date and time"
                         />
                       </div>
                     </div>

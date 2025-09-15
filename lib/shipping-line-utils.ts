@@ -98,6 +98,7 @@ function detectShippingLineFromPrefix(prefix: string): string | null {
     MAEU: "maersk",
     MRKU: "maersk",
     MSKU: "maersk",
+    MRSU: "maersk", // Added MRSU prefix for Maersk
 
     // MSC
     MSCU: "msc",

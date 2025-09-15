@@ -38,6 +38,8 @@ interface OrderData {
   created_at: string
   updated_at?: string
   tracking_number?: string | null
+  etd?: string
+  eta?: string
   // financials (optional presence)
   commercial_value?: number
   customs_duties?: number
@@ -493,11 +495,7 @@ export default function OrderDetailsClient({ id }: { id: string }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  {
-                    label: "Order Number",
-                    key: "order_number",
-                    value: order.order_number || "N/A",
-                  },
+                  { label: "Order Number", key: "order_number", value: order.order_number || "N/A" },
                   { label: "PO Number", key: "po_number", value: order.po_number || "N/A" },
                   { label: "Supplier", key: "supplier", value: order.supplier || "N/A" },
                   { label: "Importer", key: "importer", value: order.importer || "N/A" },
@@ -508,6 +506,16 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                   { label: "Order Status", key: "status", value: order.status || "N/A" },
                   { label: "Cargo Status", key: "cargo_status", value: order.cargo_status || "N/A" },
                   { label: "Freight Type", key: "freight_type", value: order.freight_type || "N/A" },
+                  {
+                    label: "ETD (Estimated Time of Departure)",
+                    key: "etd",
+                    value: order.etd ? new Date(order.etd).toLocaleString() : "N/A",
+                  },
+                  {
+                    label: "ETA (Estimated Time of Arrival)",
+                    key: "eta",
+                    value: order.eta ? new Date(order.eta).toLocaleString() : "N/A",
+                  },
                 ].map(({ label, key, value }) => (
                   <div key={key} className="space-y-2">
                     <Label className="font-semibold">{label}:</Label>
@@ -584,12 +592,29 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                             />
                           )}
                         </div>
+                      ) : key === "etd" || key === "eta" ? (
+                        <Input
+                          type="datetime-local"
+                          value={
+                            tempOrder?.[key as keyof OrderData]
+                              ? new Date(tempOrder[key as keyof OrderData] as string).toISOString().slice(0, 16)
+                              : ""
+                          }
+                          onChange={(e) =>
+                            handleChange(
+                              key as keyof OrderData,
+                              e.target.value ? new Date(e.target.value).toISOString() : "",
+                            )
+                          }
+                        />
                       ) : (
                         <Input
                           value={(tempOrder?.[key as keyof OrderData] as string) || ""}
                           onChange={(e) => handleChange(key as keyof OrderData, e.target.value)}
                         />
                       )
+                    ) : key === "etd" || key === "eta" ? (
+                      <p className="text-gray-700 p-2 bg-gray-50 rounded">{value}</p>
                     ) : (
                       <p className="text-gray-700 p-2 bg-gray-50 rounded">
                         {value}

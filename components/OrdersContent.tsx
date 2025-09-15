@@ -29,6 +29,8 @@ type Order = {
   created_at: string
   updated_at?: string
   tracking_number?: string
+  etd?: string
+  eta?: string
 }
 
 export function OrdersContent() {
@@ -99,7 +101,6 @@ export function OrdersContent() {
     if (searchTerm) {
       filtered = filtered.filter(
         (order) =>
-          order.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           order.po_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           order.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           order.supplier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -129,21 +130,65 @@ export function OrdersContent() {
   }
 
   // Get badge variant based on status
-  const getStatusColor = (status?: string) => {
-    if (!status) return "bg-gray-500"
-
-    switch (status.toLowerCase()) {
-      case "completed":
-        return "bg-green-500"
-      case "in progress":
-        return "bg-blue-500"
-      case "pending":
-        return "bg-yellow-500"
-      case "cancelled":
-        return "bg-red-500"
-      default:
-        return "bg-gray-500"
+  const getCargoStatusBadge = (status: string | null) => {
+    if (!status) {
+      return {
+        label: "Unknown",
+        className: "bg-gray-100 text-gray-800 border-gray-300",
+      }
     }
+
+    // Normalize status for matching - convert to lowercase and trim
+    const normalizeStatus = (str: string) => {
+      return str.toLowerCase().trim()
+    }
+
+    const normalizedStatus = normalizeStatus(status)
+
+    const statusMap = {
+      "instruction-sent": {
+        label: "Instruction Sent to Agent",
+        className: "border",
+        style: { backgroundColor: "#FEE2E2", color: "#991B1B", borderColor: "#FCA5A5" },
+      },
+      "agent-response": {
+        label: "Agent Response",
+        className: "border",
+        style: { backgroundColor: "#EF4444", color: "#7F1D1D", borderColor: "#F87171" },
+      },
+      "at-origin": {
+        label: "At Origin",
+        className: "border",
+        style: { backgroundColor: "#DBEAFE", color: "#1E3A8A", borderColor: "#93C5FD" },
+      },
+      "cargo-departed": {
+        label: "Cargo Departed",
+        className: "border",
+        style: { backgroundColor: "#3B82F6", color: "#1E40AF", borderColor: "#60A5FA" },
+      },
+      "in-transit": {
+        label: "In Transit",
+        className: "border",
+        style: { backgroundColor: "#F59E0B", color: "#7C2D12", borderColor: "#FDBA74" },
+      },
+      "at-destination": {
+        label: "At Destination",
+        className: "border",
+        style: { backgroundColor: "#D1FAE5", color: "#065F46", borderColor: "#86EFAC" },
+      },
+      delivered: {
+        label: "Delivered",
+        className: "border",
+        style: { backgroundColor: "#10B981", color: "#064E3B", borderColor: "#34D399" },
+      },
+    }
+
+    return (
+      statusMap[normalizedStatus] || {
+        label: status,
+        className: "bg-gray-100 text-gray-800 border-gray-300",
+      }
+    )
   }
 
   const capitalizeFirst = (str: string) => {
@@ -296,12 +341,12 @@ export function OrdersContent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order Number</TableHead>
                   <TableHead>PO Number</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Origin → Destination</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead className="min-w-[160px]">ETD / ETA</TableHead>
+                  <TableHead>Freight Type</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -322,7 +367,6 @@ export function OrdersContent() {
                 ) : (
                   filteredOrders.map((order) => (
                     <TableRow key={order.id} className="hover:bg-muted/50 transition-colors">
-                      <TableCell className="font-medium">{order.order_number || order.po_number || order.id}</TableCell>
                       <TableCell>{order.po_number || order.order_number || "N/A"}</TableCell>
                       <TableCell>{order.customer_name || order.importer || "N/A"}</TableCell>
                       <TableCell>
@@ -331,11 +375,39 @@ export function OrdersContent() {
                           : order.origin || order.destination || "N/A"}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className={`${getStatusColor(order.status)} text-white`}>
-                          {order.status ? capitalizeFirst(order.status) : "Unknown"}
+                        {(() => {
+                          const badgeInfo = getCargoStatusBadge(order.cargo_status)
+                          return badgeInfo.style ? (
+                            <div
+                              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                              style={badgeInfo.style}
+                            >
+                              {badgeInfo.label}
+                            </div>
+                          ) : (
+                            <Badge variant="secondary" className={badgeInfo.className}>
+                              {badgeInfo.label}
+                            </Badge>
+                          )
+                        })()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <div className="text-muted-foreground text-xs font-medium">ETD</div>
+                            <div>{order.etd ? formatDate(order.etd) : "N/A"}</div>
+                          </div>
+                          <div className="text-sm">
+                            <div className="text-muted-foreground text-xs font-medium">ETA</div>
+                            <div>{order.eta ? formatDate(order.eta) : "N/A"}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {order.freight_type || "N/A"}
                         </Badge>
                       </TableCell>
-                      <TableCell>{formatDate(order.created_at)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
