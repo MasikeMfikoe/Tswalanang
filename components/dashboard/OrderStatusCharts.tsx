@@ -65,7 +65,8 @@ export function OrderStatusCharts({
             >
               <div className="flex flex-col items-center text-center gap-2">
                 <p className={`text-sm font-medium ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}>Active</p>
-                                  {activeOrders.length}
+                 <p className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                   {activeOrders.length}
                 </p>
               </div>
             </div>
