@@ -1,39 +1,39 @@
-"use client";
+"use client"
 
-import { useState } from "react";
+import { useState } from "react"
 
 type TrackingEvent = {
-  display_event?: string;
-  actual_date?: string | null;
-  location?: string | null;
-};
+  display_event?: string
+  actual_date?: string | null
+  location?: string | null
+}
 
 type TrackingData = {
-  status?: string;
-  reference_no?: string;
-  pol_name?: string;
-  pod_name?: string;
-  events?: TrackingEvent[];
-};
+  status?: string
+  reference_no?: string
+  pol_name?: string
+  pod_name?: string
+  events?: TrackingEvent[]
+}
 
-type BookingType = "ocean" | "air" | "lcl";
+type BookingType = "ocean" | "air" | "lcl"
 
 export default function ShipmentTracker() {
-  const [number, setNumber] = useState("");
-  const [bookingType, setBookingType] = useState<BookingType | "">("");
-  const [carrierHint, setCarrierHint] = useState("");
-  const [preferScraping, setPreferScraping] = useState(false);
+  const [number, setNumber] = useState("")
+  const [bookingType, setBookingType] = useState<BookingType | "">("")
+  const [carrierHint, setCarrierHint] = useState("")
+  const [preferScraping, setPreferScraping] = useState(false)
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   // ✅ Explicit typing fixes “Property 'status' does not exist on type 'never'”
-  const [trackingData, setTrackingData] = useState<TrackingData | null>(null);
+  const [trackingData, setTrackingData] = useState<TrackingData | null>(null)
 
   const trackShipment = async () => {
-    setLoading(true);
-    setError("");
-    setTrackingData(null);
+    setLoading(true)
+    setError("")
+    setTrackingData(null)
 
     try {
       const res = await fetch("/api/tracking", {
@@ -45,22 +45,22 @@ export default function ShipmentTracker() {
           carrierHint: carrierHint || undefined,
           preferScraping,
         }),
-      });
+      })
 
-      const json = await res.json();
+      const json = await res.json()
 
       if (!res.ok || !json.success) {
-        throw new Error(json.error || "Could not fetch tracking data.");
+        throw new Error(json.error || "Could not fetch tracking data.")
       }
 
-      setTrackingData(json.data as TrackingData);
+      setTrackingData(json.data as TrackingData)
     } catch (e: any) {
-      console.error(e);
-      setError(e?.message || "Could not fetch tracking data.");
+      console.error(e)
+      setError(e?.message || "Could not fetch tracking data.")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div className="p-4 rounded shadow bg-white w-full max-w-2xl">
@@ -92,11 +92,7 @@ export default function ShipmentTracker() {
           onChange={(e) => setCarrierHint(e.target.value)}
         />
         <label className="inline-flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={preferScraping}
-            onChange={(e) => setPreferScraping(e.target.checked)}
-          />
+          <input type="checkbox" checked={preferScraping} onChange={(e) => setPreferScraping(e.target.checked)} />
           Prefer scraping
         </label>
       </div>
@@ -128,7 +124,7 @@ export default function ShipmentTracker() {
           </p>
 
           <h4 className="mt-3 font-semibold">Events</h4>
-          {trackingData.events?.length ? (
+          {trackingData.events && trackingData.events.length > 0 ? (
             <ul className="list-disc pl-5 text-sm">
               {trackingData.events.map((ev, i) => (
                 <li key={i}>
@@ -142,5 +138,5 @@ export default function ShipmentTracker() {
         </div>
       )}
     </div>
-  );
+  )
 }

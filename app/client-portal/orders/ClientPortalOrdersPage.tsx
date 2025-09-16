@@ -219,25 +219,25 @@ export default function ClientPortalOrdersPage() {
   }, [])
 
   const filteredOrders = useMemo(() => {
-    let filtered = orders
+    let filtered = orders || []
 
     if (searchTerm) {
       filtered = filtered.filter(
         (order) =>
-          order.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.status.toLowerCase().includes(searchTerm.toLowerCase()),
+          order.po_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.status?.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
     if (filterStatus) {
-      filtered = filtered.filter((order) => order.status.toLowerCase() === filterStatus.toLowerCase())
+      filtered = filtered.filter((order) => order.status?.toLowerCase() === filterStatus.toLowerCase())
     }
 
     return filtered
   }, [orders, searchTerm, filterStatus])
 
   // Pagination logic
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage)
+  const totalPages = Math.ceil((filteredOrders?.length || 0) / itemsPerPage)
   const currentOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
@@ -336,7 +336,7 @@ export default function ClientPortalOrdersPage() {
               </div>
             </div>
 
-            {currentOrders.length === 0 ? (
+            {!currentOrders || currentOrders.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 No orders found matching your criteria.
                 <Button

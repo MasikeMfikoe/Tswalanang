@@ -473,14 +473,14 @@ export default function CustomerSummary() {
           }
         }
 
-        const enrichedOrders = await enrichOrdersWithTracking(filteredByCustomer)
-        setFilteredOrders(enrichedOrders)
+        console.log(`[v0] Processing ${filteredByCustomer.length} orders without tracking enrichment`)
+        setFilteredOrders(filteredByCustomer)
 
-        const totalRevenue = enrichedOrders?.reduce((sum, order) => sum + (order.value || 0), 0) || 0
+        const totalRevenue = filteredByCustomer?.reduce((sum, order) => sum + (order.value || 0), 0) || 0
         const totalVAT = totalRevenue * 0.15
         const totalCustomsDuties = totalRevenue * 0.2
-        const orderCount = enrichedOrders?.length || 0
-        const completedOrders = enrichedOrders?.filter((order) => order.status === "Completed").length || 0
+        const orderCount = filteredByCustomer?.length || 0
+        const completedOrders = filteredByCustomer?.filter((order) => order.status === "Completed").length || 0
         const inProgressOrders = orderCount - completedOrders
 
         console.log("[v0] Customer Summary: Total revenue calculation:", totalRevenue)
@@ -498,50 +498,54 @@ export default function CustomerSummary() {
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
         const recent =
-          enrichedOrders
-            ?.filter((order) => new Date(order.created_at) >= sevenDaysAgo)
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .slice(0, 5) || []
+          filteredByCustomer
+            ?.filter((order) => new Date(order.created_at || order.date || "") >= sevenDaysAgo)
+            ?.sort(
+              (a, b) =>
+                new Date(b.created_at || b.date || "").getTime() - new Date(a.created_at || a.date || "").getTime(),
+            )
+            ?.slice(0, 10) || []
 
         setRecentOrders(recent)
 
-        const last6Months = Array.from({ length: 6 }, (_, i) => {
-          const date = new Date()
-          date.setMonth(date.getMonth() - i)
-          return {
-            month: format(date, "MMM"),
-            year: date.getFullYear(),
-            monthIndex: date.getMonth(),
-            yearMonth: `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`,
-          }
-        }).reverse()
-
-        const monthlyData = last6Months.map((monthData) => {
-          const monthOrders =
-            enrichedOrders?.filter((order) => {
-              const orderDate = new Date(order.created_at)
-              return orderDate.getMonth() === monthData.monthIndex && orderDate.getFullYear() === monthData.year
-            }) || []
-
-          return {
-            name: monthData.month,
-            value: monthOrders.length,
-          }
-        })
-
+        const monthlyData = generateMonthlyOrderData(filteredByCustomer)
         setMonthlyOrderData(monthlyData)
       } catch (error) {
-        console.error("[v0] Customer Summary: Error processing orders data:", error)
-        toast({
-          title: "Error",
-          description: "Failed to process order data. Please try again.",
-          variant: "destructive",
-        })
+        console.error("[v0] Error processing orders data:", error)
+        setFilteredOrders([])
+        setRecentOrders([])
+        setMonthlyOrderData([])
       }
     }
 
     processOrdersData()
-  }, [ordersData, selectedCustomer, customers, startDate, endDate])
+  }, [ordersData?.data, selectedCustomer, customers]) // Removed enrichOrdersWithTracking dependency
+
+  const generateMonthlyOrderData = (orders: OrderWithTracking[]) => {
+    const last6Months = Array.from({ length: 6 }, (_, i) => {
+      const date = new Date()
+      date.setMonth(date.getMonth() - i)
+      return {
+        month: format(date, "MMM"),
+        year: date.getFullYear(),
+        monthIndex: date.getMonth(),
+        yearMonth: `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}`,
+      }
+    }).reverse()
+
+    return last6Months.map((monthData) => {
+      const monthOrders =
+        orders?.filter((order) => {
+          const orderDate = new Date(order.created_at)
+          return orderDate.getMonth() === monthData.monthIndex && orderDate.getFullYear() === monthData.year
+        }) || []
+
+      return {
+        name: monthData.month,
+        value: monthOrders.length,
+      }
+    })
+  }
 
   const detectAndUpdateCarriers = async (orders: any[]) => {
     const ordersToUpdate = orders.filter(
