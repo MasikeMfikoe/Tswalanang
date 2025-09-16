@@ -375,7 +375,10 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
   }
 
   const isDocumentTypeUploaded = (typeName: string) => {
-    console.log("🔍 Checking if document type is uploaded:", typeName, "Current docs:", uploadedDocuments.length)
+    const documentsCount = Array.isArray(uploadedDocuments) ? uploadedDocuments.length : 0
+    console.log("🔍 Checking if document type is uploaded:", typeName, "Current docs:", documentsCount)
+
+    if (!Array.isArray(uploadedDocuments)) return false
 
     const isUploaded = uploadedDocuments.some((doc) => {
       if (typeName === "Release Letter" && (doc.type === "Release Letter" || doc.type === "Release Letter/DRO")) {
@@ -511,13 +514,15 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
 
       <div className="bg-white rounded-lg p-4 border col-span-2 h-[500px] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h4 className="text-lg font-semibold">Uploaded Documents ({uploadedDocuments.length})</h4>
+          <h4 className="text-lg font-semibold">
+            Uploaded Documents ({Array.isArray(uploadedDocuments) ? uploadedDocuments.length : 0})
+          </h4>
           <Button variant="outline" size="sm" onClick={fetchDocuments}>
             Refresh
           </Button>
         </div>
         <div className="space-y-4">
-          {uploadedDocuments.length > 0 ? (
+          {Array.isArray(uploadedDocuments) && uploadedDocuments.length > 0 ? (
             uploadedDocuments.map((doc) => (
               <div key={doc.id} className="flex items-center justify-between p-3 bg-muted rounded-md group">
                 <div className="flex items-center gap-3 flex-1 min-w-0">

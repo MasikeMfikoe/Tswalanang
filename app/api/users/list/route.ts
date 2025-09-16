@@ -24,8 +24,9 @@ export async function GET(request: NextRequest) {
     if (allUsersError) {
       console.error("[v0] ❌ Error fetching all users:", allUsersError)
     } else {
-      console.log(`[v0] 📊 Total users found in database: ${allUsers?.length || 0}`)
-      if (allUsers && allUsers.length > 0) {
+      const usersCount = Array.isArray(allUsers) ? allUsers.length : 0
+      console.log(`[v0] 📊 Total users found in database: ${usersCount}`)
+      if (allUsers && usersCount > 0) {
         console.log(
           `[v0] 📋 Sample user roles:`,
           allUsers.map((u) => ({ email: u.email, role: u.role })),
@@ -54,7 +55,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    console.log(`[v0] 📊 Filtered users found: ${data?.length || 0}`)
+    const dataLength = Array.isArray(data) ? data.length : 0
+    console.log(`[v0] 📊 Filtered users found: ${dataLength}`)
 
     const mappedUsers = (data || []).map((user) => {
       const username =

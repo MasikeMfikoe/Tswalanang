@@ -20,8 +20,8 @@ const supabaseAdmin = createClient(
  */
 async function findUserByEmail(
   supabase: any,
-  email: string
-): Promise<{ data: { user: any | null }, error: any | null }> {
+  email: string,
+): Promise<{ data: { user: any | null }; error: any | null }> {
   let page = 1
   const perPage = 200
   const target = String(email).toLowerCase()
@@ -33,14 +33,15 @@ async function findUserByEmail(
       if (error) return { data: { user: null }, error }
 
       const users = data?.users ?? []
+      const usersLength = Array.isArray(users) ? users.length : 0
       const match = users.find(
         (u: any) =>
           u?.email?.toLowerCase() === target ||
-          u?.identities?.some((i: any) => i?.identity_data?.email?.toLowerCase?.() === target)
+          u?.identities?.some((i: any) => i?.identity_data?.email?.toLowerCase?.() === target),
       )
 
       if (match) return { data: { user: match }, error: null }
-      if (users.length < perPage) break
+      if (usersLength < perPage) break
       page += 1
     }
     return { data: { user: null }, error: null }
@@ -91,12 +92,10 @@ export async function POST(request: NextRequest) {
     // Validate userData fields
     const requiredUserFields = ["name", "surname", "role", "department"]
     const missingFields = requiredUserFields.filter((f) => !userData[f])
-    if (missingFields.length > 0) {
+    const missingFieldsCount = Array.isArray(missingFields) ? missingFields.length : 0
+    if (missingFieldsCount > 0) {
       console.error("❌ Missing user data fields:", missingFields)
-      return NextResponse.json(
-        { error: "Missing user data fields", details: { missingFields } },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: "Missing user data fields", details: { missingFields } }, { status: 400 })
     }
 
     console.log("✅ All required fields present, proceeding with user creation...")
@@ -179,16 +178,20 @@ export async function POST(request: NextRequest) {
                 console.log("✅ Found existing user on retry:", existingAuthUser.id)
               } else {
                 return NextResponse.json(
-                  { error: "Email already registered but user not found",
-                    details: { message: "This email is already registered but the user cannot be retrieved." } },
+                  {
+                    error: "Email already registered but user not found",
+                    details: { message: "This email is already registered but the user cannot be retrieved." },
+                  },
                   { status: 409 },
                 )
               }
             } catch (retryError) {
               console.error("❌ Retry fetch failed:", retryError)
               return NextResponse.json(
-                { error: "Email already registered",
-                  details: { message: "This email is already registered in the system." } },
+                {
+                  error: "Email already registered",
+                  details: { message: "This email is already registered in the system." },
+                },
                 { status: 409 },
               )
             }
@@ -254,10 +257,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        return NextResponse.json(
-          { error: "Failed to create user profile", details: profileError },
-          { status: 500 },
-        )
+        return NextResponse.json({ error: "Failed to create user profile", details: profileError }, { status: 500 })
       }
 
       console.log("✅ User profile created successfully:", profile?.id)
