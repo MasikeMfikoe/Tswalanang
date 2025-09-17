@@ -46,16 +46,13 @@ export function OrdersContent() {
   const [error, setError] = useState<string | null>(null)
 
   const detectAndUpdateCarriers = async (orders: Order[]) => {
-    if (!Array.isArray(orders)) return
-
     const ordersToUpdate = orders.filter(
       (order) => order.tracking_number && !order.shipping_line && order.tracking_number.trim() !== "",
     )
 
-    const ordersToUpdateCount = Array.isArray(ordersToUpdate) ? ordersToUpdate.length : 0
-    if (ordersToUpdateCount === 0) return
+    if (ordersToUpdate.length === 0) return
 
-    console.log(`[v0] Detecting carriers for ${ordersToUpdateCount} existing orders...`)
+    console.log(`[v0] Detecting carriers for ${ordersToUpdate.length} existing orders...`)
 
     for (const order of ordersToUpdate) {
       try {
@@ -105,12 +102,11 @@ export function OrdersContent() {
       const fetchedOrders = data.data || []
       setOrders(fetchedOrders)
 
-      const fetchedOrdersCount = Array.isArray(fetchedOrders) ? fetchedOrders.length : 0
-      if (fetchedOrdersCount > 0) {
+      if (fetchedOrders.length > 0) {
         detectAndUpdateCarriers(fetchedOrders)
       }
 
-      if (fetchedOrdersCount === 0) {
+      if (fetchedOrders.length === 0) {
         toast({
           title: "No Orders Found",
           description: "No orders have been created yet. Create your first order!",
@@ -139,11 +135,6 @@ export function OrdersContent() {
   }, [searchTerm, statusFilter, orders])
 
   const filterOrders = () => {
-    if (!Array.isArray(orders)) {
-      setFilteredOrders([])
-      return
-    }
-
     let filtered = orders
 
     if (searchTerm) {
@@ -415,7 +406,7 @@ export function OrdersContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {!Array.isArray(filteredOrders) || filteredOrders.length === 0 ? (
+                {filteredOrders.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -516,9 +507,9 @@ export function OrdersContent() {
             </Table>
           </div>
 
-          {Array.isArray(filteredOrders) && filteredOrders.length > 0 && (
+          {filteredOrders.length > 0 && (
             <div className="mt-4 text-sm text-muted-foreground">
-              Showing {filteredOrders.length} of {Array.isArray(orders) ? orders.length : 0} shipment orders
+              Showing {filteredOrders.length} of {orders.length} shipment orders
             </div>
           )}
         </CardContent>

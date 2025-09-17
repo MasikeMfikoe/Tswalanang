@@ -107,7 +107,7 @@ export default function TrackShipIntegration() {
                 </div>
               )}
 
-              {result.events && Array.isArray(result.events) && result.events.length > 0 && (
+              {result.events && result.events.length > 0 && (
                 <div>
                   <p className="text-sm font-medium text-gray-600 mb-2">Tracking Events</p>
                   <div className="space-y-2 max-h-60 overflow-y-auto">

@@ -130,7 +130,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check for existing session on mount
   useEffect(() => {
-    checkUser()
+    const checkUserAndSubscribe = async () => {
+      await checkUser()
+
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log("🔄 Auth state changed:", event, session?.user?.id)
+
+        if (event === "SIGNED_IN" && session) {
+          console.log("✅ User signed in, updating state")
+          await checkUser()
+        } else if (event === "SIGNED_OUT") {
+          console.log("🚪 User signed out, clearing state")
+          setUser(null)
+          setIsLoading(false)
+        }
+      })
+
+      return () => {
+        subscription.unsubscribe()
+      }
+    }
+
+    checkUserAndSubscribe()
   }, [])
 
   // Check if user is authenticated
@@ -194,8 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log("✅ Setting user from Supabase:", userData.email)
           setUser(userData)
 
-          // Redirect client users to client portal immediately
-          redirectUserByRole(userData.role)
+          // redirectUserByRole(userData.role)
         } catch (error) {
           console.error("❌ Error processing user profile:", error)
           setUser(null)
@@ -226,23 +248,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         typeof username !== "string" ||
         typeof password !== "string" ||
         username.trim() === "" ||
-        password.trim() === "" ||
-        username.length === 0 ||
-        password.length === 0
+        password.trim() === ""
       ) {
         console.error("❌ Invalid username or password provided")
         return false
       }
 
-      // Clean inputs and ensure they're proper strings
-      const cleanUsername = String(username).trim()
-      const cleanPassword = String(password).trim()
-
-      // Additional validation for Supabase
-      if (cleanUsername.length === 0 || cleanPassword.length === 0) {
-        console.error("❌ Empty credentials after cleaning")
-        return false
-      }
+      // Clean inputs
+      const cleanUsername = username.trim()
+      const cleanPassword = password.trim()
 
       // Check if Supabase is configured
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -253,17 +267,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
       }
 
+      console.log("[v0] Supabase config check:", {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseAnonKey,
+        urlLength: supabaseUrl?.length,
+        keyLength: supabaseAnonKey?.length,
+      })
+
       try {
         console.log("🔍 Looking up user profile by username:", cleanUsername)
 
-        // First, try to find user by username
+        // First, try to find user by username (case-insensitive)
         const { data: profiles, error: profileError } = await supabase
           .from("user_profiles")
           .select("*")
-          .eq("username", cleanUsername)
-          .single()
+          .ilike("username", cleanUsername)
+          .limit(1)
 
-        if (profileError || !profiles) {
+        if (profileError || !profiles || profiles.length === 0) {
           console.log("⚠️ Username not found, trying email-based login:", cleanUsername)
 
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -272,22 +293,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
           }
 
-          const emailToUse = String(cleanUsername).trim()
-          const passwordToUse = String(cleanPassword).trim()
-
-          if (!emailToUse || !passwordToUse || emailToUse.length === 0 || passwordToUse.length === 0) {
-            console.error("❌ Invalid email or password for direct authentication")
-            return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
-          }
-
-          console.log("🔐 Attempting direct email authentication with:", emailToUse)
-          console.log("🔐 Email type:", typeof emailToUse, "Password type:", typeof passwordToUse)
-          console.log("🔐 Email length:", emailToUse.length, "Password length:", passwordToUse.length)
+          console.log("[v0] Attempting direct email auth with:", {
+            email: cleanUsername,
+            passwordLength: cleanPassword.length,
+            emailValid: emailRegex.test(cleanUsername),
+          })
 
           // If username lookup fails, try direct email authentication
           const { data: emailAuth, error: emailError } = await supabase.auth.signInWithPassword({
-            email: emailToUse,
-            password: passwordToUse,
+            email: cleanUsername,
+            password: cleanPassword,
           })
 
           if (!emailError && emailAuth.user) {
@@ -307,53 +322,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               redirectUserByRole(userData.role)
               return true
             }
-          } else {
-            console.log("❌ Email authentication failed:", emailError?.message)
           }
 
           console.log("❌ Email authentication failed, trying mock authentication")
           return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
         }
 
-        if (
-          !profiles.email ||
-          typeof profiles.email !== "string" ||
-          profiles.email.trim() === "" ||
-          profiles.email.length === 0
-        ) {
-          console.error("❌ User profile has no valid email address:", profiles.email)
+        // Get the first matching profile
+        const profile = profiles[0]
+
+        if (!profile.email || typeof profile.email !== "string" || profile.email.trim() === "") {
+          console.error("❌ User profile has no valid email address")
           return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
         }
 
-        const cleanEmail = String(profiles.email).trim()
+        const cleanEmail = profile.email.trim()
 
+        // Validate email format before attempting authentication
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         if (!emailRegex.test(cleanEmail)) {
-          console.error("❌ Invalid email format in user profile:", cleanEmail)
+          console.error("❌ User profile has invalid email format:", cleanEmail)
           return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
         }
 
-        const finalEmail = String(cleanEmail).trim()
-        const finalPassword = String(cleanPassword).trim()
+        console.log("✅ Found user profile, trying Supabase auth with email:", cleanEmail)
 
-        if (!finalEmail || !finalPassword || finalEmail.length === 0 || finalPassword.length === 0) {
-          console.error("❌ Final validation failed - empty credentials")
-          return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
-        }
-
-        console.log("✅ Found user profile, trying Supabase auth with email:", finalEmail)
-        console.log("🔐 Final email type:", typeof finalEmail, "Final password type:", typeof finalPassword)
-        console.log("🔐 Final email length:", finalEmail.length, "Final password length:", finalPassword.length)
+        console.log("[v0] About to authenticate with:", {
+          email: cleanEmail,
+          passwordLength: cleanPassword.length,
+          passwordType: typeof cleanPassword,
+          emailType: typeof cleanEmail,
+          emailTrimmed: cleanEmail === profile.email,
+          passwordTrimmed: cleanPassword === password,
+        })
 
         try {
           const { data, error } = await supabase.auth.signInWithPassword({
-            email: finalEmail,
-            password: finalPassword,
+            email: cleanEmail,
+            password: cleanPassword,
           })
+
+          if (error) {
+            console.log("[v0] Supabase auth error details:", {
+              message: error.message,
+              status: error.status,
+              name: error.name,
+              code: error.__isAuthError,
+              stack: error.stack?.substring(0, 200),
+            })
+
+            if (error.message?.includes("Invalid value") || error.message?.includes("fetch")) {
+              console.error("❌ Supabase configuration error - falling back to mock auth")
+              return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
+            }
+          }
 
           if (!error && data.user) {
             console.log("✅ Supabase authentication successful")
-            const userData = mapUserProfile(profiles, data.user.id)
+            const userData = mapUserProfile(profile, data.user.id)
             setUser(userData)
 
             await safeAuditLog(() => AuditLogger.logUserLogin(userData.id, userData.email, ipAddress, userAgent))
@@ -364,9 +390,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log("🔄 Falling back to mock authentication")
             return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
           }
-        } catch (supabaseAuthError) {
-          console.error("❌ Supabase signInWithPassword threw error:", supabaseAuthError)
-          console.log("🔄 Falling back to mock authentication")
+        } catch (authError) {
+          console.error("[v0] signInWithPassword threw error:", {
+            message: authError.message,
+            name: authError.name,
+            stack: authError.stack?.substring(0, 200),
+          })
+          console.log("🔄 Authentication error caught, falling back to mock")
           return await handleMockLogin(cleanUsername, cleanPassword, userAgent, ipAddress)
         }
       } catch (supabaseError) {

@@ -3,8 +3,34 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { getClientPackDocuments, getMockClientPackDocuments, type ClientPackDocument } from "@/lib/client-pack-utils"
-import { Download, FileText } from "lucide-react"
+import { Download, CheckCircle2, AlertCircle } from "lucide-react"
+import mockStorage from "@/lib/mock-storage"
+
+const CLIENT_PACK_DOCUMENT_TYPES = [
+  "ANF",
+  "Cargo Dues",
+  "Customs Worksheet",
+  "Delivery Instruction",
+  "EDI",
+  "Commercial Invoice",
+  "Bill of Lading",
+  "Release Letter",
+  "SAD500",
+  "SARS POP",
+  "Shipping Invoice",
+  "Shipping POP",
+]
+
+interface ClientPackDocument {
+  id: string
+  name: string
+  type: string
+  url: string
+  order_id: string
+  created_at: string
+  required: boolean
+  uploaded: boolean // Add uploaded status
+}
 
 interface ClientPackDocumentsProps {
   orderId: string
@@ -15,28 +41,42 @@ export default function ClientPackDocuments({ orderId, freightType }: ClientPack
   const [documents, setDocuments] = useState<ClientPackDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [useMockData, setUseMockData] = useState(false)
 
   useEffect(() => {
     async function fetchDocuments() {
       try {
         setLoading(true)
-        const docs = await getClientPackDocuments(orderId, freightType)
 
-        // If no documents are found, use mock data for demonstration
-        if (docs.length === 0) {
-          setUseMockData(true)
-          setDocuments(getMockClientPackDocuments(orderId, freightType))
-        } else {
-          setDocuments(docs)
-        }
+        const uploadedResult = await mockStorage.getDocuments(orderId)
+        const uploadedDocs = uploadedResult.data || []
 
+        const clientPackDocs: ClientPackDocument[] = CLIENT_PACK_DOCUMENT_TYPES.map((docType) => {
+          // Check if this document type has been uploaded
+          const uploadedDoc = uploadedDocs.find((doc: any) => {
+            // Handle Release Letter special case
+            if (docType === "Release Letter" && (doc.type === "Release Letter" || doc.type === "Release Letter/DRO")) {
+              return true
+            }
+            return doc.type === docType
+          })
+
+          return {
+            id: uploadedDoc?.id || `required-${docType.toLowerCase().replace(/\s+/g, "-")}`,
+            name: uploadedDoc?.name || `${docType}.pdf`,
+            type: docType,
+            url: uploadedDoc?.url || "#",
+            order_id: orderId,
+            created_at: uploadedDoc?.created_at || new Date().toISOString(),
+            required: true,
+            uploaded: !!uploadedDoc, // Set uploaded status based on whether document exists
+          }
+        })
+
+        setDocuments(clientPackDocs)
         setError(null)
       } catch (err) {
         console.error("Error fetching client pack documents:", err)
         setError("Failed to load documents")
-        setUseMockData(true)
-        setDocuments(getMockClientPackDocuments(orderId, freightType))
       } finally {
         setLoading(false)
       }
@@ -46,8 +86,8 @@ export default function ClientPackDocuments({ orderId, freightType }: ClientPack
   }, [orderId, freightType])
 
   const handleViewDocument = (document: ClientPackDocument) => {
-    if (useMockData) {
-      alert("This is a mock document. In a real application, this would open the document.")
+    if (!document.uploaded) {
+      alert("This document has not been uploaded yet.")
       return
     }
     if (typeof window !== "undefined") {
@@ -55,30 +95,30 @@ export default function ClientPackDocuments({ orderId, freightType }: ClientPack
     }
   }
 
-  const handleDownloadDocument = (document: ClientPackDocument) => {
-    if (useMockData) {
-      alert("This is a mock document. In a real application, this would download the document.")
+  const handleDownloadDocument = (doc: ClientPackDocument) => {
+    if (!doc.uploaded) {
+      alert("This document has not been uploaded yet.")
       return
     }
 
-    if (typeof document !== "undefined" && typeof window !== "undefined") {
-      const link = document.createElement("a")
-      link.href = document.url
-      link.download = document.name
-      document.body.appendChild(link)
+    if (typeof window !== "undefined") {
+      const link = window.document.createElement("a")
+      link.href = doc.url
+      link.download = doc.name
+      window.document.body.appendChild(link)
       link.click()
-      document.body.removeChild(link)
+      window.document.body.removeChild(link)
     }
   }
 
   const handleDownloadAll = () => {
-    if (useMockData) {
-      alert("These are mock documents. In a real application, this would download all documents.")
+    const uploadedDocs = documents.filter((doc) => doc.uploaded)
+    if (uploadedDocs.length === 0) {
+      alert("No documents have been uploaded yet.")
       return
     }
 
-    documents.forEach((doc, index) => {
-      // Add a small delay between downloads to prevent browser issues
+    uploadedDocs.forEach((doc, index) => {
       setTimeout(() => handleDownloadDocument(doc), index * 300)
     })
   }
@@ -95,28 +135,21 @@ export default function ClientPackDocuments({ orderId, freightType }: ClientPack
     )
   }
 
+  const uploadedCount = documents.filter((doc) => doc.uploaded).length
+
   return (
     <Card>
       <CardContent className="p-6">
-        {useMockData && (
-          <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded mb-4">
-            <p className="font-medium">Demo Mode</p>
-            <p className="text-sm">Showing mock documents for demonstration purposes.</p>
-          </div>
-        )}
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
 
-        {error && !useMockData && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
-        )}
-
-        {documents.length > 0 && (
+        {uploadedCount > 0 && (
           <div className="flex justify-end mb-4">
             <Button
               onClick={handleDownloadAll}
               className="bg-black text-white hover:bg-gray-800 transition-colors flex items-center gap-2"
             >
               <Download className="h-4 w-4" />
-              Download All
+              Download All ({uploadedCount})
             </Button>
           </div>
         )}
@@ -132,47 +165,52 @@ export default function ClientPackDocuments({ orderId, freightType }: ClientPack
               </tr>
             </thead>
             <tbody>
-              {documents.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="p-4 text-center text-muted-foreground">
-                    <div className="flex flex-col items-center py-6">
-                      <FileText className="h-12 w-12 text-gray-400 mb-2" />
-                      <p className="text-sm text-gray-500">No client pack documents available for this order.</p>
+              {documents.map((doc, index) => (
+                <tr key={doc.id || index} className="border-b">
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      {doc.uploaded ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                      )}
+                      {doc.name}
                     </div>
                   </td>
+                  <td className="p-4">{doc.type}</td>
+                  <td className="p-4">
+                    <span
+                      className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                        doc.uploaded
+                          ? "bg-green-100 text-green-700 ring-1 ring-inset ring-green-600/20"
+                          : "bg-red-100 text-red-700 ring-1 ring-inset ring-red-600/20"
+                      }`}
+                    >
+                      {doc.uploaded ? "Uploaded" : "Required"}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`mr-2 ${doc.uploaded ? "bg-transparent" : "opacity-50 cursor-not-allowed"}`}
+                      onClick={() => handleViewDocument(doc)}
+                      disabled={!doc.uploaded}
+                    >
+                      View
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadDocument(doc)}
+                      disabled={!doc.uploaded}
+                      className={doc.uploaded ? "" : "opacity-50 cursor-not-allowed"}
+                    >
+                      Download
+                    </Button>
+                  </td>
                 </tr>
-              ) : (
-                documents.map((doc, index) => (
-                  <tr key={doc.id || index} className="border-b">
-                    <td className="p-4">{doc.name}</td>
-                    <td className="p-4">{doc.type}</td>
-                    <td className="p-4">
-                      <span
-                        className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                          doc.required
-                            ? "bg-red-100 text-red-700 ring-1 ring-inset ring-red-600/20"
-                            : "bg-yellow-100 text-yellow-700 ring-1 ring-inset ring-yellow-600/20"
-                        }`}
-                      >
-                        {doc.required ? "Required" : "Optional"}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mr-2 bg-transparent"
-                        onClick={() => handleViewDocument(doc)}
-                      >
-                        View
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDownloadDocument(doc)}>
-                        Download
-                      </Button>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
         </div>

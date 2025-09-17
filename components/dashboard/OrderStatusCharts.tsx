@@ -64,6 +64,7 @@ export function OrderStatusCharts({
               className={`p-4 rounded-xl ${isDarkMode ? "bg-blue-500/10 border border-blue-500/20" : "bg-blue-50 border border-blue-200"}`}
             >
               <div className="flex flex-col items-center text-center gap-2">
+                <p className={`text-sm font-medium ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}>Active</p>
                 <p className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                   {activeOrders.length}
                 </p>
@@ -74,6 +75,9 @@ export function OrderStatusCharts({
               className={`p-4 rounded-xl ${isDarkMode ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-emerald-50 border border-emerald-200"}`}
             >
               <div className="flex flex-col items-center text-center gap-2">
+                <p className={`text-sm font-medium ${isDarkMode ? "text-emerald-300" : "text-emerald-700"}`}>
+                  Completed
+                </p>
                 <p className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                   {completedOrders.length}
                 </p>
@@ -84,6 +88,7 @@ export function OrderStatusCharts({
               className={`p-4 rounded-xl ${isDarkMode ? "bg-amber-500/10 border border-amber-500/20" : "bg-amber-50 border border-amber-200"}`}
             >
               <div className="flex flex-col items-center text-center gap-2">
+                <p className={`text-sm font-medium ${isDarkMode ? "text-amber-300" : "text-amber-700"}`}>Pending</p>
                 <p className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                   {pendingOrders.length}
                 </p>

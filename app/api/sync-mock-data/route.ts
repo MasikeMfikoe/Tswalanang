@@ -234,7 +234,7 @@ export async function GET(request: NextRequest) {
       mockUsers: mockUsersLength,
       supabaseProfiles: profilesLength,
       supabaseAuthUsers: authUsersLength,
-      profiles: profiles || [],
+      profiles: profiles,
       needsSync: profilesLength !== mockUsersLength,
     })
   } catch (error) {

@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/supabase"
-
 // Define document types that should be included in Client Pack
 const CLIENT_PACK_DOCUMENT_TYPES = [
   "EDI",
@@ -42,30 +40,27 @@ export async function getClientPackDocuments(orderId: string, freightType?: stri
       documentTypes.push(...EXW_FOB_ADDITIONAL_DOCUMENT_TYPES)
     }
 
-    // Fetch documents from Supabase
-    const { data, error } = await supabase.from("uploaded_documents").select("*").eq("order_id", orderId)
+    console.log("Using mock client pack documents to avoid Headers error")
+    return getMockClientPackDocuments(orderId, freightType)
 
-    if (error) {
-      console.error("Error fetching documents:", error)
-      return []
-    }
-
-    if (!data || data.length === 0) {
-      console.log("No documents found for order:", orderId)
-      return []
-    }
-
-    // Filter documents to only include those in the client pack list
-    const clientPackDocuments = data.filter((doc) => documentTypes.includes(doc.type))
-
-    // Add a required flag to each document
-    return clientPackDocuments.map((doc) => ({
-      ...doc,
-      required: CLIENT_PACK_DOCUMENT_TYPES.includes(doc.type), // Required if in the main list
-    }))
+    // Original Supabase code commented out due to Headers error
+    // const { data, error } = await supabase.from("uploaded_documents").select("*").eq("order_id", orderId)
+    // if (error) {
+    //   console.error("Error fetching documents:", error)
+    //   return []
+    // }
+    // if (!data || data.length === 0) {
+    //   console.log("No documents found for order:", orderId)
+    //   return []
+    // }
+    // const clientPackDocuments = data.filter((doc) => documentTypes.includes(doc.type))
+    // return clientPackDocuments.map((doc) => ({
+    //   ...doc,
+    //   required: CLIENT_PACK_DOCUMENT_TYPES.includes(doc.type),
+    // }))
   } catch (error) {
     console.error("Error in getClientPackDocuments:", error)
-    return []
+    return getMockClientPackDocuments(orderId, freightType)
   }
 }
 

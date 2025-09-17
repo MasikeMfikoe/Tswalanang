@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Upload, Loader2, X, Eye, FileText, AlertCircle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
-import { supabase } from "@/lib/supabase"
+import mockStorage from "@/lib/mock-storage"
 
 interface DocumentType {
   id: string
@@ -59,10 +59,9 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
 
   // Debug: Log component props
   useEffect(() => {
-    console.log("DocumentUpload component loaded with:", { isEditing, orderId })
+    console.log("[v0] DocumentUpload component loaded with:", { isEditing, orderId })
   }, [isEditing, orderId])
 
-  // Fetch documents from Supabase on component mount and when orderId changes
   useEffect(() => {
     if (orderId) {
       fetchDocuments()
@@ -72,21 +71,10 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
   const fetchDocuments = async () => {
     try {
       setIsLoading(true)
-      console.log("🔍 Fetching documents for order:", orderId)
+      console.log("[v0] Fetching documents for order:", orderId)
 
-      const response = await fetch(`/api/documents?orderId=${orderId}`)
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to fetch documents")
-      }
-
-      console.log("✅ Fetched documents from API:", result.data)
+      const result = await mockStorage.getDocuments(orderId)
+      console.log("[v0] Fetched documents from mock storage:", result.data)
 
       const formattedDocs: UploadedDocument[] = (result.data || []).map((doc: any) => ({
         id: doc.id,
@@ -99,12 +87,12 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
       }))
 
       setUploadedDocuments(formattedDocs)
-      console.log("📋 Updated uploaded documents state:", formattedDocs)
+      console.log("[v0] Updated uploaded documents state:", formattedDocs)
 
       // Force checklist to re-render
       setChecklistKey((prev) => prev + 1)
     } catch (error) {
-      console.error("💥 Exception fetching documents:", error)
+      console.error("[v0] Exception fetching documents:", error)
       toast({
         title: "Error",
         description: "Failed to load documents",
@@ -141,8 +129,8 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
   }
 
   const handleFileUpload = async (file: File) => {
-    console.log("🚀 Starting file upload process...")
-    console.log("📁 File details:", {
+    console.log("[v0] Starting file upload process...")
+    console.log("[v0] File details:", {
       name: file.name,
       size: file.size,
       type: file.type,
@@ -151,7 +139,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
     })
 
     if (!selectedType) {
-      console.log("❌ No document type selected")
+      console.log("[v0] No document type selected")
       toast({
         title: "Error",
         description: "Please select a document type before uploading",
@@ -161,7 +149,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
     }
 
     if (!orderId) {
-      console.log("❌ No order ID provided")
+      console.log("[v0] No order ID provided")
       toast({
         title: "Error",
         description: "Order ID is required to upload documents",
@@ -171,7 +159,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      console.log("❌ File too large:", file.size)
+      console.log("[v0] File too large:", file.size)
       toast({
         title: "Error",
         description: "File size must be less than 5MB",
@@ -189,7 +177,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
       const filePath = `documents/${fileName}`
 
-      console.log("📂 Generated file path:", filePath)
+      console.log("[v0] Generated file path:", filePath)
 
       // Simulate upload progress
       const progressInterval = setInterval(() => {
@@ -202,63 +190,30 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
         })
       }, 200)
 
-      console.log("☁️ Uploading to Supabase Storage...")
+      console.log("[v0] Uploading to mock storage...")
 
-      // Upload file to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage.from("documents").upload(filePath, file)
+      const documentType = documentTypes.find((type) => type.id === selectedType)?.name || selectedType
+      const uploadResult = await mockStorage.upload(file, filePath, orderId, documentType)
 
-      if (uploadError) {
-        console.error("❌ Storage upload error:", uploadError)
-        throw uploadError
-      }
-
-      console.log("✅ Storage upload successful:", uploadData)
-
-      // Get public URL
-      const { data: urlData } = supabase.storage.from("documents").getPublicUrl(filePath)
-
-      console.log("🔗 Generated public URL:", urlData.publicUrl)
-
-      // Save document metadata to database
-      const documentType = documentTypes.find((type) => type.id === selectedType)
-      const documentData = {
-        name: file.name,
-        type: documentType?.name || selectedType,
-        url: urlData.publicUrl,
-        order_id: orderId,
-      }
-
-      console.log("💾 Inserting document metadata:", documentData)
-
-      const { data: dbData, error: dbError } = await supabase.from("uploaded_documents").insert([documentData]).select()
-
-      if (dbError) {
-        console.error("❌ Database insert error:", dbError)
-        // If database insert fails, clean up the uploaded file
-        console.log("🧹 Cleaning up uploaded file due to database error...")
-        await supabase.storage.from("documents").remove([filePath])
-        throw dbError
-      }
-
-      console.log("✅ Database insert successful:", dbData)
+      console.log("[v0] Upload successful:", uploadResult)
 
       // Complete progress
       clearInterval(progressInterval)
       setUploadProgress(100)
 
       // Add to local state immediately
-      if (dbData && dbData[0]) {
+      if (uploadResult.data) {
         const newDoc: UploadedDocument = {
-          id: dbData[0].id,
-          name: dbData[0].name,
-          type: dbData[0].type,
-          url: dbData[0].url,
+          id: uploadResult.data.id,
+          name: uploadResult.data.name,
+          type: uploadResult.data.type,
+          url: uploadResult.data.url,
           size: file.size,
-          uploadedAt: dbData[0].created_at,
-          order_id: dbData[0].order_id,
+          uploadedAt: uploadResult.data.created_at,
+          order_id: uploadResult.data.order_id,
         }
         setUploadedDocuments((prev) => [newDoc, ...prev])
-        console.log("📋 Added new document to local state:", newDoc)
+        console.log("[v0] Added new document to local state:", newDoc)
       }
 
       setSelectedType("")
@@ -268,15 +223,12 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
         description: "Document uploaded successfully",
       })
 
-      console.log("🎉 Upload process completed successfully!")
+      console.log("[v0] Upload process completed successfully!")
 
-      // Refresh documents from database to ensure consistency
-      setTimeout(() => {
-        console.log("🔄 Refreshing documents from database...")
-        fetchDocuments()
-      }, 1000)
+      // Force checklist to re-render
+      setChecklistKey((prev) => prev + 1)
     } catch (error: any) {
-      console.error("💥 Upload error:", error)
+      console.error("[v0] Upload error:", error)
       toast({
         title: "Error",
         description: error.message || "Failed to upload document. Please try again.",
@@ -290,9 +242,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
 
   const handleDeleteDocument = async (document: UploadedDocument) => {
     try {
-      console.log("🗑️ Starting deletion process for document:", document.id)
-      console.log("📋 Document details:", document)
-      console.log("🔍 Order ID:", orderId)
+      console.log("[v0] Starting deletion process for document:", document.id)
 
       // Show loading state
       toast({
@@ -300,31 +250,13 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
         description: `Removing ${document.name}`,
       })
 
-      // Use API route for deletion to bypass RLS issues
-      const response = await fetch("/api/documents/delete", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          documentId: document.id,
-          orderId: orderId,
-          filePath: document.url,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to delete document")
-      }
-
-      const result = await response.json()
-      console.log("✅ Document deleted via API:", result)
+      await mockStorage.delete(document.id)
+      console.log("[v0] Document deleted from mock storage")
 
       // Update local state immediately
       setUploadedDocuments((prev) => {
         const newDocs = prev.filter((doc) => doc.id !== document.id)
-        console.log("📋 Updated documents state after deletion:", newDocs.length, "documents remaining")
+        console.log("[v0] Updated documents state after deletion:", newDocs.length, "documents remaining")
         return newDocs
       })
 
@@ -336,25 +268,15 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
         description: "Document deleted successfully",
       })
 
-      console.log("✅ Document deletion completed successfully")
-
-      // Refresh from database after a short delay to verify
-      setTimeout(async () => {
-        console.log("🔄 Performing verification refresh...")
-        await fetchDocuments()
-      }, 1000)
+      console.log("[v0] Document deletion completed successfully")
     } catch (error: any) {
-      console.error("❌ Delete error:", error)
+      console.error("[v0] Delete error:", error)
 
-      // Show detailed error message
       toast({
         title: "Deletion Failed",
         description: error.message || "Failed to delete document. Please try again.",
         variant: "destructive",
       })
-
-      // Refresh from database to show current state
-      await fetchDocuments()
     }
   }
 
@@ -375,10 +297,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
   }
 
   const isDocumentTypeUploaded = (typeName: string) => {
-    const documentsCount = Array.isArray(uploadedDocuments) ? uploadedDocuments.length : 0
-    console.log("🔍 Checking if document type is uploaded:", typeName, "Current docs:", documentsCount)
-
-    if (!Array.isArray(uploadedDocuments)) return false
+    console.log("[v0] Checking if document type is uploaded:", typeName, "Current docs:", uploadedDocuments.length)
 
     const isUploaded = uploadedDocuments.some((doc) => {
       if (typeName === "Release Letter" && (doc.type === "Release Letter" || doc.type === "Release Letter/DRO")) {
@@ -387,7 +306,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
       return doc.type === typeName
     })
 
-    console.log("✅ Document type", typeName, "is uploaded:", isUploaded)
+    console.log("[v0] Document type", typeName, "is uploaded:", isUploaded)
     return isUploaded
   }
 
@@ -495,7 +414,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
         <div className="space-y-4">
           {documentTypes.map((type) => {
             const isUploaded = isDocumentTypeUploaded(type.name)
-            console.log(`🔍 Checklist render - ${type.name}: ${isUploaded ? "GREEN" : "RED"}`)
+            console.log(`[v0] Checklist render - ${type.name}: ${isUploaded ? "GREEN" : "RED"}`)
             return (
               <div key={type.id} className="flex items-center gap-3">
                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -514,15 +433,13 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
 
       <div className="bg-white rounded-lg p-4 border col-span-2 h-[500px] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h4 className="text-lg font-semibold">
-            Uploaded Documents ({Array.isArray(uploadedDocuments) ? uploadedDocuments.length : 0})
-          </h4>
+          <h4 className="text-lg font-semibold">Uploaded Documents ({uploadedDocuments.length})</h4>
           <Button variant="outline" size="sm" onClick={fetchDocuments}>
             Refresh
           </Button>
         </div>
         <div className="space-y-4">
-          {Array.isArray(uploadedDocuments) && uploadedDocuments.length > 0 ? (
+          {uploadedDocuments.length > 0 ? (
             uploadedDocuments.map((doc) => (
               <div key={doc.id} className="flex items-center justify-between p-3 bg-muted rounded-md group">
                 <div className="flex items-center gap-3 flex-1 min-w-0">

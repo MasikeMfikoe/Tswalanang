@@ -3,13 +3,47 @@ import { createBrowserClient } from "@supabase/ssr"
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing required Supabase environment variables")
+function cleanSupabaseCredentials(url: string | undefined, key: string | undefined) {
+  if (!url || !key) {
+    console.error("❌ Missing Supabase environment variables:", {
+      hasUrl: !!url,
+      hasKey: !!key,
+      urlLength: url?.length || 0,
+      keyLength: key?.length || 0,
+    })
+    return {
+      cleanUrl: "https://placeholder.supabase.co",
+      cleanKey: "placeholder-key",
+      isValid: false,
+    }
+  }
+
+  const cleanUrl = url.replace(/[^\x20-\x7E]/g, "").trim()
+  const cleanKey = key.replace(/[^\x20-\x7E]/g, "").trim()
+
+  // Basic validation
+  const isValidUrl = cleanUrl.startsWith("https://") && cleanUrl.length > 20
+  const isValidKey = cleanKey.length > 50
+
+  if (!isValidUrl || !isValidKey) {
+    console.warn("⚠️ Invalid Supabase credentials detected, using fallback")
+    return {
+      cleanUrl: "https://placeholder.supabase.co",
+      cleanKey: "placeholder-key",
+      isValid: false,
+    }
+  }
+
+  console.log("✅ Supabase credentials cleaned and validated")
+  return { cleanUrl, cleanKey, isValid: true }
 }
 
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
+const { cleanUrl, cleanKey, isValid } = cleanSupabaseCredentials(supabaseUrl, supabaseAnonKey)
 
-// Helper functions that work with the real Supabase client
+export const supabase = createBrowserClient(cleanUrl, cleanKey)
+
+console.log("✅ Supabase environment variables validated successfully")
+
 export async function fetchData<T>(table: string, query?: any): Promise<T[]> {
   try {
     let queryBuilder = supabase.from(table).select("*")

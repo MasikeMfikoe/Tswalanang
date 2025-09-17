@@ -75,7 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isClient = user.role === "client"
 
   const hasPageAccess = (pageKey: string) => {
-    if (!user?.pageAccess || !Array.isArray(user.pageAccess) || user.pageAccess.length === 0) return true
+    if (!user?.pageAccess || (user.pageAccess && user.pageAccess.length === 0)) return true
     return user.pageAccess.includes(pageKey)
   }
 
@@ -232,7 +232,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   ]
 
   const filterDropdownItems = (dropdownItems: NavigationItem["dropdown"]) => {
-    if (!dropdownItems || !Array.isArray(dropdownItems)) return []
+    if (!dropdownItems) return []
     return dropdownItems.filter((item) => {
       if (item.requiredPermission) {
         const hasRolePermission = hasPermission(item.requiredPermission.module, item.requiredPermission.action)
@@ -256,7 +256,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       if (item.dropdown) {
         const accessibleDropdownItems = filterDropdownItems(item.dropdown)
-        return Array.isArray(accessibleDropdownItems) && accessibleDropdownItems.length > 0
+        return accessibleDropdownItems.length > 0
       }
 
       return true
