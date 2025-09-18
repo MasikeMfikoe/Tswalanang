@@ -3,7 +3,15 @@
 import { useState } from "react"
 import { DocumentUpload } from "@/components/DocumentUpload"
 
-export default function DocumentManagement({ orderId, isEditing }: { orderId: string; isEditing: boolean }) {
+export default function DocumentManagement({
+  orderId,
+  isEditing,
+  poNumber,
+}: {
+  orderId: string
+  isEditing: boolean
+  poNumber?: string
+}) {
   const [documents, setDocuments] = useState([
     { id: 1, name: "Invoice.pdf", type: "Invoice" },
     { id: 2, name: "ShippingDoc.pdf", type: "Shipping Document" },
@@ -11,7 +19,7 @@ export default function DocumentManagement({ orderId, isEditing }: { orderId: st
 
   return (
     <div className="space-y-6">
-      <DocumentUpload isEditing={isEditing} orderId={orderId} />
+      <DocumentUpload isEditing={isEditing} orderId={orderId} poNumber={poNumber} />
     </div>
   )
 }

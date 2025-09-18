@@ -26,7 +26,11 @@ interface UploadedDocument {
   order_id?: string
 }
 
-export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; orderId: string }) {
+export function DocumentUpload({
+  isEditing,
+  orderId,
+  poNumber,
+}: { isEditing: boolean; orderId: string; poNumber?: string }) {
   const { toast } = useToast()
   const [dragActive, setDragActive] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<UploadedDocument | null>(null)
@@ -59,8 +63,8 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
 
   // Debug: Log component props
   useEffect(() => {
-    console.log("[v0] DocumentUpload component loaded with:", { isEditing, orderId })
-  }, [isEditing, orderId])
+    console.log("[v0] DocumentUpload component loaded with:", { isEditing, orderId, poNumber })
+  }, [isEditing, orderId, poNumber])
 
   useEffect(() => {
     if (orderId) {
@@ -117,27 +121,18 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await handleFileUpload(e.dataTransfer.files[0])
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await handleMultipleFileUpload(Array.from(e.dataTransfer.files))
     }
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      await handleFileUpload(e.target.files[0])
+    if (e.target.files && e.target.files.length > 0) {
+      await handleMultipleFileUpload(Array.from(e.target.files))
     }
   }
 
-  const handleFileUpload = async (file: File) => {
-    console.log("[v0] Starting file upload process...")
-    console.log("[v0] File details:", {
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      selectedType,
-      orderId,
-    })
-
+  const handleMultipleFileUpload = async (files: File[]) => {
     if (!selectedType) {
       console.log("[v0] No document type selected")
       toast({
@@ -158,80 +153,96 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      console.log("[v0] File too large:", file.size)
+    // Check file sizes
+    const oversizedFiles = files.filter((file) => file.size > 5 * 1024 * 1024)
+    if (oversizedFiles.length > 0) {
       toast({
         title: "Error",
-        description: "File size must be less than 5MB",
+        description: `${oversizedFiles.length} file(s) exceed the 5MB limit`,
         variant: "destructive",
       })
       return
     }
 
+    console.log(`[v0] Starting upload of ${files.length} files`)
     setIsUploading(true)
     setUploadProgress(0)
 
+    const successfulUploads: UploadedDocument[] = []
+    const failedUploads: string[] = []
+
     try {
-      // Create unique filename
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-      const filePath = `documents/${fileName}`
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        console.log(`[v0] Uploading file ${i + 1}/${files.length}: ${file.name}`)
 
-      console.log("[v0] Generated file path:", filePath)
+        try {
+          // Create unique filename
+          const fileExt = file.name.split(".").pop()
+          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+          const filePath = `documents/${fileName}`
 
-      // Simulate upload progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval)
-            return 90
+          const documentType = documentTypes.find((type) => type.id === selectedType)?.name || selectedType
+          const uploadResult = await mockStorage.upload(file, filePath, orderId, documentType, poNumber)
+
+          if (uploadResult.data) {
+            const newDoc: UploadedDocument = {
+              id: uploadResult.data.id,
+              name: uploadResult.data.name,
+              type: uploadResult.data.type,
+              url: uploadResult.data.url,
+              size: file.size,
+              uploadedAt: uploadResult.data.created_at,
+              order_id: uploadResult.data.order_id,
+            }
+            successfulUploads.push(newDoc)
+            console.log(`[v0] Successfully uploaded: ${file.name}`)
           }
-          return prev + 10
-        })
-      }, 200)
-
-      console.log("[v0] Uploading to mock storage...")
-
-      const documentType = documentTypes.find((type) => type.id === selectedType)?.name || selectedType
-      const uploadResult = await mockStorage.upload(file, filePath, orderId, documentType)
-
-      console.log("[v0] Upload successful:", uploadResult)
-
-      // Complete progress
-      clearInterval(progressInterval)
-      setUploadProgress(100)
-
-      // Add to local state immediately
-      if (uploadResult.data) {
-        const newDoc: UploadedDocument = {
-          id: uploadResult.data.id,
-          name: uploadResult.data.name,
-          type: uploadResult.data.type,
-          url: uploadResult.data.url,
-          size: file.size,
-          uploadedAt: uploadResult.data.created_at,
-          order_id: uploadResult.data.order_id,
+        } catch (error) {
+          console.error(`[v0] Failed to upload ${file.name}:`, error)
+          failedUploads.push(file.name)
         }
-        setUploadedDocuments((prev) => [newDoc, ...prev])
-        console.log("[v0] Added new document to local state:", newDoc)
+
+        // Update progress
+        setUploadProgress(Math.round(((i + 1) / files.length) * 100))
+      }
+
+      // Update local state with successful uploads
+      if (successfulUploads.length > 0) {
+        setUploadedDocuments((prev) => [...successfulUploads, ...prev])
+        console.log(`[v0] Added ${successfulUploads.length} documents to local state`)
+      }
+
+      // Show results
+      if (successfulUploads.length === files.length) {
+        toast({
+          title: "Success",
+          description: `All ${files.length} document(s) uploaded successfully`,
+        })
+      } else if (successfulUploads.length > 0) {
+        toast({
+          title: "Partial Success",
+          description: `${successfulUploads.length} of ${files.length} documents uploaded successfully`,
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to upload any documents",
+          variant: "destructive",
+        })
+      }
+
+      if (failedUploads.length > 0) {
+        console.log("[v0] Failed uploads:", failedUploads)
       }
 
       setSelectedType("")
-
-      toast({
-        title: "Success",
-        description: "Document uploaded successfully",
-      })
-
-      console.log("[v0] Upload process completed successfully!")
-
-      // Force checklist to re-render
       setChecklistKey((prev) => prev + 1)
     } catch (error: any) {
-      console.error("[v0] Upload error:", error)
+      console.error("[v0] Multiple upload error:", error)
       toast({
         title: "Error",
-        description: error.message || "Failed to upload document. Please try again.",
+        description: error.message || "Failed to upload documents. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -364,6 +375,7 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
               onChange={handleFileChange}
               disabled={isUploading}
               accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+              multiple
             />
             <div className="flex flex-col items-center gap-2">
               {isUploading ? (
@@ -377,7 +389,10 @@ export function DocumentUpload({ isEditing, orderId }: { isEditing: boolean; ord
                   <div className="text-sm">
                     <span className="font-semibold text-primary">Click to upload</span> or drag and drop
                   </div>
-                  <div className="text-xs text-muted-foreground">PDF, PNG, JPG, DOC (MAX. 5MB)</div>
+                  <div className="text-xs text-muted-foreground">PDF, PNG, JPG, DOC (MAX. 5MB each)</div>
+                  <div className="text-xs text-muted-foreground font-medium">
+                    Select multiple files to upload them all at once
+                  </div>
                 </>
               )}
             </div>

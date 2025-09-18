@@ -1,7 +1,7 @@
 const mockStorage = {
   documents: new Map<string, any>(),
 
-  upload: async (file: File, filePath: string, orderId: string, documentType: string) => {
+  upload: async (file: File, filePath: string, orderId: string, documentType: string, poNumber?: string) => {
     // Simulate upload delay
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
@@ -16,6 +16,7 @@ const mockStorage = {
       size: file.size,
       created_at: new Date().toISOString(),
       order_id: orderId,
+      po_number: poNumber || orderId, // Store PO number for documents page
       file_path: filePath,
     }
 
@@ -30,6 +31,15 @@ const mockStorage = {
 
     const documents = Array.from(mockStorage.documents.values()).filter((doc) => doc.order_id === orderId)
     console.log("[v0] Retrieved documents from shared storage for order", orderId, ":", documents)
+    return { data: documents }
+  },
+
+  getAllDocuments: async () => {
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    const documents = Array.from(mockStorage.documents.values())
+    console.log("[v0] Retrieved all documents from shared storage:", documents)
     return { data: documents }
   },
 

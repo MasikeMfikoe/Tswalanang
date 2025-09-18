@@ -673,12 +673,12 @@ export default function OrderDetailsClient({ id }: { id: string }) {
             </TabsList>
 
             <TabsContent value="documents">
-              <DocumentManagement orderId={order.id} isEditing={false} />
+              <DocumentManagement orderId={order.id} isEditing={false} poNumber={order.po_number} />
             </TabsContent>
 
             {isEditing && (
               <TabsContent value="upload">
-                <DocumentManagement orderId={order.id} isEditing />
+                <DocumentManagement orderId={order.id} isEditing poNumber={order.po_number} />
               </TabsContent>
             )}
 
