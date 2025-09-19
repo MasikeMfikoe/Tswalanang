@@ -8,6 +8,7 @@ const CLIENT_PACK_DOCUMENT_TYPES = [
   "Commercial Invoice",
   "Packing List",
   "Bill of Lading",
+  "Clearing Instruction",
 ]
 
 // Additional document types for EXW & FOB only

@@ -80,6 +80,7 @@ export async function getClientPackDocuments(orderId: string): Promise<Document[
       "Co-loader Charges",
       "Forwarding Charges",
       "Delivery Note",
+      "Clearing Instruction",
     ]
 
     // Try to fetch from uploaded_documents table first

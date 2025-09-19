@@ -42,6 +42,7 @@ export function DocumentUpload({
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([
     { id: "ANF", name: "ANF" },
     { id: "cargo", name: "Cargo Dues" },
+    { id: "clearing-instruction", name: "Clearing Instruction" },
     { id: "customs", name: "Customs Worksheet" },
     { id: "delivery-instruction", name: "Delivery Instruction" },
     { id: "edi", name: "EDI" },
