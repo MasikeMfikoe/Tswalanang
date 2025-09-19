@@ -16,7 +16,6 @@ import {
   Search,
   Package,
   FileText,
-  Truck,
   UserCheck,
   TrendingUp,
   DollarSign,
@@ -120,33 +119,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: FileText,
       pageKey: "estimates",
       requiredPermission: { module: "orders", action: "view" },
-    },
-    {
-      label: "Documents",
-      icon: FileText,
-      pageKey: "documents",
-      requiredPermission: { module: "documents", action: "view" },
-      dropdown: [
-        {
-          href: "/documents",
-          label: "All Documents",
-          pageKey: "documents",
-          requiredPermission: { module: "documents", action: "view" },
-        },
-        {
-          href: "/documents/upload",
-          label: "Upload Document",
-          pageKey: "documents",
-          requiredPermission: { module: "documents", action: "create" },
-        },
-      ],
-    },
-    {
-      href: "/deliveries",
-      label: "Deliveries",
-      icon: Truck,
-      pageKey: "deliveries",
-      requiredPermission: { module: "deliveries", action: "view" },
     },
     {
       href: "/customers",

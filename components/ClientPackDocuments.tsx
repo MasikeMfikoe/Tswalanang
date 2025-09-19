@@ -13,6 +13,7 @@ const CLIENT_PACK_DOCUMENT_TYPES = [
   "Delivery Instruction",
   "EDI",
   "Commercial Invoice",
+  "Packing List", // Added Packing List to document types
   "Bill of Lading",
   "Release Letter",
   "SAD500",

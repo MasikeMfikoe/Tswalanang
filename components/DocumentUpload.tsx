@@ -47,6 +47,7 @@ export function DocumentUpload({
     { id: "delivery-instruction", name: "Delivery Instruction" },
     { id: "edi", name: "EDI" },
     { id: "invoice", name: "Commercial Invoice" },
+    { id: "packing-list", name: "Packing List" }, // Added Packing List to document types
     { id: "lading", name: "Bill of Lading" },
     { id: "release-letter", name: "Release Letter" },
     { id: "sad500", name: "SAD500" },
